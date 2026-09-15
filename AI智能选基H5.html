@@ -319,7 +319,7 @@ body {
   <!-- Risk Profile -->
   <div class="px-5 mb-4 fade-in-up" style="animation-delay:.08s">
     <div class="flex items-center justify-between mb-2.5">
-      <span class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider">我的投资画像</span>
+      <span class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider">我的客户画像</span>
       <span class="text-[10px] text-[var(--gold)] cursor-pointer" @click="openKYC">点击修改，让我们更了解你</span>
     </div>
     <div class="grid grid-cols-3 gap-2">
@@ -337,7 +337,7 @@ body {
       </div>
     </div>
     <div v-if="profileUpdated" class="mt-2 text-[10px] text-[var(--gold)] fade-in" style="animation-duration:.3s">
-      风险画像已更新，选基结果将相应调整
+      客户画像已更新，选基结果将相应调整
     </div>
   </div>
 
@@ -649,6 +649,49 @@ body {
       </div>
     </div>
 
+    <!-- Top 10 Holdings -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">前十大重仓股</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">报告期：2024Q4</span>
+      </div>
+      <div class="glass-card p-4 card-enter stagger-4">
+        <div class="overflow-hidden rounded-lg" style="background:rgba(10,21,40,.6)">
+          <table class="w-full text-[11px]">
+            <thead>
+              <tr style="background:rgba(212,168,81,.1);border-bottom:1px solid rgba(212,168,81,.2)">
+                <th class="py-2 px-2 text-left text-[var(--gold-light)] font-medium" style="width:32px">序号</th>
+                <th class="py-2 px-2 text-left text-[var(--gold-light)] font-medium" style="width:70px">股票代码</th>
+                <th class="py-2 px-2 text-left text-[var(--gold-light)] font-medium">股票名称</th>
+                <th class="py-2 px-2 text-right text-[var(--gold-light)] font-medium" style="width:120px">持仓比例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(s, idx) in topHoldingsDisplay" :key="s.stockCode"
+                  :style="{background: idx % 2 === 0 ? 'rgba(10,21,40,.3)' : 'rgba(10,21,40,.1)'}">
+                <td class="py-1.5 px-2 text-[var(--text-muted)] mono">{{ idx + 1 }}</td>
+                <td class="py-1.5 px-2 text-[var(--text-primary)] mono">{{ s.stockCode }}</td>
+                <td class="py-1.5 px-2 text-[var(--text-secondary)]">{{ s.stockName }}</td>
+                <td class="py-1.5 px-2">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <div class="rounded-full overflow-hidden" style="width:60px;height:4px;background:rgba(212,168,81,.15)">
+                      <div class="h-full rounded-full" :style="{width:(s.weight*100*1.5)+'%',background:'var(--gold)'}"></div>
+                    </div>
+                    <span class="text-[var(--gold-light)] mono" style="min-width:40px;text-align:right">{{ (s.weight*100).toFixed(2) }}%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-2 px-1 flex justify-between text-[9px] text-[var(--text-muted)]">
+          <span>合计持仓比例</span>
+          <span class="mono text-[var(--gold-light)]">{{ topHoldingsTotal }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Valuation Metrics -->
     <div class="mt-5">
       <div class="flex items-center gap-2 mb-2.5">
@@ -743,7 +786,7 @@ body {
     <!-- Progress Bar -->
     <div v-if="kycStep < kycQuestions.length" class="mb-4">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] text-[var(--text-muted)]">KYC风险问卷</span>
+        <span class="text-[11px] text-[var(--text-muted)]">KYC问卷</span>
         <span class="text-[11px] text-[var(--gold)] mono">{{ kycStep + 1 }}/{{ kycQuestions.length }}</span>
       </div>
       <div class="h-1.5 rounded-full" style="background:rgba(212,168,81,.1)">
@@ -837,6 +880,57 @@ const INDUSTRY_MAP = {
   CI005026:'通信',CI005027:'计算机',CI005028:'传媒',CI005029:'综合金融',CI005030:'综合'
 };
 
+// ============ TOP 10 HOLDINGS GENERATOR ============
+const INDUSTRY_STOCK_POOL = {
+  'CI005001':[['600031','三一重工'],['000333','美的集团'],['601766','中国中车'],['600009','上海机场'],['002027','分众传媒']],
+  'CI005002':[['601857','中国石油'],['600028','中国石化'],['601808','中海油服'],['600585','海螺水泥'],['002493','荣盛石化']],
+  'CI005003':[['600276','恒瑞医药'],['000538','云南白药'],['300015','爱尔眼科'],['600436','片仔癀'],['000963','华东医药']],
+  'CI005004':[['600519','贵州茅台'],['000858','五粮液'],['000568','泸州老窖'],['002304','洋河股份'],['600809','山西汾酒']],
+  'CI005005':[['601088','中国神华'],['601225','陕西煤业'],['600188','兖矿能源'],['601898','中煤能源']],
+  'CI005006':[['600309','万华化学'],['600585','海螺水泥'],['000708','中信特钢'],['002493','荣盛石化']],
+  'CI005007':[['600585','海螺水泥'],['000708','中信特钢'],['600801','华新水泥']],
+  'CI005008':[['600585','海螺水泥'],['000708','中信特钢'],['600801','华新水泥']],
+  'CI005010':[['600036','招商银行'],['601398','工商银行'],['601318','中国平安'],['601166','兴业银行'],['600000','浦发银行']],
+  'CI005011':[['300750','宁德时代'],['002594','比亚迪'],['601012','隆基绿能'],['002129','TCL中环'],['600438','通威股份']],
+  'CI005012':[['002475','立讯精密'],['300059','东方财富'],['603501','韦尔股份'],['002241','歌尔股份'],['600183','生益科技']],
+  'CI005013':[['600276','恒瑞医药'],['000538','云南白药'],['300015','爱尔眼科'],['600436','片仔癀'],['000963','华东医药']],
+  'CI005014':[['002415','海康威视'],['600570','恒生电子'],['000977','中兴通讯'],['002230','科大讯飞'],['300033','同花顺']],
+  'CI005015':[['002415','海康威视'],['600570','恒生电子'],['000977','中兴通讯']],
+  'CI005016':[['600183','生益科技'],['002475','立讯精密'],['300059','东方财富']],
+  'CI005017':[['000333','美的集团'],['600660','福耀玻璃'],['002508','老板电器']],
+  'CI005018':[['600276','恒瑞医药'],['000538','云南白药'],['300015','爱尔眼科'],['600436','片仔癀'],['000963','华东医药']],
+  'CI005019':[['600519','贵州茅台'],['000858','五粮液'],['000568','泸州老窖'],['002304','洋河股份'],['600809','山西汾酒']],
+  'CI005020':[['002714','牧原股份'],['000876','新希望'],['600977','唐人神']],
+  'CI005021':[['601398','工商银行'],['600036','招商银行'],['601318','中国平安'],['601166','兴业银行'],['600000','浦发银行']],
+  'CI005022':[['601318','中国平安'],['600030','中信证券'],['601628','中国人寿'],['600837','海通证券']],
+  'CI005023':[['001979','招商蛇口'],['600048','保利发展'],['000069','华侨城A']],
+  'CI005024':[['601111','中国国航'],['600029','南方航空'],['601012','隆基绿能']],
+  'CI005025':[['002475','立讯精密'],['300059','东方财富'],['603501','韦尔股份'],['002241','歌尔股份'],['600183','生益科技']],
+  'CI005026':[['600050','中国联通'],['000063','中兴通讯'],['600941','中国移动'],['601728','中国电信'],['002231','恒宝股份']],
+  'CI005027':[['002415','海康威视'],['600570','恒生电子'],['000977','中兴通讯'],['002230','科大讯飞'],['300033','同花顺']],
+  'CI005028':[['300133','华策影视'],['002555','三七互娱'],['300413','芒果超媒'],['002602','世纪华通']],
+  'CI005029':[['600643','爱建集团'],['000686','东北证券']],
+  'CI005030':[['600196','复星医药'],['000999','华润三九'],['600276','恒瑞医药']]
+};
+function genTop10Holdings(indCfg){
+  const sorted=Object.entries(indCfg).sort((a,b)=>b[1]-a[1]);
+  const picked=[];const used=new Set();
+  for(const[ind,w]of sorted){
+    const pool=INDUSTRY_STOCK_POOL[ind]||[];
+    for(const[code,name]of pool){
+      if(!used.has(code)&&picked.length<10){picked.push({stockCode:code,stockName:name});used.add(code);}
+    }
+    if(picked.length>=10)break;
+  }
+  const def=[['601398','工商银行'],['600036','招商银行'],['601318','中国平安'],['600519','贵州茅台'],['000858','五粮液'],['300750','宁德时代'],['002594','比亚迪'],['601012','隆基绿能'],['600276','恒瑞医药'],['000333','美的集团']];
+  for(const[code,name]of def){
+    if(!used.has(code)&&picked.length<10){picked.push({stockCode:code,stockName:name});used.add(code);}
+    if(picked.length>=10)break;
+  }
+  picked.forEach((s,i)=>{s.weight=+(0.06-i*0.002).toFixed(4);});
+  return picked;
+}
+
 // ============ MOCK FUND DATA ============
 const MOCK_FUNDS = [
   {
@@ -849,7 +943,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.085,ANNUALRETURN_RATE:0.062,SHARP:1.20,MAX_DRAWDOWN:-0.053,VOL:0.032,KARMA:1.50,INFO_RATIO:0.80,BETA:0.85,SORTINO:1.80,TREYNOR:0.12,JASON:0.025,MSQUARE:0.013,VAR:-0.021,MAX_DRAWDOWN_RECOVER:120},
     riskFactors:{BETA:0.85,EARNING:0.32,LEVERAGE:-0.15,LIQUIDITY:0.10,MOMENTUM:0.25,VALUE:0.40,VOLATILITY:-0.20,GROWTH:0.10,SIZE:0.28},
     industryConfig:{CI005025:0.152,CI005027:0.085,CI005018:0.072,CI005019:0.065,CI005021:0.058,CI005011:0.045,CI005017:0.040,CI005010:0.035,CI005003:0.030,CI005001:0.025,CI005006:0.020,CI005012:0.018,CI005013:0.015,CI005014:0.012,CI005024:0.010,CI005004:0.008,CI005030:0.005,CI005005:0.003,CI005007:0.002,CI005008:0.001},
-    valuation:{PE:15.2,PB:1.8,ROE:0.185,ROA:0.082,GRONP:0.253,GROR:0.156,DIVIDEND:0.032,MKT:5000,CHANGE_RATE:0.85}
+    valuation:{PE:15.2,PB:1.8,ROE:0.185,ROA:0.082,GRONP:0.253,GROR:0.156,DIVIDEND:0.032,MKT:5000,CHANGE_RATE:0.85},
+    topHoldings:genTop10Holdings({CI005025:0.152,CI005027:0.085,CI005018:0.072,CI005019:0.065,CI005021:0.058,CI005011:0.045,CI005017:0.040,CI005010:0.035,CI005003:0.030,CI005001:0.025,CI005006:0.020,CI005012:0.018,CI005013:0.015,CI005014:0.012,CI005024:0.010,CI005004:0.008,CI005030:0.005,CI005005:0.003,CI005007:0.002,CI005008:0.001})
   },
   {
     fundCode:'000006.OF', fundName:'西部利得量化优选', fundFullName:'西部利得量化优选混合型证券投资基金',
@@ -861,7 +956,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.152,ANNUALRETURN_RATE:0.118,SHARP:1.85,MAX_DRAWDOWN:-0.085,VOL:0.045,KARMA:2.10,INFO_RATIO:0.95,BETA:1.12,SORTINO:2.20,TREYNOR:0.15,JASON:0.035,MSQUARE:0.018,VAR:-0.032,MAX_DRAWDOWN_RECOVER:85},
     riskFactors:{BETA:1.12,EARNING:0.28,LEVERAGE:0.05,LIQUIDITY:0.18,MOMENTUM:0.35,VALUE:-0.10,VOLATILITY:0.15,GROWTH:0.42,SIZE:0.45},
     industryConfig:{CI005027:0.185,CI005025:0.120,CI005011:0.095,CI005018:0.070,CI005019:0.055,CI005010:0.045,CI005012:0.040,CI005013:0.035,CI005003:0.025,CI005001:0.020,CI005006:0.015,CI005017:0.012,CI005021:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002,CI005007:0.001},
-    valuation:{PE:22.5,PB:2.8,ROE:0.158,ROA:0.065,GRONP:0.185,GROR:0.122,DIVIDEND:0.015,MKT:8000,CHANGE_RATE:1.20}
+    valuation:{PE:22.5,PB:2.8,ROE:0.158,ROA:0.065,GRONP:0.185,GROR:0.122,DIVIDEND:0.015,MKT:8000,CHANGE_RATE:1.20},
+    topHoldings:genTop10Holdings({CI005027:0.185,CI005025:0.120,CI005011:0.095,CI005018:0.070,CI005019:0.055,CI005010:0.045,CI005012:0.040,CI005013:0.035,CI005003:0.025,CI005001:0.020,CI005006:0.015,CI005017:0.012,CI005021:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002,CI005007:0.001})
   },
   {
     fundCode:'000008.OF', fundName:'嘉实300', fundFullName:'嘉实沪深300指数证券投资基金',
@@ -873,7 +969,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.062,ANNUALRETURN_RATE:0.055,SHARP:0.95,MAX_DRAWDOWN:-0.038,VOL:0.028,KARMA:1.20,INFO_RATIO:0.65,BETA:0.98,SORTINO:1.35,TREYNOR:0.09,JASON:0.012,MSQUARE:0.008,VAR:-0.018,MAX_DRAWDOWN_RECOVER:95},
     riskFactors:{BETA:0.98,EARNING:0.25,LEVERAGE:-0.08,LIQUIDITY:0.22,MOMENTUM:0.15,VALUE:0.20,VOLATILITY:-0.05,GROWTH:0.18,SIZE:0.55},
     industryConfig:{CI005021:0.142,CI005025:0.085,CI005027:0.075,CI005019:0.068,CI005018:0.055,CI005017:0.048,CI005010:0.040,CI005003:0.035,CI005001:0.032,CI005006:0.025,CI005012:0.020,CI005011:0.018,CI005013:0.015,CI005014:0.012,CI005024:0.010,CI005004:0.008,CI005022:0.005,CI005030:0.002},
-    valuation:{PE:12.8,PB:1.45,ROE:0.122,ROA:0.055,GRONP:0.085,GROR:0.062,DIVIDEND:0.035,MKT:12000,CHANGE_RATE:0.45}
+    valuation:{PE:12.8,PB:1.45,ROE:0.122,ROA:0.055,GRONP:0.085,GROR:0.062,DIVIDEND:0.035,MKT:12000,CHANGE_RATE:0.45},
+    topHoldings:genTop10Holdings({CI005021:0.142,CI005025:0.085,CI005027:0.075,CI005019:0.068,CI005018:0.055,CI005017:0.048,CI005010:0.040,CI005003:0.035,CI005001:0.032,CI005006:0.025,CI005012:0.020,CI005011:0.018,CI005013:0.015,CI005014:0.012,CI005024:0.010,CI005004:0.008,CI005022:0.005,CI005030:0.002})
   },
   {
     fundCode:'050001.OF', fundName:'博时现金收益', fundFullName:'博时现金收益证券投资基金',
@@ -885,7 +982,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.028,ANNUALRETURN_RATE:0.025,SHARP:1.05,MAX_DRAWDOWN:-0.008,VOL:0.012,KARMA:2.50,INFO_RATIO:0.45,BETA:0.02,SORTINO:1.50,TREYNOR:0.05,JASON:0.005,MSQUARE:0.002,VAR:-0.005,MAX_DRAWDOWN_RECOVER:15},
     riskFactors:{BETA:0.02,EARNING:0.08,LEVERAGE:-0.20,LIQUIDITY:0.35,MOMENTUM:-0.05,VALUE:0.12,VOLATILITY:-0.30,GROWTH:0.02,SIZE:0.15},
     industryConfig:{CI005021:0.025,CI005029:0.015,CI005024:0.010,CI005030:0.005},
-    valuation:{PE:8.5,PB:0.85,ROE:0.065,ROA:0.032,GRONP:0.025,GROR:0.018,DIVIDEND:0.045,MKT:500,CHANGE_RATE:0.15}
+    valuation:{PE:8.5,PB:0.85,ROE:0.065,ROA:0.032,GRONP:0.025,GROR:0.018,DIVIDEND:0.045,MKT:500,CHANGE_RATE:0.15},
+    topHoldings:genTop10Holdings({CI005021:0.025,CI005029:0.015,CI005024:0.010,CI005030:0.005})
   },
   {
     fundCode:'020003.OF', fundName:'嘉实多元收益债券', fundFullName:'嘉实多元收益债券型证券投资基金',
@@ -897,7 +995,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.045,ANNUALRETURN_RATE:0.038,SHARP:1.35,MAX_DRAWDOWN:-0.015,VOL:0.018,KARMA:2.00,INFO_RATIO:0.55,BETA:0.15,SORTINO:1.65,TREYNOR:0.07,JASON:0.008,MSQUARE:0.005,VAR:-0.008,MAX_DRAWDOWN_RECOVER:30},
     riskFactors:{BETA:0.15,EARNING:0.12,LEVERAGE:-0.18,LIQUIDITY:0.28,MOMENTUM:0.02,VALUE:0.15,VOLATILITY:-0.25,GROWTH:0.05,SIZE:0.20},
     industryConfig:{CI005021:0.085,CI005022:0.065,CI005029:0.045,CI005024:0.025,CI005030:0.015,CI005001:0.008,CI005003:0.005},
-    valuation:{PE:10.5,PB:1.12,ROE:0.092,ROA:0.045,GRONP:0.055,GROR:0.038,DIVIDEND:0.038,MKT:1200,CHANGE_RATE:0.25}
+    valuation:{PE:10.5,PB:1.12,ROE:0.092,ROA:0.045,GRONP:0.055,GROR:0.038,DIVIDEND:0.038,MKT:1200,CHANGE_RATE:0.25},
+    topHoldings:genTop10Holdings({CI005021:0.085,CI005022:0.065,CI005029:0.045,CI005024:0.025,CI005030:0.015,CI005001:0.008,CI005003:0.005})
   },
   {
     fundCode:'005827.OF', fundName:'易方达蓝筹精选', fundFullName:'易方达蓝筹精选混合型证券投资基金',
@@ -909,7 +1008,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.125,ANNUALRETURN_RATE:0.098,SHARP:1.45,MAX_DRAWDOWN:-0.072,VOL:0.038,KARMA:1.80,INFO_RATIO:0.88,BETA:0.92,SORTINO:1.95,TREYNOR:0.13,JASON:0.028,MSQUARE:0.015,VAR:-0.025,MAX_DRAWDOWN_RECOVER:100},
     riskFactors:{BETA:0.92,EARNING:0.38,LEVERAGE:-0.12,LIQUIDITY:0.15,MOMENTUM:0.20,VALUE:0.45,VOLATILITY:-0.15,GROWTH:0.25,SIZE:0.42},
     industryConfig:{CI005019:0.185,CI005018:0.125,CI005021:0.085,CI005017:0.065,CI005025:0.045,CI005027:0.035,CI005010:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005013:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002},
-    valuation:{PE:18.5,PB:2.2,ROE:0.195,ROA:0.078,GRONP:0.145,GROR:0.095,DIVIDEND:0.025,MKT:6500,CHANGE_RATE:0.65}
+    valuation:{PE:18.5,PB:2.2,ROE:0.195,ROA:0.078,GRONP:0.145,GROR:0.095,DIVIDEND:0.025,MKT:6500,CHANGE_RATE:0.65},
+    topHoldings:genTop10Holdings({CI005019:0.185,CI005018:0.125,CI005021:0.085,CI005017:0.065,CI005025:0.045,CI005027:0.035,CI005010:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005013:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002})
   },
   {
     fundCode:'161725.OF', fundName:'招商中证白酒', fundFullName:'招商中证白酒指数证券投资基金',
@@ -921,7 +1021,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.185,ANNUALRETURN_RATE:0.145,SHARP:1.60,MAX_DRAWDOWN:-0.095,VOL:0.052,KARMA:1.85,INFO_RATIO:0.92,BETA:1.05,SORTINO:2.10,TREYNOR:0.14,JASON:0.032,MSQUARE:0.020,VAR:-0.035,MAX_DRAWDOWN_RECOVER:75},
     riskFactors:{BETA:1.05,EARNING:0.42,LEVERAGE:-0.08,LIQUIDITY:0.20,MOMENTUM:0.38,VALUE:0.15,VOLATILITY:0.20,GROWTH:0.30,SIZE:0.35},
     industryConfig:{CI005019:0.685,CI005014:0.045,CI005015:0.025,CI005030:0.010,CI005021:0.005},
-    valuation:{PE:28.5,PB:3.5,ROE:0.225,ROA:0.095,GRONP:0.185,GROR:0.125,DIVIDEND:0.012,MKT:4500,CHANGE_RATE:0.75}
+    valuation:{PE:28.5,PB:3.5,ROE:0.225,ROA:0.095,GRONP:0.185,GROR:0.125,DIVIDEND:0.012,MKT:4500,CHANGE_RATE:0.75},
+    topHoldings:genTop10Holdings({CI005019:0.685,CI005014:0.045,CI005015:0.025,CI005030:0.010,CI005021:0.005})
   },
   {
     fundCode:'110011.OF', fundName:'易方达优质精选', fundFullName:'易方达优质精选混合型证券投资基金',
@@ -933,7 +1034,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.135,ANNUALRETURN_RATE:0.108,SHARP:1.50,MAX_DRAWDOWN:-0.078,VOL:0.042,KARMA:1.75,INFO_RATIO:0.85,BETA:1.08,SORTINO:1.90,TREYNOR:0.13,JASON:0.028,MSQUARE:0.016,VAR:-0.028,MAX_DRAWDOWN_RECOVER:90},
     riskFactors:{BETA:1.08,EARNING:0.35,LEVERAGE:0.08,LIQUIDITY:0.12,MOMENTUM:0.30,VALUE:-0.05,VOLATILITY:0.18,GROWTH:0.45,SIZE:-0.15},
     industryConfig:{CI005027:0.155,CI005025:0.135,CI005018:0.085,CI005011:0.065,CI005019:0.055,CI005010:0.040,CI005012:0.035,CI005013:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005017:0.010,CI005024:0.008,CI005030:0.003},
-    valuation:{PE:25.8,PB:3.2,ROE:0.172,ROA:0.072,GRONP:0.168,GROR:0.115,DIVIDEND:0.018,MKT:3500,CHANGE_RATE:0.92}
+    valuation:{PE:25.8,PB:3.2,ROE:0.172,ROA:0.072,GRONP:0.168,GROR:0.115,DIVIDEND:0.018,MKT:3500,CHANGE_RATE:0.92},
+    topHoldings:genTop10Holdings({CI005027:0.155,CI005025:0.135,CI005018:0.085,CI005011:0.065,CI005019:0.055,CI005010:0.040,CI005012:0.035,CI005013:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005017:0.010,CI005024:0.008,CI005030:0.003})
   },
   {
     fundCode:'005918.OF', fundName:'广发双债升级', fundFullName:'广发双债升级债券型证券投资基金',
@@ -945,7 +1047,8 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.052,ANNUALRETURN_RATE:0.045,SHARP:1.40,MAX_DRAWDOWN:-0.018,VOL:0.020,KARMA:2.20,INFO_RATIO:0.62,BETA:0.12,SORTINO:1.70,TREYNOR:0.08,JASON:0.010,MSQUARE:0.006,VAR:-0.010,MAX_DRAWDOWN_RECOVER:25},
     riskFactors:{BETA:0.12,EARNING:0.15,LEVERAGE:-0.16,LIQUIDITY:0.30,MOMENTUM:0.05,VALUE:0.18,VOLATILITY:-0.22,GROWTH:0.08,SIZE:0.18},
     industryConfig:{CI005021:0.065,CI005022:0.045,CI005029:0.035,CI005024:0.020,CI005030:0.010,CI005001:0.005,CI005003:0.003},
-    valuation:{PE:11.2,PB:1.18,ROE:0.098,ROA:0.048,GRONP:0.062,GROR:0.042,DIVIDEND:0.040,MKT:1500,CHANGE_RATE:0.28}
+    valuation:{PE:11.2,PB:1.18,ROE:0.098,ROA:0.048,GRONP:0.062,GROR:0.042,DIVIDEND:0.040,MKT:1500,CHANGE_RATE:0.28},
+    topHoldings:genTop10Holdings({CI005021:0.065,CI005022:0.045,CI005029:0.035,CI005024:0.020,CI005030:0.010,CI005001:0.005,CI005003:0.003})
   },
   {
     fundCode:'260108.OF', fundName:'景顺长城新兴成长', fundFullName:'景顺长城新兴成长混合型证券投资基金',
@@ -957,7 +1060,463 @@ const MOCK_FUNDS = [
     performance:{RETURNRATE:0.225,ANNUALRETURN_RATE:0.185,SHARP:1.75,MAX_DRAWDOWN:-0.145,VOL:0.078,KARMA:1.55,INFO_RATIO:0.98,BETA:1.35,SORTINO:2.05,TREYNOR:0.18,JASON:0.042,MSQUARE:0.025,VAR:-0.052,MAX_DRAWDOWN_RECOVER:110},
     riskFactors:{BETA:1.35,EARNING:0.28,LEVERAGE:0.15,LIQUIDITY:0.22,MOMENTUM:0.45,VALUE:-0.18,VOLATILITY:0.35,GROWTH:0.55,SIZE:-0.22},
     industryConfig:{CI005027:0.225,CI005025:0.185,CI005026:0.085,CI005011:0.065,CI005012:0.045,CI005013:0.038,CI005018:0.025,CI005010:0.018,CI005003:0.012,CI005001:0.008,CI005006:0.005,CI005030:0.002},
-    valuation:{PE:35.5,PB:4.8,ROE:0.142,ROA:0.058,GRONP:0.225,GROR:0.185,DIVIDEND:0.005,MKT:2800,CHANGE_RATE:1.45}
+    valuation:{PE:35.5,PB:4.8,ROE:0.142,ROA:0.058,GRONP:0.225,GROR:0.185,DIVIDEND:0.005,MKT:2800,CHANGE_RATE:1.45},
+    topHoldings:genTop10Holdings({CI005027:0.225,CI005025:0.185,CI005026:0.085,CI005011:0.065,CI005012:0.045,CI005013:0.038,CI005018:0.025,CI005010:0.018,CI005003:0.012,CI005001:0.008,CI005006:0.005,CI005030:0.002})
+  },
+  {
+    fundCode:'015123.OF', fundName:'招商成长', fundFullName:'招商成长证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'招商基金管理有限公司', fundManager:'基金经理21',
+    establishDate:'20180925', fundScale:242.34, managementFee:0.33, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R5', riskLevelNum:5,
+    fundTags:["纯债", "低波动"],
+    matchTags:["纯债", "低波动"],
+    performance:{RETURNRATE:0.03,ANNUALRETURN_RATE:0.0255,SHARP:1.93,MAX_DRAWDOWN:-0.0248,VOL:0.0082,KARMA:1.21,INFO_RATIO:0.37,BETA:-0.09,SORTINO:2.57,TREYNOR:0.06,JASON:0.0083,MSQUARE:0.011,VAR:-0.0117,MAX_DRAWDOWN_RECOVER:101},
+    riskFactors:{BETA:-0.09,EARNING:0.01,LEVERAGE:-0.01,LIQUIDITY:-0.01,MOMENTUM:0.0,VALUE:-0.01,VOLATILITY:0.02,GROWTH:-0.0,SIZE:0.05},
+    industryConfig:{'CI005001':0.016638,'CI005003':0.223242,'CI005004':0.00474,'CI005006':0.055225,'CI005010':0.042953,'CI005011':0.079449,'CI005012':0.030855,'CI005021':0.077208,'CI005022':0.046134,'CI005024':0.00163,'CI005025':0.397412,'CI005026':0.024514},
+    valuation:{PE:7.7,PB:0.8,ROE:0.097,ROA:0.042,GRONP:0.065,GROR:0.102,DIVIDEND:0.038,MKT:8000,CHANGE_RATE:0.74},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.073},{stockCode:'300059',stockName:'东方财富',weight:0.0696},{stockCode:'603501',stockName:'韦尔股份',weight:0.0614},{stockCode:'002241',stockName:'歌尔股份',weight:0.0599},{stockCode:'600183',stockName:'生益科技',weight:0.0576},{stockCode:'601899',stockName:'紫金矿业',weight:0.0573},{stockCode:'600547',stockName:'山东黄金',weight:0.0568},{stockCode:'601600',stockName:'中国铝业',weight:0.0554},{stockCode:'000630',stockName:'铜陵有色',weight:0.0513},{stockCode:'600362',stockName:'江西铜业',weight:0.0499}]
+  },
+  {
+    fundCode:'012681.OF', fundName:'建信科技', fundFullName:'建信科技证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'建信基金管理有限公司', fundManager:'基金经理72',
+    establishDate:'20150612', fundScale:145.15, managementFee:0.6, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R5', riskLevelNum:5,
+    fundTags:["债券", "稳健"],
+    matchTags:["债券", "稳健"],
+    performance:{RETURNRATE:0.0179,ANNUALRETURN_RATE:0.0152,SHARP:1.53,MAX_DRAWDOWN:-0.0221,VOL:0.0187,KARMA:0.81,INFO_RATIO:0.32,BETA:-0.0,SORTINO:1.76,TREYNOR:0.07,JASON:0.0304,MSQUARE:0.0206,VAR:-0.0439,MAX_DRAWDOWN_RECOVER:109},
+    riskFactors:{BETA:-0.0,EARNING:-0.0,LEVERAGE:0.0,LIQUIDITY:-0.01,MOMENTUM:-0.02,VALUE:0.01,VOLATILITY:-0.01,GROWTH:0.01,SIZE:-0.02},
+    industryConfig:{'CI005001':0.035746,'CI005003':0.030568,'CI005004':0.024541,'CI005005':0.063418,'CI005006':0.118708,'CI005007':0.083868,'CI005010':0.065018,'CI005011':0.120878,'CI005012':0.089299,'CI005013':0.00545,'CI005016':0.015049,'CI005018':0.012847,'CI005019':0.048451,'CI005022':0.037407,'CI005025':0.114771,'CI005026':0.031864,'CI005028':0.102116},
+    valuation:{PE:5.1,PB:0.9,ROE:0.047,ROA:0.058,GRONP:0.175,GROR:0.183,DIVIDEND:0.046,MKT:12000,CHANGE_RATE:1.21},
+    topHoldings:[{stockCode:'300750',stockName:'宁德时代',weight:0.0636},{stockCode:'002594',stockName:'比亚迪',weight:0.0624},{stockCode:'601012',stockName:'隆基绿能',weight:0.062},{stockCode:'002129',stockName:'TCL中环',weight:0.0603},{stockCode:'600438',stockName:'通威股份',weight:0.0596},{stockCode:'600309',stockName:'万华化学',weight:0.0581},{stockCode:'000858',stockName:'五粮液',weight:0.056},{stockCode:'002493',stockName:'荣盛石化',weight:0.0552},{stockCode:'600585',stockName:'海螺水泥',weight:0.055},{stockCode:'000708',stockName:'中信特钢',weight:0.0482}]
+  },
+  {
+    fundCode:'014454.OF', fundName:'中欧均衡', fundFullName:'中欧均衡证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'中欧基金管理有限公司', fundManager:'基金经理80',
+    establishDate:'20180925', fundScale:141.35, managementFee:1.5, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R5', riskLevelNum:5,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0127,ANNUALRETURN_RATE:0.0108,SHARP:0.52,MAX_DRAWDOWN:-0.0646,VOL:0.0552,KARMA:0.2,INFO_RATIO:0.52,BETA:-0.29,SORTINO:0.69,TREYNOR:0.1,JASON:0.0365,MSQUARE:0.0238,VAR:-0.0378,MAX_DRAWDOWN_RECOVER:32},
+    riskFactors:{BETA:-0.29,EARNING:-0.0,LEVERAGE:-0.0,LIQUIDITY:-0.02,MOMENTUM:0.0,VALUE:-0.03,VOLATILITY:0.04,GROWTH:-0.04,SIZE:0.03},
+    industryConfig:{'CI005001':0.0341,'CI005002':0.00714,'CI005003':0.018636,'CI005004':0.025554,'CI005014':0.000153,'CI005021':0.124395,'CI005022':0.017434,'CI005024':0.023417,'CI005026':0.749171},
+    valuation:{PE:29.4,PB:2.1,ROE:0.079,ROA:0.106,GRONP:0.024,GROR:0.057,DIVIDEND:0.033,MKT:5000,CHANGE_RATE:0.63},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0698},{stockCode:'000063',stockName:'中兴通讯',weight:0.0688},{stockCode:'600941',stockName:'中国移动',weight:0.0671},{stockCode:'601728',stockName:'中国电信',weight:0.0622},{stockCode:'002231',stockName:'恒宝股份',weight:0.0593},{stockCode:'601398',stockName:'工商银行',weight:0.0553},{stockCode:'600036',stockName:'招商银行',weight:0.0548},{stockCode:'601318',stockName:'中国平安',weight:0.0525},{stockCode:'601166',stockName:'兴业银行',weight:0.0522},{stockCode:'600000',stockName:'浦发银行',weight:0.0492}]
+  },
+  {
+    fundCode:'012855.OF', fundName:'交银蓝筹', fundFullName:'交银蓝筹证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'交银基金管理有限公司', fundManager:'基金经理59',
+    establishDate:'20150612', fundScale:51.05, managementFee:1.0, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["纯债", "低波动"],
+    matchTags:["纯债", "低波动"],
+    performance:{RETURNRATE:0.0542,ANNUALRETURN_RATE:0.0461,SHARP:1.22,MAX_DRAWDOWN:-0.0176,VOL:0.0169,KARMA:3.08,INFO_RATIO:0.58,BETA:0.03,SORTINO:1.69,TREYNOR:0.16,JASON:0.0154,MSQUARE:0.0067,VAR:-0.0183,MAX_DRAWDOWN_RECOVER:22},
+    riskFactors:{BETA:0.03,EARNING:0.01,LEVERAGE:0.01,LIQUIDITY:-0.01,MOMENTUM:0.01,VALUE:0.01,VOLATILITY:0.02,GROWTH:0.01,SIZE:0.06},
+    industryConfig:{'CI005003':0.165394,'CI005004':0.005859,'CI005011':0.160976,'CI005013':0.01811,'CI005016':0.012911,'CI005018':0.017091,'CI005019':0.067284,'CI005021':0.052622,'CI005022':0.019083,'CI005025':0.145279,'CI005026':0.33539},
+    valuation:{PE:8.3,PB:1.4,ROE:0.04,ROA:0.045,GRONP:0.143,GROR:0.123,DIVIDEND:0.039,MKT:800,CHANGE_RATE:1.41},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0559},{stockCode:'000063',stockName:'中兴通讯',weight:0.051},{stockCode:'600941',stockName:'中国移动',weight:0.0489},{stockCode:'601728',stockName:'中国电信',weight:0.0469},{stockCode:'002231',stockName:'恒宝股份',weight:0.0459},{stockCode:'601899',stockName:'紫金矿业',weight:0.0458},{stockCode:'600547',stockName:'山东黄金',weight:0.0423},{stockCode:'601600',stockName:'中国铝业',weight:0.0405},{stockCode:'000630',stockName:'铜陵有色',weight:0.04},{stockCode:'600362',stockName:'江西铜业',weight:0.0398}]
+  },
+  {
+    fundCode:'016369.OF', fundName:'银华蓝筹', fundFullName:'银华蓝筹证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'银华基金管理有限公司', fundManager:'基金经理97',
+    establishDate:'20100115', fundScale:124.13, managementFee:1.0, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0369,ANNUALRETURN_RATE:0.0313,SHARP:1.22,MAX_DRAWDOWN:-0.046,VOL:0.033,KARMA:0.8,INFO_RATIO:0.96,BETA:-0.01,SORTINO:1.66,TREYNOR:0.08,JASON:0.0315,MSQUARE:0.0029,VAR:-0.028,MAX_DRAWDOWN_RECOVER:48},
+    riskFactors:{BETA:-0.01,EARNING:0.0,LEVERAGE:0.02,LIQUIDITY:0.03,MOMENTUM:0.07,VALUE:0.02,VOLATILITY:-0.05,GROWTH:0.01,SIZE:-0.03},
+    industryConfig:{'CI005003':0.057006,'CI005004':0.000388,'CI005006':0.104243,'CI005010':0.045804,'CI005012':0.0082,'CI005013':0.004995,'CI005014':0.01518,'CI005016':0.013834,'CI005018':0.019558,'CI005019':0.004454,'CI005020':0.006186,'CI005021':0.071634,'CI005022':0.010724,'CI005023':0.019253,'CI005025':0.462645,'CI005026':0.120156,'CI005027':0.017534,'CI005028':0.018206},
+    valuation:{PE:11.8,PB:1.4,ROE:0.083,ROA:0.094,GRONP:0.032,GROR:0.078,DIVIDEND:0.021,MKT:800,CHANGE_RATE:0.71},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0593},{stockCode:'300059',stockName:'东方财富',weight:0.0575},{stockCode:'603501',stockName:'韦尔股份',weight:0.0573},{stockCode:'002241',stockName:'歌尔股份',weight:0.0538},{stockCode:'600183',stockName:'生益科技',weight:0.0498},{stockCode:'600050',stockName:'中国联通',weight:0.0488},{stockCode:'000063',stockName:'中兴通讯',weight:0.046},{stockCode:'600941',stockName:'中国移动',weight:0.0456},{stockCode:'601728',stockName:'中国电信',weight:0.0439},{stockCode:'002231',stockName:'恒宝股份',weight:0.0431}]
+  },
+  {
+    fundCode:'009621.OF', fundName:'兴全灵活', fundFullName:'兴全灵活证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'兴全基金管理有限公司', fundManager:'基金经理76',
+    establishDate:'20100115', fundScale:53.79, managementFee:1.0, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:0.079,ANNUALRETURN_RATE:0.0671,SHARP:1.56,MAX_DRAWDOWN:-0.0347,VOL:0.0423,KARMA:2.27,INFO_RATIO:0.43,BETA:-0.0,SORTINO:1.75,TREYNOR:0.06,JASON:0.0131,MSQUARE:0.0055,VAR:-0.0442,MAX_DRAWDOWN_RECOVER:143},
+    riskFactors:{BETA:-0.0,EARNING:0.0,LEVERAGE:-0.01,LIQUIDITY:0.0,MOMENTUM:0.01,VALUE:-0.01,VOLATILITY:0.03,GROWTH:-0.01,SIZE:0.02},
+    industryConfig:{'CI005001':0.043164,'CI005002':0.046667,'CI005003':0.004679,'CI005011':0.446367,'CI005014':0.103046,'CI005021':0.308286,'CI005022':0.034072,'CI005028':0.013719},
+    valuation:{PE:28.4,PB:3.7,ROE:0.054,ROA:0.099,GRONP:0.128,GROR:0.137,DIVIDEND:0.036,MKT:800,CHANGE_RATE:0.2},
+    topHoldings:[{stockCode:'300750',stockName:'宁德时代',weight:0.0461},{stockCode:'002594',stockName:'比亚迪',weight:0.0458},{stockCode:'601012',stockName:'隆基绿能',weight:0.0434},{stockCode:'002129',stockName:'TCL中环',weight:0.0427},{stockCode:'600438',stockName:'通威股份',weight:0.0408},{stockCode:'601398',stockName:'工商银行',weight:0.0401},{stockCode:'600036',stockName:'招商银行',weight:0.0374},{stockCode:'601318',stockName:'中国平安',weight:0.0361},{stockCode:'601166',stockName:'兴业银行',weight:0.035},{stockCode:'600000',stockName:'浦发银行',weight:0.0342}]
+  },
+  {
+    fundCode:'012481.OF', fundName:'中欧核心', fundFullName:'中欧核心证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'中欧基金管理有限公司', fundManager:'基金经理73',
+    establishDate:'20210315', fundScale:187.32, managementFee:1.5, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.0613,ANNUALRETURN_RATE:0.0521,SHARP:0.6,MAX_DRAWDOWN:-0.0444,VOL:0.0404,KARMA:1.38,INFO_RATIO:0.81,BETA:-0.0,SORTINO:0.74,TREYNOR:0.08,JASON:0.0141,MSQUARE:0.0047,VAR:-0.0178,MAX_DRAWDOWN_RECOVER:22},
+    riskFactors:{BETA:-0.0,EARNING:-0.0,LEVERAGE:-0.0,LIQUIDITY:-0.03,MOMENTUM:0.06,VALUE:0.0,VOLATILITY:-0.01,GROWTH:0.01,SIZE:0.1},
+    industryConfig:{'CI005018':0.984698,'CI005027':0.015302},
+    valuation:{PE:26.1,PB:4.1,ROE:0.091,ROA:0.04,GRONP:0.103,GROR:0.03,DIVIDEND:0.047,MKT:2000,CHANGE_RATE:0.42},
+    topHoldings:[{stockCode:'600276',stockName:'恒瑞医药',weight:0.0677},{stockCode:'000538',stockName:'云南白药',weight:0.0661},{stockCode:'300015',stockName:'爱尔眼科',weight:0.0616},{stockCode:'600436',stockName:'片仔癀',weight:0.0602},{stockCode:'000963',stockName:'华东医药',weight:0.0589},{stockCode:'002415',stockName:'海康威视',weight:0.0554},{stockCode:'600570',stockName:'恒生电子',weight:0.0542},{stockCode:'000977',stockName:'中兴通讯',weight:0.0529},{stockCode:'002230',stockName:'科大讯飞',weight:0.052},{stockCode:'300033',stockName:'同花顺',weight:0.0482}]
+  },
+  {
+    fundCode:'010755.OF', fundName:'汇添富蓝筹', fundFullName:'汇添富蓝筹证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'汇添基金管理有限公司', fundManager:'基金经理73',
+    establishDate:'20120328', fundScale:26.11, managementFee:0.6, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:-0.0138,ANNUALRETURN_RATE:-0.0117,SHARP:1.38,MAX_DRAWDOWN:-0.075,VOL:0.0334,KARMA:0.18,INFO_RATIO:0.92,BETA:0.22,SORTINO:1.77,TREYNOR:0.09,JASON:0.0314,MSQUARE:0.0232,VAR:-0.0266,MAX_DRAWDOWN_RECOVER:88},
+    riskFactors:{BETA:0.22,EARNING:-0.01,LEVERAGE:0.01,LIQUIDITY:0.01,MOMENTUM:0.12,VALUE:0.04,VOLATILITY:-0.05,GROWTH:0.06,SIZE:0.0},
+    industryConfig:{'CI005003':0.113592,'CI005011':0.059136,'CI005012':0.007614,'CI005014':0.007529,'CI005018':0.006479,'CI005020':0.012415,'CI005021':0.007248,'CI005025':0.526608,'CI005026':0.239498,'CI005028':0.019881},
+    valuation:{PE:10.9,PB:1.0,ROE:0.056,ROA:0.035,GRONP:0.013,GROR:0.062,DIVIDEND:0.005,MKT:12000,CHANGE_RATE:0.66},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0653},{stockCode:'300059',stockName:'东方财富',weight:0.0603},{stockCode:'603501',stockName:'韦尔股份',weight:0.0583},{stockCode:'002241',stockName:'歌尔股份',weight:0.054},{stockCode:'600183',stockName:'生益科技',weight:0.0522},{stockCode:'600050',stockName:'中国联通',weight:0.0505},{stockCode:'000063',stockName:'中兴通讯',weight:0.0501},{stockCode:'600941',stockName:'中国移动',weight:0.0471},{stockCode:'601728',stockName:'中国电信',weight:0.0466},{stockCode:'002231',stockName:'恒宝股份',weight:0.0447}]
+  },
+  {
+    fundCode:'015688.OF', fundName:'嘉实策略', fundFullName:'嘉实策略证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'嘉实基金管理有限公司', fundManager:'基金经理51',
+    establishDate:'20210315', fundScale:95.6, managementFee:0.33, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:0.1364,ANNUALRETURN_RATE:0.116,SHARP:0.48,MAX_DRAWDOWN:-0.1123,VOL:0.0593,KARMA:1.21,INFO_RATIO:0.84,BETA:0.2,SORTINO:0.71,TREYNOR:0.15,JASON:0.0358,MSQUARE:0.0234,VAR:-0.0129,MAX_DRAWDOWN_RECOVER:43},
+    riskFactors:{BETA:0.2,EARNING:0.01,LEVERAGE:0.04,LIQUIDITY:0.0,MOMENTUM:-0.02,VALUE:0.05,VOLATILITY:0.04,GROWTH:0.05,SIZE:0.01},
+    industryConfig:{'CI005016':0.001697,'CI005019':0.01906,'CI005025':0.837993,'CI005026':0.118319,'CI005027':0.02293},
+    valuation:{PE:31.5,PB:3.3,ROE:0.161,ROA:0.054,GRONP:0.179,GROR:0.101,DIVIDEND:0.038,MKT:1200,CHANGE_RATE:0.44},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0561},{stockCode:'300059',stockName:'东方财富',weight:0.0549},{stockCode:'603501',stockName:'韦尔股份',weight:0.0545},{stockCode:'002241',stockName:'歌尔股份',weight:0.0515},{stockCode:'600183',stockName:'生益科技',weight:0.0513},{stockCode:'600050',stockName:'中国联通',weight:0.0503},{stockCode:'000063',stockName:'中兴通讯',weight:0.0467},{stockCode:'600941',stockName:'中国移动',weight:0.0417},{stockCode:'601728',stockName:'中国电信',weight:0.0412},{stockCode:'002231',stockName:'恒宝股份',weight:0.0381}]
+  },
+  {
+    fundCode:'025758.OF', fundName:'汇添富价值', fundFullName:'汇添富价值证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'汇添基金管理有限公司', fundManager:'基金经理82',
+    establishDate:'20150612', fundScale:102.94, managementFee:1.0, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:-0.0451,ANNUALRETURN_RATE:-0.0383,SHARP:0.65,MAX_DRAWDOWN:-0.1085,VOL:0.0309,KARMA:0.42,INFO_RATIO:0.65,BETA:0.31,SORTINO:0.72,TREYNOR:0.13,JASON:0.0356,MSQUARE:0.0212,VAR:-0.0246,MAX_DRAWDOWN_RECOVER:140},
+    riskFactors:{BETA:0.31,EARNING:-0.0,LEVERAGE:0.03,LIQUIDITY:0.07,MOMENTUM:0.15,VALUE:0.08,VOLATILITY:-0.16,GROWTH:0.06,SIZE:0.03},
+    industryConfig:{'CI005003':0.006418,'CI005011':0.017364,'CI005012':0.009441,'CI005013':0.012415,'CI005025':0.391398,'CI005026':0.562964},
+    valuation:{PE:17.8,PB:3.4,ROE:0.141,ROA:0.073,GRONP:0.049,GROR:0.135,DIVIDEND:0.022,MKT:1200,CHANGE_RATE:0.58},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0548},{stockCode:'000063',stockName:'中兴通讯',weight:0.0544},{stockCode:'600941',stockName:'中国移动',weight:0.053},{stockCode:'601728',stockName:'中国电信',weight:0.0508},{stockCode:'002231',stockName:'恒宝股份',weight:0.0491},{stockCode:'002475',stockName:'立讯精密',weight:0.0491},{stockCode:'300059',stockName:'东方财富',weight:0.0442},{stockCode:'603501',stockName:'韦尔股份',weight:0.0414},{stockCode:'002241',stockName:'歌尔股份',weight:0.0394},{stockCode:'600183',stockName:'生益科技',weight:0.0383}]
+  },
+  {
+    fundCode:'024560.OF', fundName:'国泰优选', fundFullName:'国泰优选证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'国泰基金管理有限公司', fundManager:'基金经理74',
+    establishDate:'20100115', fundScale:65.17, managementFee:1.0, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.0166,ANNUALRETURN_RATE:0.0141,SHARP:1.43,MAX_DRAWDOWN:-0.072,VOL:0.0343,KARMA:0.23,INFO_RATIO:1.06,BETA:0.22,SORTINO:1.67,TREYNOR:0.04,JASON:0.0227,MSQUARE:0.0218,VAR:-0.0331,MAX_DRAWDOWN_RECOVER:102},
+    riskFactors:{BETA:0.22,EARNING:0.01,LEVERAGE:0.01,LIQUIDITY:0.05,MOMENTUM:0.05,VALUE:0.09,VOLATILITY:-0.12,GROWTH:0.03,SIZE:0.01},
+    industryConfig:{'CI005025':0.942545,'CI005027':0.057455},
+    valuation:{PE:11.8,PB:4.3,ROE:0.091,ROA:0.092,GRONP:0.03,GROR:0.09,DIVIDEND:0.01,MKT:500,CHANGE_RATE:0.85},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0619},{stockCode:'300059',stockName:'东方财富',weight:0.0598},{stockCode:'603501',stockName:'韦尔股份',weight:0.0594},{stockCode:'002241',stockName:'歌尔股份',weight:0.0588},{stockCode:'600183',stockName:'生益科技',weight:0.0566},{stockCode:'002415',stockName:'海康威视',weight:0.0532},{stockCode:'600570',stockName:'恒生电子',weight:0.0525},{stockCode:'000977',stockName:'中兴通讯',weight:0.05},{stockCode:'002230',stockName:'科大讯飞',weight:0.049},{stockCode:'300033',stockName:'同花顺',weight:0.0468}]
+  },
+  {
+    fundCode:'020071.OF', fundName:'博时科技', fundFullName:'博时科技证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'博时基金管理有限公司', fundManager:'基金经理4',
+    establishDate:'20150612', fundScale:32.03, managementFee:0.5, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["债券", "稳健"],
+    matchTags:["债券", "稳健"],
+    performance:{RETURNRATE:0.0475,ANNUALRETURN_RATE:0.0404,SHARP:1.18,MAX_DRAWDOWN:-0.0297,VOL:0.0197,KARMA:1.6,INFO_RATIO:0.84,BETA:0.22,SORTINO:1.38,TREYNOR:0.13,JASON:0.0314,MSQUARE:0.0185,VAR:-0.0452,MAX_DRAWDOWN_RECOVER:144},
+    riskFactors:{BETA:0.22,EARNING:-0.0,LEVERAGE:-0.0,LIQUIDITY:0.01,MOMENTUM:0.01,VALUE:-0.01,VOLATILITY:-0.02,GROWTH:0.03,SIZE:0.0},
+    industryConfig:{'CI005003':0.086961,'CI005010':0.115147,'CI005011':0.394616,'CI005012':0.006904,'CI005013':0.028548,'CI005018':0.026753,'CI005025':0.30268,'CI005027':0.03839},
+    valuation:{PE:11.4,PB:1.2,ROE:0.051,ROA:0.05,GRONP:0.083,GROR:0.05,DIVIDEND:0.034,MKT:2000,CHANGE_RATE:0.18},
+    topHoldings:[{stockCode:'300750',stockName:'宁德时代',weight:0.0498},{stockCode:'002594',stockName:'比亚迪',weight:0.045},{stockCode:'601012',stockName:'隆基绿能',weight:0.0443},{stockCode:'002129',stockName:'TCL中环',weight:0.044},{stockCode:'600438',stockName:'通威股份',weight:0.0415},{stockCode:'002475',stockName:'立讯精密',weight:0.0402},{stockCode:'300059',stockName:'东方财富',weight:0.0397},{stockCode:'603501',stockName:'韦尔股份',weight:0.039},{stockCode:'002241',stockName:'歌尔股份',weight:0.0359},{stockCode:'600183',stockName:'生益科技',weight:0.034}]
+  },
+  {
+    fundCode:'019587.OF', fundName:'交银先进', fundFullName:'交银先进证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'交银基金管理有限公司', fundManager:'基金经理70',
+    establishDate:'20100115', fundScale:22.58, managementFee:1.2, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["双债", "增强"],
+    matchTags:["双债", "增强"],
+    performance:{RETURNRATE:0.0418,ANNUALRETURN_RATE:0.0355,SHARP:2.46,MAX_DRAWDOWN:-0.022,VOL:0.0181,KARMA:1.9,INFO_RATIO:0.7,BETA:0.24,SORTINO:3.05,TREYNOR:0.07,JASON:0.0216,MSQUARE:0.0204,VAR:-0.0389,MAX_DRAWDOWN_RECOVER:40},
+    riskFactors:{BETA:0.24,EARNING:0.01,LEVERAGE:0.02,LIQUIDITY:0.03,MOMENTUM:0.03,VALUE:0.04,VOLATILITY:-0.1,GROWTH:0.05,SIZE:-0.02},
+    industryConfig:{'CI005006':0.063395,'CI005010':0.043372,'CI005011':0.073777,'CI005012':0.017951,'CI005013':0.043063,'CI005014':0.032649,'CI005019':0.011729,'CI005020':0.008618,'CI005024':0.000238,'CI005025':0.257409,'CI005026':0.151749,'CI005027':0.095694,'CI005028':0.200354},
+    valuation:{PE:11.2,PB:1.4,ROE:0.078,ROA:0.06,GRONP:0.101,GROR:0.193,DIVIDEND:0.039,MKT:800,CHANGE_RATE:0.79},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0596},{stockCode:'300059',stockName:'东方财富',weight:0.057},{stockCode:'603501',stockName:'韦尔股份',weight:0.0555},{stockCode:'002241',stockName:'歌尔股份',weight:0.0549},{stockCode:'600183',stockName:'生益科技',weight:0.0481},{stockCode:'002415',stockName:'海康威视',weight:0.0461},{stockCode:'300133',stockName:'华策影视',weight:0.0448},{stockCode:'002555',stockName:'三七互娱',weight:0.0443},{stockCode:'300413',stockName:'芒果超媒',weight:0.0406},{stockCode:'002602',stockName:'世纪华通',weight:0.0401}]
+  },
+  {
+    fundCode:'023875.OF', fundName:'富国先进', fundFullName:'富国先进证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'富国基金管理有限公司', fundManager:'基金经理10',
+    establishDate:'20120328', fundScale:121.57, managementFee:0.5, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0687,ANNUALRETURN_RATE:0.0584,SHARP:1.06,MAX_DRAWDOWN:-0.0325,VOL:0.047,KARMA:2.11,INFO_RATIO:0.27,BETA:0.25,SORTINO:1.24,TREYNOR:0.07,JASON:0.0248,MSQUARE:0.0204,VAR:-0.0291,MAX_DRAWDOWN_RECOVER:27},
+    riskFactors:{BETA:0.25,EARNING:-0.0,LEVERAGE:0.03,LIQUIDITY:-0.0,MOMENTUM:0.08,VALUE:0.02,VOLATILITY:-0.01,GROWTH:0.04,SIZE:-0.02},
+    industryConfig:{'CI005006':0.150486,'CI005010':0.012473,'CI005011':0.058305,'CI005020':0.012502,'CI005025':0.570942,'CI005026':0.153707,'CI005028':0.041585},
+    valuation:{PE:26.9,PB:3.0,ROE:0.23,ROA:0.056,GRONP:0.049,GROR:0.065,DIVIDEND:0.02,MKT:800,CHANGE_RATE:1.08},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0544},{stockCode:'300059',stockName:'东方财富',weight:0.0521},{stockCode:'603501',stockName:'韦尔股份',weight:0.0516},{stockCode:'002241',stockName:'歌尔股份',weight:0.0504},{stockCode:'600183',stockName:'生益科技',weight:0.0491},{stockCode:'600050',stockName:'中国联通',weight:0.0474},{stockCode:'000063',stockName:'中兴通讯',weight:0.0452},{stockCode:'600941',stockName:'中国移动',weight:0.0437},{stockCode:'601728',stockName:'中国电信',weight:0.0422},{stockCode:'002231',stockName:'恒宝股份',weight:0.0413}]
+  },
+  {
+    fundCode:'024473.OF', fundName:'国泰稳健', fundFullName:'国泰稳健证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'国泰基金管理有限公司', fundManager:'基金经理65',
+    establishDate:'20120328', fundScale:226.84, managementFee:0.5, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R1', riskLevelNum:1,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:-0.0297,ANNUALRETURN_RATE:-0.0252,SHARP:1.72,MAX_DRAWDOWN:-0.0966,VOL:0.0256,KARMA:0.31,INFO_RATIO:0.76,BETA:0.37,SORTINO:2.19,TREYNOR:0.09,JASON:0.0295,MSQUARE:0.0025,VAR:-0.0286,MAX_DRAWDOWN_RECOVER:109},
+    riskFactors:{BETA:0.37,EARNING:-0.01,LEVERAGE:0.01,LIQUIDITY:0.02,MOMENTUM:0.24,VALUE:0.07,VOLATILITY:-0.23,GROWTH:0.1,SIZE:0.01},
+    industryConfig:{'CI005006':0.01754,'CI005010':0.089446,'CI005011':0.003233,'CI005013':0.01233,'CI005025':0.569385,'CI005026':0.282612,'CI005027':0.025454},
+    valuation:{PE:20.8,PB:2.1,ROE:0.161,ROA:0.068,GRONP:0.026,GROR:0.06,DIVIDEND:0.048,MKT:5000,CHANGE_RATE:0.79},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0483},{stockCode:'300059',stockName:'东方财富',weight:0.0432},{stockCode:'603501',stockName:'韦尔股份',weight:0.0432},{stockCode:'002241',stockName:'歌尔股份',weight:0.0419},{stockCode:'600183',stockName:'生益科技',weight:0.0415},{stockCode:'600050',stockName:'中国联通',weight:0.0414},{stockCode:'000063',stockName:'中兴通讯',weight:0.0403},{stockCode:'600941',stockName:'中国移动',weight:0.0357},{stockCode:'601728',stockName:'中国电信',weight:0.0355},{stockCode:'002231',stockName:'恒宝股份',weight:0.0339}]
+  },
+  {
+    fundCode:'016780.OF', fundName:'华夏主题', fundFullName:'华夏主题证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'华夏基金管理有限公司', fundManager:'基金经理82',
+    establishDate:'20210315', fundScale:136.27, managementFee:1.5, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0619,ANNUALRETURN_RATE:0.0526,SHARP:0.5,MAX_DRAWDOWN:-0.0433,VOL:0.0293,KARMA:1.43,INFO_RATIO:0.9,BETA:0.58,SORTINO:0.55,TREYNOR:0.04,JASON:0.0326,MSQUARE:0.0046,VAR:-0.035,MAX_DRAWDOWN_RECOVER:150},
+    riskFactors:{BETA:0.58,EARNING:-0.02,LEVERAGE:0.04,LIQUIDITY:0.02,MOMENTUM:0.18,VALUE:0.08,VOLATILITY:-0.29,GROWTH:0.16,SIZE:-0.01},
+    industryConfig:{'CI005010':0.009671,'CI005011':0.003597,'CI005025':0.750626,'CI005026':0.236106},
+    valuation:{PE:16.6,PB:2.0,ROE:0.146,ROA:0.049,GRONP:0.169,GROR:0.101,DIVIDEND:0.015,MKT:1200,CHANGE_RATE:0.67},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0503},{stockCode:'300059',stockName:'东方财富',weight:0.0482},{stockCode:'603501',stockName:'韦尔股份',weight:0.0479},{stockCode:'002241',stockName:'歌尔股份',weight:0.0464},{stockCode:'600183',stockName:'生益科技',weight:0.0432},{stockCode:'600050',stockName:'中国联通',weight:0.0424},{stockCode:'000063',stockName:'中兴通讯',weight:0.0423},{stockCode:'600941',stockName:'中国移动',weight:0.0379},{stockCode:'601728',stockName:'中国电信',weight:0.0358},{stockCode:'002231',stockName:'恒宝股份',weight:0.0348}]
+  },
+  {
+    fundCode:'501205.SH', fundName:'东方红策略', fundFullName:'东方红策略证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'东方基金管理有限公司', fundManager:'基金经理37',
+    establishDate:'20180925', fundScale:193.73, managementFee:0.75, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.1375,ANNUALRETURN_RATE:0.1169,SHARP:1.43,MAX_DRAWDOWN:-0.0666,VOL:0.0531,KARMA:2.07,INFO_RATIO:0.24,BETA:0.52,SORTINO:1.75,TREYNOR:0.09,JASON:0.0117,MSQUARE:0.0187,VAR:-0.0218,MAX_DRAWDOWN_RECOVER:130},
+    riskFactors:{BETA:0.52,EARNING:-0.01,LEVERAGE:0.03,LIQUIDITY:0.06,MOMENTUM:0.39,VALUE:0.12,VOLATILITY:-0.34,GROWTH:0.08,SIZE:-0.08},
+    industryConfig:{'CI005003':0.005089,'CI005010':0.020775,'CI005013':0.019696,'CI005018':0.006777,'CI005025':0.501485,'CI005026':0.438555,'CI005027':0.007623},
+    valuation:{PE:32.5,PB:2.9,ROE:0.24,ROA:0.076,GRONP:0.108,GROR:0.176,DIVIDEND:0.034,MKT:2000,CHANGE_RATE:0.96},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0569},{stockCode:'300059',stockName:'东方财富',weight:0.0529},{stockCode:'603501',stockName:'韦尔股份',weight:0.0528},{stockCode:'002241',stockName:'歌尔股份',weight:0.0515},{stockCode:'600183',stockName:'生益科技',weight:0.0505},{stockCode:'600050',stockName:'中国联通',weight:0.0488},{stockCode:'000063',stockName:'中兴通讯',weight:0.0446},{stockCode:'600941',stockName:'中国移动',weight:0.0434},{stockCode:'601728',stockName:'中国电信',weight:0.0434},{stockCode:'002231',stockName:'恒宝股份',weight:0.0388}]
+  },
+  {
+    fundCode:'016632.OF', fundName:'银华灵活', fundFullName:'银华灵活证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'银华基金管理有限公司', fundManager:'基金经理30',
+    establishDate:'20150612', fundScale:231.85, managementFee:0.6, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.1339,ANNUALRETURN_RATE:0.1138,SHARP:1.03,MAX_DRAWDOWN:-0.0723,VOL:0.0542,KARMA:1.85,INFO_RATIO:0.96,BETA:0.54,SORTINO:1.48,TREYNOR:0.12,JASON:0.0246,MSQUARE:0.0177,VAR:-0.032,MAX_DRAWDOWN_RECOVER:50},
+    riskFactors:{BETA:0.54,EARNING:-0.0,LEVERAGE:0.04,LIQUIDITY:0.04,MOMENTUM:0.31,VALUE:0.1,VOLATILITY:-0.31,GROWTH:0.12,SIZE:-0.04},
+    industryConfig:{'CI005003':0.076227,'CI005006':0.005345,'CI005008':0.003089,'CI005011':0.035436,'CI005012':0.01878,'CI005013':0.021549,'CI005014':0.00207,'CI005025':0.317253,'CI005026':0.499699,'CI005028':0.02055},
+    valuation:{PE:26.7,PB:4.9,ROE:0.157,ROA:0.085,GRONP:0.025,GROR:0.13,DIVIDEND:0.047,MKT:3500,CHANGE_RATE:0.95},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0584},{stockCode:'000063',stockName:'中兴通讯',weight:0.0571},{stockCode:'600941',stockName:'中国移动',weight:0.0559},{stockCode:'601728',stockName:'中国电信',weight:0.0537},{stockCode:'002231',stockName:'恒宝股份',weight:0.0508},{stockCode:'002475',stockName:'立讯精密',weight:0.0489},{stockCode:'300059',stockName:'东方财富',weight:0.0487},{stockCode:'603501',stockName:'韦尔股份',weight:0.0474},{stockCode:'002241',stockName:'歌尔股份',weight:0.0466},{stockCode:'600183',stockName:'生益科技',weight:0.0457}]
+  },
+  {
+    fundCode:'159777.SZ', fundName:'汇添富新兴', fundFullName:'汇添富新兴证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'汇添基金管理有限公司', fundManager:'基金经理59',
+    establishDate:'20200110', fundScale:86.67, managementFee:0.6, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.1104,ANNUALRETURN_RATE:0.0939,SHARP:1.33,MAX_DRAWDOWN:-0.0471,VOL:0.0475,KARMA:2.35,INFO_RATIO:0.91,BETA:0.52,SORTINO:1.76,TREYNOR:0.06,JASON:0.0212,MSQUARE:0.014,VAR:-0.0103,MAX_DRAWDOWN_RECOVER:89},
+    riskFactors:{BETA:0.52,EARNING:0.02,LEVERAGE:0.03,LIQUIDITY:0.01,MOMENTUM:0.11,VALUE:0.05,VOLATILITY:-0.11,GROWTH:0.06,SIZE:0.02},
+    industryConfig:{'CI005010':0.010785,'CI005011':0.242316,'CI005018':0.005753,'CI005025':0.15258,'CI005026':0.550637,'CI005027':0.023365,'CI005028':0.014564},
+    valuation:{PE:29.3,PB:4.3,ROE:0.087,ROA:0.088,GRONP:0.129,GROR:0.057,DIVIDEND:0.027,MKT:3500,CHANGE_RATE:1.41},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0502},{stockCode:'000063',stockName:'中兴通讯',weight:0.0501},{stockCode:'600941',stockName:'中国移动',weight:0.0498},{stockCode:'601728',stockName:'中国电信',weight:0.0492},{stockCode:'002231',stockName:'恒宝股份',weight:0.0491},{stockCode:'300750',stockName:'宁德时代',weight:0.0472},{stockCode:'002594',stockName:'比亚迪',weight:0.0434},{stockCode:'601012',stockName:'隆基绿能',weight:0.0412},{stockCode:'002129',stockName:'TCL中环',weight:0.0367},{stockCode:'600438',stockName:'通威股份',weight:0.0336}]
+  },
+  {
+    fundCode:'001407.OF', fundName:'景顺长城价值', fundFullName:'景顺长城价值证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'景顺基金管理有限公司', fundManager:'基金经理85',
+    establishDate:'20200110', fundScale:16.85, managementFee:0.33, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0522,ANNUALRETURN_RATE:0.0444,SHARP:1.77,MAX_DRAWDOWN:-0.0539,VOL:0.0368,KARMA:0.97,INFO_RATIO:0.83,BETA:0.69,SORTINO:2.3,TREYNOR:0.05,JASON:0.0203,MSQUARE:0.0092,VAR:-0.0113,MAX_DRAWDOWN_RECOVER:46},
+    riskFactors:{BETA:0.69,EARNING:-0.0,LEVERAGE:0.05,LIQUIDITY:0.07,MOMENTUM:0.47,VALUE:0.12,VOLATILITY:-0.37,GROWTH:0.14,SIZE:-0.06},
+    industryConfig:{'CI005010':0.019286,'CI005011':0.005238,'CI005013':0.031803,'CI005016':0.004365,'CI005018':0.02167,'CI005025':0.405562,'CI005026':0.483745,'CI005027':0.020342,'CI005028':0.007987},
+    valuation:{PE:30.9,PB:2.1,ROE:0.16,ROA:0.054,GRONP:0.198,GROR:0.186,DIVIDEND:0.036,MKT:2000,CHANGE_RATE:0.2},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0716},{stockCode:'000063',stockName:'中兴通讯',weight:0.0673},{stockCode:'600941',stockName:'中国移动',weight:0.0665},{stockCode:'601728',stockName:'中国电信',weight:0.0636},{stockCode:'002231',stockName:'恒宝股份',weight:0.0575},{stockCode:'002475',stockName:'立讯精密',weight:0.0558},{stockCode:'300059',stockName:'东方财富',weight:0.0548},{stockCode:'603501',stockName:'韦尔股份',weight:0.0547},{stockCode:'002241',stockName:'歌尔股份',weight:0.0543},{stockCode:'600183',stockName:'生益科技',weight:0.0494}]
+  },
+  {
+    fundCode:'161613.OF', fundName:'博时稳健', fundFullName:'博时稳健证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'博时基金管理有限公司', fundManager:'基金经理56',
+    establishDate:'20200110', fundScale:215.5, managementFee:1.5, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.1025,ANNUALRETURN_RATE:0.0871,SHARP:0.87,MAX_DRAWDOWN:-0.117,VOL:0.0269,KARMA:0.88,INFO_RATIO:0.74,BETA:0.53,SORTINO:0.97,TREYNOR:0.05,JASON:0.025,MSQUARE:0.0161,VAR:-0.0488,MAX_DRAWDOWN_RECOVER:139},
+    riskFactors:{BETA:0.53,EARNING:0.01,LEVERAGE:0.02,LIQUIDITY:0.02,MOMENTUM:0.13,VALUE:0.05,VOLATILITY:-0.13,GROWTH:0.09,SIZE:0.03},
+    industryConfig:{'CI005006':0.007095,'CI005011':0.308086,'CI005018':0.00808,'CI005020':0.00884,'CI005022':0.003199,'CI005025':0.092375,'CI005026':0.567774,'CI005027':0.00455},
+    valuation:{PE:30.8,PB:1.9,ROE:0.142,ROA:0.045,GRONP:0.052,GROR:0.052,DIVIDEND:0.01,MKT:2000,CHANGE_RATE:1.06},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0557},{stockCode:'000063',stockName:'中兴通讯',weight:0.055},{stockCode:'600941',stockName:'中国移动',weight:0.0549},{stockCode:'601728',stockName:'中国电信',weight:0.0533},{stockCode:'002231',stockName:'恒宝股份',weight:0.0531},{stockCode:'300750',stockName:'宁德时代',weight:0.0472},{stockCode:'002594',stockName:'比亚迪',weight:0.0465},{stockCode:'601012',stockName:'隆基绿能',weight:0.0431},{stockCode:'002129',stockName:'TCL中环',weight:0.0415},{stockCode:'600438',stockName:'通威股份',weight:0.039}]
+  },
+  {
+    fundCode:'006430.OF', fundName:'东方红均衡', fundFullName:'东方红均衡证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'东方基金管理有限公司', fundManager:'基金经理88',
+    establishDate:'20200110', fundScale:62.53, managementFee:1.2, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.1264,ANNUALRETURN_RATE:0.1074,SHARP:1.09,MAX_DRAWDOWN:-0.1011,VOL:0.0397,KARMA:1.25,INFO_RATIO:0.52,BETA:0.78,SORTINO:1.41,TREYNOR:0.12,JASON:0.0343,MSQUARE:0.016,VAR:-0.0218,MAX_DRAWDOWN_RECOVER:34},
+    riskFactors:{BETA:0.78,EARNING:0.03,LEVERAGE:0.03,LIQUIDITY:0.04,MOMENTUM:0.37,VALUE:0.11,VOLATILITY:-0.38,GROWTH:0.24,SIZE:-0.03},
+    industryConfig:{'CI005006':0.009381,'CI005016':0.003926,'CI005025':0.457726,'CI005026':0.498943,'CI005027':0.015188,'CI005028':0.014834},
+    valuation:{PE:29.3,PB:1.8,ROE:0.113,ROA:0.066,GRONP:0.07,GROR:0.065,DIVIDEND:0.015,MKT:12000,CHANGE_RATE:1.45},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.058},{stockCode:'000063',stockName:'中兴通讯',weight:0.0558},{stockCode:'600941',stockName:'中国移动',weight:0.0543},{stockCode:'601728',stockName:'中国电信',weight:0.0496},{stockCode:'002231',stockName:'恒宝股份',weight:0.0476},{stockCode:'002475',stockName:'立讯精密',weight:0.0474},{stockCode:'300059',stockName:'东方财富',weight:0.0467},{stockCode:'603501',stockName:'韦尔股份',weight:0.0449},{stockCode:'002241',stockName:'歌尔股份',weight:0.0444},{stockCode:'600183',stockName:'生益科技',weight:0.0416}]
+  },
+  {
+    fundCode:'960026.OF', fundName:'汇添富蓝筹', fundFullName:'汇添富蓝筹证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'汇添基金管理有限公司', fundManager:'基金经理56',
+    establishDate:'20150612', fundScale:218.01, managementFee:0.5, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.1323,ANNUALRETURN_RATE:0.1125,SHARP:0.63,MAX_DRAWDOWN:-0.0442,VOL:0.0304,KARMA:2.99,INFO_RATIO:0.79,BETA:0.73,SORTINO:0.82,TREYNOR:0.11,JASON:0.0118,MSQUARE:0.0028,VAR:-0.0222,MAX_DRAWDOWN_RECOVER:27},
+    riskFactors:{BETA:0.73,EARNING:-0.01,LEVERAGE:0.04,LIQUIDITY:0.04,MOMENTUM:0.26,VALUE:0.09,VOLATILITY:-0.36,GROWTH:0.14,SIZE:-0.03},
+    industryConfig:{'CI005006':0.006848,'CI005010':0.02286,'CI005011':0.034546,'CI005013':0.003705,'CI005025':0.535475,'CI005026':0.385705,'CI005027':0.01086},
+    valuation:{PE:32.7,PB:1.4,ROE:0.189,ROA:0.035,GRONP:0.029,GROR:0.187,DIVIDEND:0.025,MKT:3500,CHANGE_RATE:0.34},
+    topHoldings:[{stockCode:'002475',stockName:'立讯精密',weight:0.0535},{stockCode:'300059',stockName:'东方财富',weight:0.0535},{stockCode:'603501',stockName:'韦尔股份',weight:0.0534},{stockCode:'002241',stockName:'歌尔股份',weight:0.0519},{stockCode:'600183',stockName:'生益科技',weight:0.0511},{stockCode:'600050',stockName:'中国联通',weight:0.0489},{stockCode:'000063',stockName:'中兴通讯',weight:0.048},{stockCode:'600941',stockName:'中国移动',weight:0.0427},{stockCode:'601728',stockName:'中国电信',weight:0.0404},{stockCode:'002231',stockName:'恒宝股份',weight:0.0385}]
+  },
+  {
+    fundCode:'006887.OF', fundName:'中欧新能源', fundFullName:'中欧新能源证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'中欧基金管理有限公司', fundManager:'基金经理8',
+    establishDate:'20180925', fundScale:35.47, managementFee:0.33, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:0.1384,ANNUALRETURN_RATE:0.1176,SHARP:1.51,MAX_DRAWDOWN:-0.0513,VOL:0.0558,KARMA:2.7,INFO_RATIO:0.4,BETA:0.91,SORTINO:2.09,TREYNOR:0.04,JASON:0.0086,MSQUARE:0.0208,VAR:-0.013,MAX_DRAWDOWN_RECOVER:46},
+    riskFactors:{BETA:0.91,EARNING:0.02,LEVERAGE:0.03,LIQUIDITY:0.05,MOMENTUM:0.55,VALUE:0.11,VOLATILITY:-0.46,GROWTH:0.26,SIZE:-0.05},
+    industryConfig:{'CI005006':0.00849,'CI005010':0.022745,'CI005025':0.474752,'CI005026':0.494013},
+    valuation:{PE:27.5,PB:1.6,ROE:0.236,ROA:0.052,GRONP:0.012,GROR:0.173,DIVIDEND:0.039,MKT:500,CHANGE_RATE:0.83},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0512},{stockCode:'000063',stockName:'中兴通讯',weight:0.0507},{stockCode:'600941',stockName:'中国移动',weight:0.0472},{stockCode:'601728',stockName:'中国电信',weight:0.046},{stockCode:'002231',stockName:'恒宝股份',weight:0.0408},{stockCode:'002475',stockName:'立讯精密',weight:0.0402},{stockCode:'300059',stockName:'东方财富',weight:0.0402},{stockCode:'603501',stockName:'韦尔股份',weight:0.0389},{stockCode:'002241',stockName:'歌尔股份',weight:0.0381},{stockCode:'600183',stockName:'生益科技',weight:0.0377}]
+  },
+  {
+    fundCode:'008528.OF', fundName:'景顺长城核心', fundFullName:'景顺长城核心证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'景顺基金管理有限公司', fundManager:'基金经理77',
+    establishDate:'20150612', fundScale:210.8, managementFee:0.33, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:-0.0366,ANNUALRETURN_RATE:-0.0311,SHARP:0.99,MAX_DRAWDOWN:-0.0301,VOL:0.0351,KARMA:1.22,INFO_RATIO:1.0,BETA:0.94,SORTINO:1.36,TREYNOR:0.09,JASON:0.024,MSQUARE:0.0113,VAR:-0.0286,MAX_DRAWDOWN_RECOVER:148},
+    riskFactors:{BETA:0.94,EARNING:0.03,LEVERAGE:0.06,LIQUIDITY:0.1,MOMENTUM:0.69,VALUE:0.17,VOLATILITY:-0.45,GROWTH:0.25,SIZE:-0.05},
+    industryConfig:{'CI005009':0.003235,'CI005013':0.034748,'CI005025':0.294274,'CI005026':0.635923,'CI005027':0.006173,'CI005028':0.025647},
+    valuation:{PE:27.4,PB:4.0,ROE:0.2,ROA:0.077,GRONP:0.108,GROR:0.106,DIVIDEND:0.027,MKT:500,CHANGE_RATE:0.43},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0527},{stockCode:'000063',stockName:'中兴通讯',weight:0.0524},{stockCode:'600941',stockName:'中国移动',weight:0.0522},{stockCode:'601728',stockName:'中国电信',weight:0.0522},{stockCode:'002231',stockName:'恒宝股份',weight:0.0492},{stockCode:'002475',stockName:'立讯精密',weight:0.0472},{stockCode:'300059',stockName:'东方财富',weight:0.0465},{stockCode:'603501',stockName:'韦尔股份',weight:0.0437},{stockCode:'002241',stockName:'歌尔股份',weight:0.0421},{stockCode:'600183',stockName:'生益科技',weight:0.0384}]
+  },
+  {
+    fundCode:'012525.OF', fundName:'南方创新', fundFullName:'南方创新证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'南方基金管理有限公司', fundManager:'基金经理38',
+    establishDate:'20150612', fundScale:205.63, managementFee:1.0, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0798,ANNUALRETURN_RATE:0.0678,SHARP:0.32,MAX_DRAWDOWN:-0.052,VOL:0.0321,KARMA:1.53,INFO_RATIO:0.43,BETA:0.91,SORTINO:0.41,TREYNOR:0.1,JASON:0.0213,MSQUARE:0.0127,VAR:-0.0447,MAX_DRAWDOWN_RECOVER:133},
+    riskFactors:{BETA:0.91,EARNING:0.02,LEVERAGE:0.07,LIQUIDITY:0.09,MOMENTUM:0.6,VALUE:0.16,VOLATILITY:-0.51,GROWTH:0.23,SIZE:-0.04},
+    industryConfig:{'CI005013':0.010055,'CI005014':9.2e-05,'CI005022':0.002089,'CI005025':0.213496,'CI005026':0.757675,'CI005028':0.016593},
+    valuation:{PE:14.6,PB:1.6,ROE:0.178,ROA:0.039,GRONP:0.1,GROR:0.077,DIVIDEND:0.046,MKT:8000,CHANGE_RATE:0.26},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0497},{stockCode:'000063',stockName:'中兴通讯',weight:0.0475},{stockCode:'600941',stockName:'中国移动',weight:0.0458},{stockCode:'601728',stockName:'中国电信',weight:0.0427},{stockCode:'002231',stockName:'恒宝股份',weight:0.0418},{stockCode:'002475',stockName:'立讯精密',weight:0.0389},{stockCode:'300059',stockName:'东方财富',weight:0.0385},{stockCode:'603501',stockName:'韦尔股份',weight:0.0351},{stockCode:'002241',stockName:'歌尔股份',weight:0.0345},{stockCode:'600183',stockName:'生益科技',weight:0.0335}]
+  },
+  {
+    fundCode:'006888.OF', fundName:'建信稳健', fundFullName:'建信稳健证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'建信基金管理有限公司', fundManager:'基金经理49',
+    establishDate:'20150612', fundScale:165.83, managementFee:0.75, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:-0.0451,ANNUALRETURN_RATE:-0.0383,SHARP:0.34,MAX_DRAWDOWN:-0.0769,VOL:0.0287,KARMA:0.59,INFO_RATIO:0.6,BETA:0.91,SORTINO:0.48,TREYNOR:0.1,JASON:0.0268,MSQUARE:0.0086,VAR:-0.0073,MAX_DRAWDOWN_RECOVER:147},
+    riskFactors:{BETA:0.91,EARNING:0.02,LEVERAGE:0.03,LIQUIDITY:0.05,MOMENTUM:0.55,VALUE:0.11,VOLATILITY:-0.46,GROWTH:0.26,SIZE:-0.05},
+    industryConfig:{'CI005006':0.00849,'CI005010':0.022745,'CI005025':0.474752,'CI005026':0.494013},
+    valuation:{PE:28.5,PB:2.7,ROE:0.153,ROA:0.09,GRONP:0.142,GROR:0.152,DIVIDEND:0.028,MKT:1200,CHANGE_RATE:1.41},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0518},{stockCode:'000063',stockName:'中兴通讯',weight:0.0491},{stockCode:'600941',stockName:'中国移动',weight:0.0453},{stockCode:'601728',stockName:'中国电信',weight:0.0427},{stockCode:'002231',stockName:'恒宝股份',weight:0.0416},{stockCode:'002475',stockName:'立讯精密',weight:0.0412},{stockCode:'300059',stockName:'东方财富',weight:0.0411},{stockCode:'603501',stockName:'韦尔股份',weight:0.04},{stockCode:'002241',stockName:'歌尔股份',weight:0.0383},{stockCode:'600183',stockName:'生益科技',weight:0.0377}]
+  },
+  {
+    fundCode:'006503.OF', fundName:'银华稳健', fundFullName:'银华稳健证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'银华基金管理有限公司', fundManager:'基金经理42',
+    establishDate:'20200110', fundScale:40.59, managementFee:1.2, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.0354,ANNUALRETURN_RATE:0.0301,SHARP:0.62,MAX_DRAWDOWN:-0.1191,VOL:0.0427,KARMA:0.3,INFO_RATIO:1.19,BETA:0.92,SORTINO:0.72,TREYNOR:0.04,JASON:0.0305,MSQUARE:0.0201,VAR:-0.0149,MAX_DRAWDOWN_RECOVER:57},
+    riskFactors:{BETA:0.92,EARNING:0.01,LEVERAGE:0.03,LIQUIDITY:0.08,MOMENTUM:0.55,VALUE:0.11,VOLATILITY:-0.46,GROWTH:0.27,SIZE:-0.06},
+    industryConfig:{'CI005006':0.005174,'CI005008':0.005473,'CI005010':0.017586,'CI005025':0.377338,'CI005026':0.592688,'CI005027':0.001742},
+    valuation:{PE:26.1,PB:4.2,ROE:0.119,ROA:0.096,GRONP:0.099,GROR:0.099,DIVIDEND:0.048,MKT:5000,CHANGE_RATE:1.0},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0651},{stockCode:'000063',stockName:'中兴通讯',weight:0.0647},{stockCode:'600941',stockName:'中国移动',weight:0.064},{stockCode:'601728',stockName:'中国电信',weight:0.0612},{stockCode:'002231',stockName:'恒宝股份',weight:0.0604},{stockCode:'002475',stockName:'立讯精密',weight:0.0529},{stockCode:'300059',stockName:'东方财富',weight:0.05},{stockCode:'603501',stockName:'韦尔股份',weight:0.0494},{stockCode:'002241',stockName:'歌尔股份',weight:0.0488},{stockCode:'600183',stockName:'生益科技',weight:0.0446}]
+  },
+  {
+    fundCode:'001480.OF', fundName:'景顺长城创新', fundFullName:'景顺长城创新证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'景顺基金管理有限公司', fundManager:'基金经理8',
+    establishDate:'20180925', fundScale:102.67, managementFee:0.75, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.0101,ANNUALRETURN_RATE:0.0086,SHARP:0.52,MAX_DRAWDOWN:-0.0396,VOL:0.0545,KARMA:0.25,INFO_RATIO:0.42,BETA:0.92,SORTINO:0.74,TREYNOR:0.16,JASON:0.0137,MSQUARE:0.0228,VAR:-0.0467,MAX_DRAWDOWN_RECOVER:144},
+    riskFactors:{BETA:0.92,EARNING:0.01,LEVERAGE:0.02,LIQUIDITY:0.07,MOMENTUM:0.52,VALUE:0.1,VOLATILITY:-0.46,GROWTH:0.28,SIZE:-0.06},
+    industryConfig:{'CI005006':0.004347,'CI005008':0.005379,'CI005010':0.016839,'CI005025':0.376677,'CI005026':0.594104,'CI005027':0.002654},
+    valuation:{PE:18.8,PB:3.3,ROE:0.11,ROA:0.052,GRONP:0.16,GROR:0.19,DIVIDEND:0.035,MKT:5000,CHANGE_RATE:1.4},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0569},{stockCode:'000063',stockName:'中兴通讯',weight:0.0565},{stockCode:'600941',stockName:'中国移动',weight:0.0556},{stockCode:'601728',stockName:'中国电信',weight:0.0472},{stockCode:'002231',stockName:'恒宝股份',weight:0.0461},{stockCode:'002475',stockName:'立讯精密',weight:0.0455},{stockCode:'300059',stockName:'东方财富',weight:0.045},{stockCode:'603501',stockName:'韦尔股份',weight:0.0443},{stockCode:'002241',stockName:'歌尔股份',weight:0.0438},{stockCode:'600183',stockName:'生益科技',weight:0.042}]
+  },
+  {
+    fundCode:'006502.OF', fundName:'银华蓝筹', fundFullName:'银华蓝筹证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'银华基金管理有限公司', fundManager:'基金经理12',
+    establishDate:'20100115', fundScale:42.97, managementFee:0.6, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:["SmartBeta", "量化"],
+    matchTags:["SmartBeta", "量化"],
+    performance:{RETURNRATE:0.0073,ANNUALRETURN_RATE:0.0062,SHARP:0.54,MAX_DRAWDOWN:-0.0448,VOL:0.0444,KARMA:0.16,INFO_RATIO:0.53,BETA:0.92,SORTINO:0.67,TREYNOR:0.04,JASON:0.0079,MSQUARE:0.0203,VAR:-0.0054,MAX_DRAWDOWN_RECOVER:124},
+    riskFactors:{BETA:0.92,EARNING:0.01,LEVERAGE:0.03,LIQUIDITY:0.08,MOMENTUM:0.55,VALUE:0.11,VOLATILITY:-0.46,GROWTH:0.27,SIZE:-0.06},
+    industryConfig:{'CI005006':0.005174,'CI005008':0.005473,'CI005010':0.017586,'CI005025':0.377338,'CI005026':0.592688,'CI005027':0.001742},
+    valuation:{PE:25.5,PB:5.0,ROE:0.05,ROA:0.046,GRONP:0.042,GROR:0.197,DIVIDEND:0.022,MKT:5000,CHANGE_RATE:1.05},
+    topHoldings:[{stockCode:'600050',stockName:'中国联通',weight:0.0497},{stockCode:'000063',stockName:'中兴通讯',weight:0.0485},{stockCode:'600941',stockName:'中国移动',weight:0.0481},{stockCode:'601728',stockName:'中国电信',weight:0.0469},{stockCode:'002231',stockName:'恒宝股份',weight:0.0463},{stockCode:'002475',stockName:'立讯精密',weight:0.0413},{stockCode:'300059',stockName:'东方财富',weight:0.0376},{stockCode:'603501',stockName:'韦尔股份',weight:0.0346},{stockCode:'002241',stockName:'歌尔股份',weight:0.0338},{stockCode:'600183',stockName:'生益科技',weight:0.0332}]
+  },
+  {
+    fundCode:'019008.OF', fundName:'工银瑞信价值', fundFullName:'工银瑞信价值证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'工银基金管理有限公司', fundManager:'基金经理31',
+    establishDate:'20150612', fundScale:167.23, managementFee:0.5, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R1', riskLevelNum:1,
+    fundTags:["行业", "主题"],
+    matchTags:["行业", "主题"],
+    performance:{RETURNRATE:0.0731,ANNUALRETURN_RATE:0.0621,SHARP:0.73,MAX_DRAWDOWN:-0.1049,VOL:0.041,KARMA:0.7,INFO_RATIO:0.26,BETA:0.06,SORTINO:0.98,TREYNOR:0.07,JASON:0.0275,MSQUARE:0.0181,VAR:-0.0093,MAX_DRAWDOWN_RECOVER:72},
+    riskFactors:{BETA:0.06,EARNING:0.01,LEVERAGE:-0.0,LIQUIDITY:0.01,MOMENTUM:-0.1,VALUE:-0.01,VOLATILITY:0.07,GROWTH:0.02,SIZE:-0.05},
+    industryConfig:{'CI005004':0.005631,'CI005006':0.161445,'CI005010':0.453825,'CI005012':0.125881,'CI005013':0.026793,'CI005024':0.022489,'CI005025':0.203935},
+    valuation:{PE:31.0,PB:3.7,ROE:0.189,ROA:0.103,GRONP:0.096,GROR:0.107,DIVIDEND:0.018,MKT:8000,CHANGE_RATE:0.71},
+    topHoldings:[{stockCode:'600031',stockName:'三一重工',weight:0.0608},{stockCode:'000333',stockName:'美的集团',weight:0.0583},{stockCode:'002027',stockName:'分众传媒',weight:0.0552},{stockCode:'601766',stockName:'中国中车',weight:0.0548},{stockCode:'600009',stockName:'上海机场',weight:0.0473},{stockCode:'002475',stockName:'立讯精密',weight:0.0463},{stockCode:'300059',stockName:'东方财富',weight:0.0435},{stockCode:'603501',stockName:'韦尔股份',weight:0.0431},{stockCode:'002241',stockName:'歌尔股份',weight:0.0417},{stockCode:'600183',stockName:'生益科技',weight:0.0413}]
+  },
+  {
+    fundCode:'010167.OF', fundName:'易方达动态', fundFullName:'易方达动态证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'易方基金管理有限公司', fundManager:'基金经理51',
+    establishDate:'20210315', fundScale:215.92, managementFee:0.75, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R1', riskLevelNum:1,
+    fundTags:["债券", "稳健"],
+    matchTags:["债券", "稳健"],
+    performance:{RETURNRATE:0.039,ANNUALRETURN_RATE:0.0331,SHARP:1.01,MAX_DRAWDOWN:-0.0159,VOL:0.0202,KARMA:2.45,INFO_RATIO:0.84,BETA:-0.22,SORTINO:1.49,TREYNOR:0.11,JASON:0.0256,MSQUARE:0.0236,VAR:-0.0144,MAX_DRAWDOWN_RECOVER:136},
+    riskFactors:{BETA:-0.22,EARNING:0.01,LEVERAGE:-0.0,LIQUIDITY:-0.02,MOMENTUM:0.0,VALUE:-0.01,VOLATILITY:0.02,GROWTH:-0.02,SIZE:0.05},
+    industryConfig:{'CI005002':0.127759,'CI005003':0.08334,'CI005004':0.066659,'CI005011':0.009811,'CI005013':0.165594,'CI005018':0.058636,'CI005021':0.328969,'CI005022':0.074221,'CI005025':0.02121,'CI005027':0.063802},
+    valuation:{PE:7.7,PB:0.8,ROE:0.033,ROA:0.054,GRONP:0.203,GROR:0.084,DIVIDEND:0.042,MKT:12000,CHANGE_RATE:1.04},
+    topHoldings:[{stockCode:'601398',stockName:'工商银行',weight:0.0637},{stockCode:'600036',stockName:'招商银行',weight:0.0618},{stockCode:'601318',stockName:'中国平安',weight:0.0618},{stockCode:'601166',stockName:'兴业银行',weight:0.0592},{stockCode:'600000',stockName:'浦发银行',weight:0.0591},{stockCode:'600104',stockName:'上汽集团',weight:0.0583},{stockCode:'601633',stockName:'长城汽车',weight:0.0572},{stockCode:'002594',stockName:'比亚迪',weight:0.0485},{stockCode:'601238',stockName:'广汽集团',weight:0.047},{stockCode:'600006',stockName:'东风汽车',weight:0.0466}]
+  },
+  {
+    fundCode:'011768.OF', fundName:'景顺长城灵活', fundFullName:'景顺长城灵活证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'景顺基金管理有限公司', fundManager:'基金经理68',
+    establishDate:'20200110', fundScale:153.89, managementFee:1.0, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R1', riskLevelNum:1,
+    fundTags:["双债", "增强"],
+    matchTags:["双债", "增强"],
+    performance:{RETURNRATE:0.0343,ANNUALRETURN_RATE:0.0292,SHARP:2.3,MAX_DRAWDOWN:-0.0087,VOL:0.0248,KARMA:3.95,INFO_RATIO:0.44,BETA:-0.04,SORTINO:3.09,TREYNOR:0.17,JASON:0.0368,MSQUARE:0.0186,VAR:-0.0238,MAX_DRAWDOWN_RECOVER:17},
+    riskFactors:{BETA:-0.04,EARNING:0.0,LEVERAGE:0.01,LIQUIDITY:0.0,MOMENTUM:-0.08,VALUE:-0.02,VOLATILITY:0.05,GROWTH:-0.02,SIZE:-0.02},
+    industryConfig:{'CI005001':0.035665,'CI005002':0.030771,'CI005003':0.010154,'CI005006':0.110605,'CI005007':0.052838,'CI005010':0.146159,'CI005011':0.032538,'CI005016':0.000159,'CI005018':0.050681,'CI005019':0.137296,'CI005021':0.012307,'CI005023':0.023624,'CI005024':0.002852,'CI005026':0.169604,'CI005030':0.184747},
+    valuation:{PE:7.6,PB:0.5,ROE:0.064,ROA:0.053,GRONP:0.13,GROR:0.05,DIVIDEND:0.02,MKT:3500,CHANGE_RATE:0.87},
+    topHoldings:[{stockCode:'600196',stockName:'复星医药',weight:0.0562},{stockCode:'000999',stockName:'华润三九',weight:0.0534},{stockCode:'600276',stockName:'恒瑞医药',weight:0.0525},{stockCode:'000963',stockName:'华东医药',weight:0.0518},{stockCode:'600436',stockName:'片仔癀',weight:0.0485},{stockCode:'600050',stockName:'中国联通',weight:0.0484},{stockCode:'000063',stockName:'中兴通讯',weight:0.0468},{stockCode:'600941',stockName:'中国移动',weight:0.0459},{stockCode:'601728',stockName:'中国电信',weight:0.0445},{stockCode:'002231',stockName:'恒宝股份',weight:0.039}]
+  },
+  {
+    fundCode:'005235.OF', fundName:'工银瑞信价值', fundFullName:'工银瑞信价值证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'工银基金管理有限公司', fundManager:'基金经理56',
+    establishDate:'20100115', fundScale:239.74, managementFee:1.5, custodianFee:0.2,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["宽基", "低费率"],
+    matchTags:["宽基", "低费率"],
+    performance:{RETURNRATE:0.143,ANNUALRETURN_RATE:0.1216,SHARP:0.93,MAX_DRAWDOWN:-0.1047,VOL:0.0225,KARMA:1.37,INFO_RATIO:0.66,BETA:-0.0,SORTINO:1.35,TREYNOR:0.12,JASON:0.0373,MSQUARE:0.0212,VAR:-0.015,MAX_DRAWDOWN_RECOVER:82},
+    riskFactors:{BETA:-0.0,EARNING:0.02,LEVERAGE:-0.0,LIQUIDITY:0.01,MOMENTUM:-0.06,VALUE:-0.0,VOLATILITY:0.03,GROWTH:-0.02,SIZE:-0.0},
+    industryConfig:{'CI005019':1.0},
+    valuation:{PE:26.0,PB:3.3,ROE:0.129,ROA:0.03,GRONP:0.065,GROR:0.052,DIVIDEND:0.042,MKT:2000,CHANGE_RATE:0.69},
+    topHoldings:[{stockCode:'600519',stockName:'贵州茅台',weight:0.0553},{stockCode:'000858',stockName:'五粮液',weight:0.0546},{stockCode:'000568',stockName:'泸州老窖',weight:0.054},{stockCode:'002304',stockName:'洋河股份',weight:0.0525},{stockCode:'600809',stockName:'山西汾酒',weight:0.0521},{stockCode:'601857',stockName:'中国石油',weight:0.0521},{stockCode:'600028',stockName:'中国石化',weight:0.0514},{stockCode:'601808',stockName:'中海油服',weight:0.0501},{stockCode:'600585',stockName:'海螺水泥',weight:0.047},{stockCode:'002493',stockName:'荣盛石化',weight:0.0379}]
+  },
+  {
+    fundCode:'562810.SH', fundName:'嘉实灵活', fundFullName:'嘉实灵活证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'嘉实基金管理有限公司', fundManager:'基金经理55',
+    establishDate:'20120328', fundScale:182.83, managementFee:0.6, custodianFee:0.1,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:["双债", "增强"],
+    matchTags:["双债", "增强"],
+    performance:{RETURNRATE:0.0207,ANNUALRETURN_RATE:0.0176,SHARP:1.0,MAX_DRAWDOWN:-0.0122,VOL:0.0192,KARMA:1.7,INFO_RATIO:0.43,BETA:-0.1,SORTINO:1.49,TREYNOR:0.11,JASON:0.0165,MSQUARE:0.0145,VAR:-0.014,MAX_DRAWDOWN_RECOVER:124},
+    riskFactors:{BETA:-0.1,EARNING:0.01,LEVERAGE:0.0,LIQUIDITY:0.01,MOMENTUM:-0.0,VALUE:0.0,VOLATILITY:0.0,GROWTH:-0.01,SIZE:-0.02},
+    industryConfig:{'CI005001':0.319905,'CI005002':0.039586,'CI005003':0.1503,'CI005010':0.011267,'CI005018':0.111144,'CI005019':0.010574,'CI005021':0.265124,'CI005022':0.053477,'CI005026':0.025317,'CI005027':0.013307},
+    valuation:{PE:6.7,PB:1.0,ROE:0.037,ROA:0.057,GRONP:0.185,GROR:0.042,DIVIDEND:0.018,MKT:3500,CHANGE_RATE:0.71},
+    topHoldings:[{stockCode:'601857',stockName:'中国石油',weight:0.0665},{stockCode:'600028',stockName:'中国石化',weight:0.0655},{stockCode:'601808',stockName:'中海油服',weight:0.0652},{stockCode:'600585',stockName:'海螺水泥',weight:0.0597},{stockCode:'002493',stockName:'荣盛石化',weight:0.0585},{stockCode:'601398',stockName:'工商银行',weight:0.0508},{stockCode:'600036',stockName:'招商银行',weight:0.0478},{stockCode:'601318',stockName:'中国平安',weight:0.0471},{stockCode:'601166',stockName:'兴业银行',weight:0.0461},{stockCode:'600000',stockName:'浦发银行',weight:0.0458}]
   }
 ];
 
@@ -1451,6 +2010,16 @@ createApp({
       ];
     });
 
+    const topHoldingsDisplay = computed(() => {
+      if (!selectedFund.value || !selectedFund.value.topHoldings) return [];
+      return selectedFund.value.topHoldings;
+    });
+    const topHoldingsTotal = computed(() => {
+      if (!selectedFund.value || !selectedFund.value.topHoldings) return '0.00%';
+      const total = selectedFund.value.topHoldings.reduce((s,h) => s + h.weight, 0);
+      return (total * 100).toFixed(2) + '%';
+    });
+
     const eduCard = computed(() => {
       if (!selectedFund.value) return {title:'', content:'', analysis:''};
       const f = selectedFund.value;
@@ -1668,7 +2237,7 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal, confirmExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
-      valuationDisplay, eduCard,
+      valuationDisplay, topHoldingsDisplay, topHoldingsTotal, eduCard,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
