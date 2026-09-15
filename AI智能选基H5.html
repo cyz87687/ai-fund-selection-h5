@@ -320,7 +320,7 @@ body {
   <div class="px-5 mb-4 fade-in-up" style="animation-delay:.08s">
     <div class="flex items-center justify-between mb-2.5">
       <span class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider">我的投资画像</span>
-      <span class="text-[10px] text-[var(--text-muted)]">点击修改</span>
+      <span class="text-[10px] text-[var(--gold)] cursor-pointer" @click="openKYC">点击修改，让我们更了解你</span>
     </div>
     <div class="grid grid-cols-3 gap-2">
       <div class="profile-pill p-3" @click="openPicker('age')">
@@ -334,24 +334,6 @@ body {
       <div class="profile-pill p-3" @click="openPicker('duration')">
         <div class="text-[10px] text-[var(--text-muted)] mb-1">投资期限</div>
         <div class="text-sm font-semibold text-[var(--text-primary)]">{{ riskProfile.duration }}</div>
-      </div>
-    </div>
-    <!-- Risk Level Bar -->
-    <div class="mt-3 px-1">
-      <div class="flex items-center justify-between mb-1.5">
-        <span class="text-[10px] text-[var(--text-muted)]">可承受基金风险等级</span>
-        <span class="text-[10px] font-medium" :style="{color: riskColor}">{{ riskProfile.maxRiskLabel }}</span>
-      </div>
-      <div class="relative">
-        <div class="risk-bar-bg"></div>
-        <div class="absolute top-1/2 -translate-y-1/2 risk-bar-indicator" :style="{left: riskBarPercent + '%'}"></div>
-      </div>
-      <div class="flex justify-between mt-1">
-        <span class="text-[9px] text-[#5dd49a]">R1</span>
-        <span class="text-[9px] text-[#6dc496]">R2</span>
-        <span class="text-[9px] text-[var(--gold)]">R3</span>
-        <span class="text-[9px] text-[#e8a23d]">R4</span>
-        <span class="text-[9px] text-[#e8554e]">R5</span>
       </div>
     </div>
     <div v-if="profileUpdated" class="mt-2 text-[10px] text-[var(--gold)] fade-in" style="animation-duration:.3s">
@@ -547,8 +529,10 @@ body {
     </div>
 
     <div v-if="filteredFunds.length===0" class="text-center py-16">
-      <div class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
-      <div class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
+      <div v-if="fundsExcludedByRisk" class="text-[var(--text-muted)] text-sm mb-2">根据您的风险承受能力，暂无匹配的基金</div>
+      <div v-if="fundsExcludedByRisk" class="text-[var(--gold)] text-xs">建议调整您的风险偏好</div>
+      <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
+      <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
     </div>
   </div>
 
@@ -750,6 +734,56 @@ body {
   </div>
 </div>
 
+<!-- ============== KYC Questionnaire Modal ============== -->
+<transition name="fade">
+  <div v-if="kycOpen" class="overlay" @click="kycOpen=false"></div>
+</transition>
+<transition name="sheet">
+  <div v-if="kycOpen" class="bottom-sheet p-5 pb-8" style="max-height:85vh;overflow-y:auto;">
+    <!-- Progress Bar -->
+    <div v-if="kycStep < kycQuestions.length" class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] text-[var(--text-muted)]">KYC风险问卷</span>
+        <span class="text-[11px] text-[var(--gold)] mono">{{ kycStep + 1 }}/{{ kycQuestions.length }}</span>
+      </div>
+      <div class="h-1.5 rounded-full" style="background:rgba(212,168,81,.1)">
+        <div class="h-full rounded-full transition-all duration-300" :style="{width: ((kycStep + 1) / kycQuestions.length * 100) + '%', background:'linear-gradient(90deg,var(--gold),var(--gold-light))'}"></div>
+      </div>
+    </div>
+
+    <!-- Question -->
+    <div v-if="kycStep < kycQuestions.length">
+      <div class="text-[15px] font-bold mb-4 leading-snug">{{ kycQuestions[kycStep].title }}</div>
+      <div class="space-y-2.5">
+        <div v-for="opt in kycQuestions[kycStep].options" :key="opt.label"
+          class="p-3.5 rounded-xl cursor-pointer transition-all border"
+          style="background:rgba(10,21,40,.4);border-color:var(--border)"
+          @click="selectKYCAnswer(opt.score, opt.durationVal)">
+          <div class="flex items-center justify-between">
+            <span class="text-[13px] text-[var(--text-primary)]">{{ opt.label }}</span>
+            <span class="text-[10px] text-[var(--text-muted)] mono">{{ opt.score }}分</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div v-if="kycStep >= kycQuestions.length" class="text-center py-4">
+      <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background:rgba(212,168,81,.1)">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="text-[16px] font-bold mb-1">问卷已完成</div>
+      <div class="text-[13px] text-[var(--text-secondary)] mb-2">您的风险等级为</div>
+      <div class="text-[28px] font-bold gradient-gold-text mb-1">{{ kycResult.level }} {{ kycResult.label }}</div>
+      <div class="text-[11px] text-[var(--text-muted)] mb-1 mono">总分 {{ kycScore }} 分</div>
+      <div class="text-[11px] text-[var(--gold-light)] mb-5">可查看基金风险等级：{{ kycResult.maxLabel }}</div>
+      <button class="btn-gold w-full py-3 text-sm" @click="closeKYC">确认</button>
+    </div>
+  </div>
+</transition>
+
 <!-- ============== Bottom Sheet Picker ============== -->
 <transition name="fade">
   <div v-if="pickerOpen" class="overlay" @click="pickerOpen=false"></div>
@@ -900,6 +934,18 @@ const MOCK_FUNDS = [
     riskFactors:{BETA:1.08,EARNING:0.35,LEVERAGE:0.08,LIQUIDITY:0.12,MOMENTUM:0.30,VALUE:-0.05,VOLATILITY:0.18,GROWTH:0.45,SIZE:-0.15},
     industryConfig:{CI005027:0.155,CI005025:0.135,CI005018:0.085,CI005011:0.065,CI005019:0.055,CI005010:0.040,CI005012:0.035,CI005013:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005017:0.010,CI005024:0.008,CI005030:0.003},
     valuation:{PE:25.8,PB:3.2,ROE:0.172,ROA:0.072,GRONP:0.168,GROR:0.115,DIVIDEND:0.018,MKT:3500,CHANGE_RATE:0.92}
+  },
+  {
+    fundCode:'005918.OF', fundName:'广发科技先锋', fundFullName:'广发科技先锋混合型证券投资基金',
+    fundTypeTag:'股票型', fundCompany:'广发基金管理有限公司', fundManager:'刘格菘',
+    establishDate:'20191225', fundScale:120.50, managementFee:1.50, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R5', riskLevelNum:5,
+    fundTags:['科技','成长','高波动'],
+    matchTags:['成长风格','高波动','高收益'],
+    performance:{RETURNRATE:0.225,ANNUALRETURN_RATE:0.185,SHARP:1.75,MAX_DRAWDOWN:-0.145,VOL:0.078,KARMA:1.55,INFO_RATIO:0.98,BETA:1.35,SORTINO:2.05,TREYNOR:0.18,JASON:0.042,MSQUARE:0.025,VAR:-0.052,MAX_DRAWDOWN_RECOVER:110},
+    riskFactors:{BETA:1.35,EARNING:0.28,LEVERAGE:0.15,LIQUIDITY:0.22,MOMENTUM:0.45,VALUE:-0.18,VOLATILITY:0.35,GROWTH:0.55,SIZE:-0.22},
+    industryConfig:{CI005027:0.225,CI005025:0.185,CI005026:0.085,CI005011:0.065,CI005012:0.045,CI005013:0.038,CI005018:0.025,CI005010:0.018,CI005003:0.012,CI005001:0.008,CI005006:0.005,CI005030:0.002},
+    valuation:{PE:35.5,PB:4.8,ROE:0.142,ROA:0.058,GRONP:0.225,GROR:0.185,DIVIDEND:0.005,MKT:2800,CHANGE_RATE:1.45}
   }
 ];
 
@@ -1059,6 +1105,33 @@ createApp({
     const sortBy = ref('match');
     const historyList = ref([]);
 
+    // KYC Questionnaire
+    const kycOpen = ref(false);
+    const kycStep = ref(0);
+    const kycScore = ref(0);
+    const kycDurationVal = ref('mid');
+    const kycQuestions = [
+      {title:'您的年龄范围是？',options:[
+        {label:'25岁以下',score:3},{label:'25-35岁',score:4},{label:'36-50岁',score:3},
+        {label:'51-60岁',score:2},{label:'60岁以上',score:1}
+      ]},
+      {title:'您计划投资的资金占您可支配资产的比例是？',options:[
+        {label:'10%以下',score:4},{label:'10%-30%',score:3},{label:'30%-50%',score:2},{label:'50%以上',score:1}
+      ]},
+      {title:'您的投资期限预期是？',options:[
+        {label:'1年以内',score:1,durationVal:'short'},{label:'1-3年',score:2,durationVal:'mid'},
+        {label:'3-5年',score:3,durationVal:'long'},{label:'5年以上',score:4,durationVal:'long'}
+      ]},
+      {title:'如果您的投资亏损了20%，您会？',options:[
+        {label:'立即全部赎回',score:1},{label:'部分赎回，减少损失',score:2},
+        {label:'继续持有，等待回涨',score:3},{label:'趁低位加仓',score:4}
+      ]},
+      {title:'您对基金投资的了解程度是？',options:[
+        {label:'完全不了解',score:1},{label:'了解基本概念',score:2},
+        {label:'比较熟悉，有投资经验',score:3},{label:'非常熟悉，专业投资者',score:4}
+      ]}
+    ];
+
     const riskProfile = reactive({
       age: '中年',
       ageValue: 'middle',
@@ -1066,8 +1139,8 @@ createApp({
       riskPrefValue: 'C3',
       duration: '中期',
       durationValue: 'mid',
-      maxRiskLevel: 4,
-      maxRiskLabel: 'R1-R4'
+      maxRiskLevel: 3,
+      maxRiskLabel: 'R1-R3'
     });
 
     const quickTags = [
@@ -1146,14 +1219,14 @@ createApp({
         riskProfile.age = m[val];
         riskProfile.ageValue = val;
         // Auto adjust risk suggestion
-        if (val === 'young') { riskProfile.riskPref = '积极型'; riskProfile.riskPrefValue = 'C4'; riskProfile.maxRiskLevel = 5; riskProfile.maxRiskLabel = 'R1-R5'; }
-        if (val === 'middle') { riskProfile.riskPref = '平衡型'; riskProfile.riskPrefValue = 'C3'; riskProfile.maxRiskLevel = 4; riskProfile.maxRiskLabel = 'R1-R4'; }
-        if (val === 'old') { riskProfile.riskPref = '稳健型'; riskProfile.riskPrefValue = 'C2'; riskProfile.maxRiskLevel = 3; riskProfile.maxRiskLabel = 'R1-R3'; }
+        if (val === 'young') { riskProfile.riskPref = '积极型'; riskProfile.riskPrefValue = 'C4'; riskProfile.maxRiskLevel = 4; riskProfile.maxRiskLabel = 'R1-R4'; }
+        if (val === 'middle') { riskProfile.riskPref = '平衡型'; riskProfile.riskPrefValue = 'C3'; riskProfile.maxRiskLevel = 3; riskProfile.maxRiskLabel = 'R1-R3'; }
+        if (val === 'old') { riskProfile.riskPref = '稳健型'; riskProfile.riskPrefValue = 'C2'; riskProfile.maxRiskLevel = 2; riskProfile.maxRiskLabel = 'R1-R2'; }
       }
       if (pickerType.value === 'risk') {
         const labels = {C1:'保守型',C2:'稳健型',C3:'平衡型',C4:'积极型',C5:'进取型'};
-        const maxLevels = {C1:2,C2:3,C3:4,C4:5,C5:5};
-        const maxLabels = {C1:'R1-R2',C2:'R1-R3',C3:'R1-R4',C4:'R1-R5',C5:'R1-R5'};
+        const maxLevels = {C1:1,C2:2,C3:3,C4:4,C5:5};
+        const maxLabels = {C1:'R1',C2:'R1-R2',C3:'R1-R3',C4:'R1-R4',C5:'R1-R5'};
         riskProfile.riskPref = labels[val];
         riskProfile.riskPrefValue = val;
         riskProfile.maxRiskLevel = maxLevels[val];
@@ -1521,6 +1594,59 @@ createApp({
       // Nothing needed on mount for now
     });
 
+    // KYC functions
+    function openKYC() {
+      kycStep.value = 0;
+      kycScore.value = 0;
+      kycDurationVal.value = 'mid';
+      kycOpen.value = true;
+    }
+
+    function selectKYCAnswer(score, durationVal) {
+      kycScore.value += score;
+      if (durationVal) kycDurationVal.value = durationVal;
+      kycStep.value++;
+    }
+
+    const kycResult = computed(() => {
+      const s = kycScore.value;
+      if (s <= 8) return {level:'C1',label:'保守型',maxRiskLevel:1,maxLabel:'R1'};
+      if (s <= 12) return {level:'C2',label:'稳健型',maxRiskLevel:2,maxLabel:'R1-R2'};
+      if (s <= 16) return {level:'C3',label:'平衡型',maxRiskLevel:3,maxLabel:'R1-R3'};
+      if (s <= 19) return {level:'C4',label:'积极型',maxRiskLevel:4,maxLabel:'R1-R4'};
+      return {level:'C5',label:'进取型',maxRiskLevel:5,maxLabel:'R1-R5'};
+    });
+
+    function closeKYC() {
+      const r = kycResult.value;
+      riskProfile.riskPref = r.label;
+      riskProfile.riskPrefValue = r.level;
+      riskProfile.maxRiskLevel = r.maxRiskLevel;
+      riskProfile.maxRiskLabel = r.maxLabel;
+      // Update duration from KYC answer
+      const durMap = {short:'短期',mid:'中期',long:'长期'};
+      riskProfile.duration = durMap[kycDurationVal.value];
+      riskProfile.durationValue = kycDurationVal.value;
+      // Update age based on score
+      if (kycScore.value <= 8) { riskProfile.age = '老年'; riskProfile.ageValue = 'old'; }
+      else if (kycScore.value <= 16) { riskProfile.age = '中年'; riskProfile.ageValue = 'middle'; }
+      else { riskProfile.age = '青年'; riskProfile.ageValue = 'young'; }
+      kycOpen.value = false;
+      profileUpdated.value = true;
+      setTimeout(() => { profileUpdated.value = false; }, 3000);
+    }
+
+    // Check if funds were excluded by risk filter (for empty state message)
+    const fundsExcludedByRisk = computed(() => {
+      if (filteredFunds.value.length > 0) return false;
+      // Check if there would be results without risk filter
+      if (!aiResult.filterFn) {
+        return MOCK_FUNDS.some(f => f.riskLevelNum > riskProfile.maxRiskLevel);
+      }
+      const queryOnly = aiResult.filterFn(MOCK_FUNDS, 999);
+      return queryOnly.length > 0;
+    });
+
     return {
       currentPage, searchText, lastQuery, selectedFund, pickerOpen, pickerType,
       profileUpdated, externalConfirm, riskProfile, quickTags, aiResult,
@@ -1530,7 +1656,9 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal, confirmExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
-      valuationDisplay, eduCard
+      valuationDisplay, eduCard,
+      kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
+      openKYC, selectKYCAnswer, closeKYC
     };
   }
 }).mount('#app');
