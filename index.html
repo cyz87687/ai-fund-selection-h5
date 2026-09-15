@@ -840,7 +840,7 @@ const INDUSTRY_MAP = {
 // ============ MOCK FUND DATA ============
 const MOCK_FUNDS = [
   {
-    fundCode:'000001.OF', fundName:'华夏成长混合', fundFullName:'华夏成长证券投资基金',
+    fundCode:'000001.OF', fundName:'华夏成长', fundFullName:'华夏成长证券投资基金',
     fundTypeTag:'混合型', fundCompany:'华夏基金管理有限公司', fundManager:'刘文动',
     establishDate:'20021023', fundScale:15.82, managementFee:1.50, custodianFee:0.25,
     reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
@@ -852,19 +852,19 @@ const MOCK_FUNDS = [
     valuation:{PE:15.2,PB:1.8,ROE:0.185,ROA:0.082,GRONP:0.253,GROR:0.156,DIVIDEND:0.032,MKT:5000,CHANGE_RATE:0.85}
   },
   {
-    fundCode:'000006.OF', fundName:'华夏大盘精选', fundFullName:'华夏大盘精选证券投资基金',
-    fundTypeTag:'混合型', fundCompany:'华夏基金管理有限公司', fundManager:'王克明',
-    establishDate:'20051010', fundScale:8.36, managementFee:1.50, custodianFee:0.25,
+    fundCode:'000006.OF', fundName:'西部利得量化优选', fundFullName:'西部利得量化优选混合型证券投资基金',
+    fundTypeTag:'混合型', fundCompany:'西部利得基金管理有限公司', fundManager:'盛丰衍',
+    establishDate:'20170113', fundScale:6.85, managementFee:1.50, custodianFee:0.25,
     reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
-    fundTags:['成长','大盘'],
-    matchTags:['高收益','大盘风格'],
+    fundTags:['量化','成长'],
+    matchTags:['高收益','量化策略'],
     performance:{RETURNRATE:0.152,ANNUALRETURN_RATE:0.118,SHARP:1.85,MAX_DRAWDOWN:-0.085,VOL:0.045,KARMA:2.10,INFO_RATIO:0.95,BETA:1.12,SORTINO:2.20,TREYNOR:0.15,JASON:0.035,MSQUARE:0.018,VAR:-0.032,MAX_DRAWDOWN_RECOVER:85},
     riskFactors:{BETA:1.12,EARNING:0.28,LEVERAGE:0.05,LIQUIDITY:0.18,MOMENTUM:0.35,VALUE:-0.10,VOLATILITY:0.15,GROWTH:0.42,SIZE:0.45},
     industryConfig:{CI005027:0.185,CI005025:0.120,CI005011:0.095,CI005018:0.070,CI005019:0.055,CI005010:0.045,CI005012:0.040,CI005013:0.035,CI005003:0.025,CI005001:0.020,CI005006:0.015,CI005017:0.012,CI005021:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002,CI005007:0.001},
     valuation:{PE:22.5,PB:2.8,ROE:0.158,ROA:0.065,GRONP:0.185,GROR:0.122,DIVIDEND:0.015,MKT:8000,CHANGE_RATE:1.20}
   },
   {
-    fundCode:'000008.OF', fundName:'嘉实沪深300ETF', fundFullName:'嘉实沪深300交易型开放式指数证券投资基金',
+    fundCode:'000008.OF', fundName:'嘉实300', fundFullName:'嘉实沪深300指数证券投资基金',
     fundTypeTag:'指数型', fundCompany:'嘉实基金管理有限公司', fundManager:'梁彬',
     establishDate:'20120528', fundScale:125.60, managementFee:0.50, custodianFee:0.10,
     reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
@@ -924,23 +924,35 @@ const MOCK_FUNDS = [
     valuation:{PE:28.5,PB:3.5,ROE:0.225,ROA:0.095,GRONP:0.185,GROR:0.125,DIVIDEND:0.012,MKT:4500,CHANGE_RATE:0.75}
   },
   {
-    fundCode:'110011.OF', fundName:'易方达中小盘', fundFullName:'易方达中小盘混合型证券投资基金',
+    fundCode:'110011.OF', fundName:'易方达优质精选', fundFullName:'易方达优质精选混合型证券投资基金',
     fundTypeTag:'混合型', fundCompany:'易方达基金管理有限公司', fundManager:'张坤',
     establishDate:'20080612', fundScale:95.30, managementFee:1.50, custodianFee:0.25,
     reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
-    fundTags:['成长','中小盘'],
-    matchTags:['成长风格','中小盘'],
+    fundTags:['优质','价值'],
+    matchTags:['价值风格','优质精选'],
     performance:{RETURNRATE:0.135,ANNUALRETURN_RATE:0.108,SHARP:1.50,MAX_DRAWDOWN:-0.078,VOL:0.042,KARMA:1.75,INFO_RATIO:0.85,BETA:1.08,SORTINO:1.90,TREYNOR:0.13,JASON:0.028,MSQUARE:0.016,VAR:-0.028,MAX_DRAWDOWN_RECOVER:90},
     riskFactors:{BETA:1.08,EARNING:0.35,LEVERAGE:0.08,LIQUIDITY:0.12,MOMENTUM:0.30,VALUE:-0.05,VOLATILITY:0.18,GROWTH:0.45,SIZE:-0.15},
     industryConfig:{CI005027:0.155,CI005025:0.135,CI005018:0.085,CI005011:0.065,CI005019:0.055,CI005010:0.040,CI005012:0.035,CI005013:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005017:0.010,CI005024:0.008,CI005030:0.003},
     valuation:{PE:25.8,PB:3.2,ROE:0.172,ROA:0.072,GRONP:0.168,GROR:0.115,DIVIDEND:0.018,MKT:3500,CHANGE_RATE:0.92}
   },
   {
-    fundCode:'005918.OF', fundName:'广发科技先锋', fundFullName:'广发科技先锋混合型证券投资基金',
-    fundTypeTag:'股票型', fundCompany:'广发基金管理有限公司', fundManager:'刘格菘',
-    establishDate:'20191225', fundScale:120.50, managementFee:1.50, custodianFee:0.25,
+    fundCode:'005918.OF', fundName:'广发双债升级', fundFullName:'广发双债升级债券型证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'广发基金管理有限公司', fundManager:'代宇',
+    establishDate:'20180426', fundScale:45.30, managementFee:0.60, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:['债券','稳健'],
+    matchTags:['低波动','双债策略'],
+    performance:{RETURNRATE:0.052,ANNUALRETURN_RATE:0.045,SHARP:1.40,MAX_DRAWDOWN:-0.018,VOL:0.020,KARMA:2.20,INFO_RATIO:0.62,BETA:0.12,SORTINO:1.70,TREYNOR:0.08,JASON:0.010,MSQUARE:0.006,VAR:-0.010,MAX_DRAWDOWN_RECOVER:25},
+    riskFactors:{BETA:0.12,EARNING:0.15,LEVERAGE:-0.16,LIQUIDITY:0.30,MOMENTUM:0.05,VALUE:0.18,VOLATILITY:-0.22,GROWTH:0.08,SIZE:0.18},
+    industryConfig:{CI005021:0.065,CI005022:0.045,CI005029:0.035,CI005024:0.020,CI005030:0.010,CI005001:0.005,CI005003:0.003},
+    valuation:{PE:11.2,PB:1.18,ROE:0.098,ROA:0.048,GRONP:0.062,GROR:0.042,DIVIDEND:0.040,MKT:1500,CHANGE_RATE:0.28}
+  },
+  {
+    fundCode:'260108.OF', fundName:'景顺长城新兴成长', fundFullName:'景顺长城新兴成长混合型证券投资基金',
+    fundTypeTag:'混合型', fundCompany:'景顺长城基金管理有限公司', fundManager:'刘彦春',
+    establishDate:'20060628', fundScale:180.45, managementFee:1.50, custodianFee:0.25,
     reportDate:'20260630', cycle:'010005', riskLevel:'R5', riskLevelNum:5,
-    fundTags:['科技','成长','高波动'],
+    fundTags:['成长','新兴','高波动'],
     matchTags:['成长风格','高波动','高收益'],
     performance:{RETURNRATE:0.225,ANNUALRETURN_RATE:0.185,SHARP:1.75,MAX_DRAWDOWN:-0.145,VOL:0.078,KARMA:1.55,INFO_RATIO:0.98,BETA:1.35,SORTINO:2.05,TREYNOR:0.18,JASON:0.042,MSQUARE:0.025,VAR:-0.052,MAX_DRAWDOWN_RECOVER:110},
     riskFactors:{BETA:1.35,EARNING:0.28,LEVERAGE:0.15,LIQUIDITY:0.22,MOMENTUM:0.45,VALUE:-0.18,VOLATILITY:0.35,GROWTH:0.55,SIZE:-0.22},
