@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AI智能选基</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy-darkest: #060d1f;
+  --navy-dark: #0a1528;
+  --navy-mid: #112342;
+  --navy-light: #1a3055;
+  --navy-card: #142440;
+  --gold: #d4a851;
+  --gold-light: #e8c878;
+  --gold-dim: #8a7340;
+  --text-primary: #e8eef7;
+  --text-secondary: #8fa3c0;
+  --text-muted: #5a6d8a;
+  --red: #e8554e;
+  --red-bg: rgba(232,85,78,0.12);
+  --green: #2ec47e;
+  --green-bg: rgba(46,196,126,0.12);
+  --border: rgba(212,168,81,0.15);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  font-family:'Noto Sans SC',sans-serif;
+  background:var(--navy-darkest);
+  color:var(--text-primary);
+  overflow-x:hidden;
+  min-height:100vh;
+}
+.mono { font-family:'DM Mono',monospace; }
+#app {
+  max-width:440px;
+  margin:0 auto;
+  min-height:100vh;
+  background:linear-gradient(180deg,var(--navy-dark) 0%,var(--navy-darkest) 100%);
+  position:relative;
+  overflow-x:hidden;
+}
+.page-enter { animation:pageSlideIn .4s cubic-bezier(.22,.61,.36,1); }
+@keyframes pageSlideIn { from{transform:translateX(100%);opacity:0;} to{transform:translateX(0);opacity:1;} }
+.page-slide-back { animation:pageSlideBack .4s cubic-bezier(.22,.61,.36,1); }
+@keyframes pageSlideBack { from{transform:translateX(-30%);opacity:0;} to{transform:translateX(0);opacity:1;} }
+
+.card-enter { animation:cardFadeUp .5s cubic-bezier(.22,.61,.36,1) backwards; }
+@keyframes cardFadeUp { from{transform:translateY(24px);opacity:0;} to{transform:translateY(0);opacity:1;} }
+
+.stagger-1{animation-delay:.05s} .stagger-2{animation-delay:.12s} .stagger-3{animation-delay:.19s}
+.stagger-4{animation-delay:.26s} .stagger-5{animation-delay:.33s} .stagger-6{animation-delay:.4s}
+
+.fade-in{animation:fadeIn .4s ease} @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.fade-in-up{animation:fadeUp .5s cubic-bezier(.22,.61,.36,1) backwards} @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+.glass-card {
+  background:linear-gradient(135deg,rgba(26,48,85,.55) 0%,rgba(20,36,64,.55) 100%);
+  border:1px solid var(--border);
+  border-radius:16px;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+}
+.glass-card-gold {
+  background:linear-gradient(135deg,rgba(212,168,81,.06) 0%,rgba(26,48,85,.55) 100%);
+  border:1px solid rgba(212,168,81,.25);
+  border-radius:16px;
+}
+.gradient-gold-text {
+  background:linear-gradient(135deg,var(--gold-light) 0%,var(--gold) 100%);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.shimmer-bg {
+  background:linear-gradient(90deg,rgba(212,168,81,.08) 0%,rgba(212,168,81,.15) 50%,rgba(212,168,81,.08) 100%);
+  background-size:200% 100%;
+  animation:shimmer 2s infinite;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+.pulse-dot { animation:pulseDot 1.4s ease-in-out infinite; }
+@keyframes pulseDot { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1)} }
+
+.tag-pill {
+  display:inline-flex;align-items:center;
+  padding:3px 10px;border-radius:20px;
+  font-size:11px;font-weight:500;
+  border:1px solid var(--border);
+  background:rgba(212,168,81,.08);
+  color:var(--gold-light);
+  white-space:nowrap;
+}
+.tag-risk-r1{background:rgba(46,196,126,.12);color:#5dd49a;border-color:rgba(46,196,126,.3)}
+.tag-risk-r2{background:rgba(72,187,120,.12);color:#6dc496;border-color:rgba(72,187,120,.3)}
+.tag-risk-r3{background:rgba(212,168,81,.12);color:var(--gold);border-color:rgba(212,168,81,.3)}
+.tag-risk-r4{background:rgba(232,138,61,.12);color:#e8a23d;border-color:rgba(232,138,61,.3)}
+.tag-risk-r5{background:rgba(232,85,78,.12);color:#e8554e;border-color:rgba(232,85,78,.3)}
+
+.search-input {
+  background:rgba(10,21,40,.6);
+  border:1px solid var(--border);
+  border-radius:12px;
+  color:var(--text-primary);
+  font-size:15px;
+  padding:14px 16px;
+  width:100%;
+  transition:all .3s;
+}
+.search-input:focus {
+  outline:none;
+  border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(212,168,81,.1);
+}
+.search-input::placeholder { color:var(--text-muted); }
+
+.btn-gold {
+  background:linear-gradient(135deg,var(--gold) 0%,#c4983a 100%);
+  color:#0a1528;
+  font-weight:700;
+  border-radius:12px;
+  border:none;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-gold:active { transform:scale(.97); }
+.btn-gold:disabled { opacity:.4; }
+
+.btn-ghost {
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--text-secondary);
+  border-radius:10px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-ghost:active { transform:scale(.97); }
+
+.quick-tag {
+  background:rgba(26,48,85,.6);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:6px 14px;
+  font-size:12.5px;
+  color:var(--text-secondary);
+  white-space:nowrap;
+  cursor:pointer;
+  transition:all .2s;
+}
+.quick-tag:active { transform:scale(.95); background:rgba(212,168,81,.12); }
+
+.profile-pill {
+  background:rgba(26,48,85,.5);
+  border:1px solid var(--border);
+  border-radius:12px;
+  cursor:pointer;
+  transition:all .25s;
+}
+.profile-pill:active { border-color:var(--gold); }
+
+.bottom-sheet {
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+  max-width:440px; width:100%;
+  background:var(--navy-mid);
+  border-radius:20px 20px 0 0;
+  border:1px solid var(--border);
+  z-index:100;
+  animation:sheetUp .35s cubic-bezier(.22,.61,.36,1);
+}
+@keyframes sheetUp { from{transform:translate(-50%,100%)} to{transform:translate(-50%,0)} }
+
+.sheet-option {
+  padding:14px;
+  border-radius:10px;
+  cursor:pointer;
+  transition:all .2s;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sheet-option:active { background:rgba(212,168,81,.08); }
+.sheet-option.active { background:rgba(212,168,81,.1); color:var(--gold); }
+
+.overlay {
+  position:fixed; inset:0;
+  background:rgba(6,13,31,.7);
+  backdrop-filter:blur(4px);
+  z-index:99;
+}
+
+.loading-orb {
+  width:48px;height:48px;
+  border-radius:50%;
+  border:3px solid var(--border);
+  border-top-color:var(--gold);
+  animation:spin 1s linear infinite;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+
+.risk-bar-bg {
+  height:8px;border-radius:4px;
+  background:linear-gradient(90deg,#2ec47e 0%,#48bb78 20%,var(--gold) 40%,#e8a23d 60%,#e8554e 80%,#c0392b 100%);
+}
+.risk-bar-indicator {
+  width:4px;height:20px;border-radius:2px;
+  background:#fff;
+  box-shadow:0 0 8px rgba(255,255,255,.5);
+  transition:left .4s cubic-bezier(.22,.61,.36,1);
+}
+
+.chart-container { width:100%; }
+
+.fund-card {
+  background:linear-gradient(135deg,rgba(26,48,85,.45) 0%,rgba(20,36,64,.45) 100%);
+  border:1px solid var(--border);
+  border-radius:14px;
+  transition:all .25s;
+  overflow:hidden;
+}
+.fund-card:active { transform:scale(.98); border-color:rgba(212,168,81,.3); }
+
+.metric-box {
+  background:rgba(10,21,40,.5);
+  border-radius:10px;
+  padding:10px;
+  text-align:center;
+}
+
+.indicator-dot {
+  width:6px;height:6px;border-radius:50%;display:inline-block;
+}
+
+::-webkit-scrollbar { width:0; }
+
+.no-select { -webkit-user-select:none; user-select:none; }
+
+.tooltip-text {
+  position:relative;cursor:help;
+}
+.tooltip-text:hover::after {
+  content:attr(data-tip);
+  position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+  background:var(--navy-darkest);color:var(--text-primary);
+  padding:6px 10px;border-radius:8px;font-size:11px;white-space:nowrap;
+  border:1px solid var(--border);z-index:10;
+  margin-bottom:4px;
+}
+
+.tab-bar {
+  display:flex;gap:2px;
+  background:rgba(10,21,40,.5);
+  border-radius:10px;
+  padding:3px;
+}
+.tab-item {
+  flex:1;text-align:center;padding:7px 0;border-radius:8px;
+  font-size:12px;color:var(--text-muted);cursor:pointer;transition:all .25s;
+}
+.tab-item.active {
+  background:linear-gradient(135deg,rgba(212,168,81,.15),rgba(212,168,81,.05));
+  color:var(--gold);
+}
+
+.collapsible-content {
+  overflow:hidden;
+  transition:max-height .35s ease,opacity .25s ease;
+}
+
+.dot-loader span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);margin:0 2px;animation:dotBounce 1.4s infinite ease-in-out both}
+.dot-loader span:nth-child(2){animation-delay:.15s}
+.dot-loader span:nth-child(3){animation-delay:.3s}
+@keyframes dotBounce{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+.glow-ring {
+  box-shadow:0 0 0 1px rgba(212,168,81,.2),0 0 20px rgba(212,168,81,.08);
+}
+
+.scan-line {
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  animation:scanDown 1.5s ease-in-out infinite;
+}
+@keyframes scanDown{0%{transform:translateY(0);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateY(100px);opacity:0}}
+</style>
+</head>
+<body>
+<div id="app">
+<!-- ============== PAGE: HOME ============== -->
+<div v-if="currentPage==='home'" class="page-enter min-h-screen flex flex-col">
+  <!-- Header -->
+  <div class="flex items-center justify-between px-5 pt-12 pb-3">
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,var(--gold),#c4983a)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M3 17L9 11L13 15L21 7" stroke="#0a1528" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M15 7H21V13" stroke="#0a1528" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="text-base font-bold gradient-gold-text">AI智能选基</div>
+        <div class="text-[10px] text-[var(--text-muted)] -mt-0.5">用大白话选出你的基金</div>
+      </div>
+    </div>
+    <div class="text-[var(--text-muted)] text-xs" @click="goHistory">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="px-5 pb-3 fade-in-up">
+    <h1 class="text-[22px] font-bold leading-tight mb-1">输入你的投资需求</h1>
+    <p class="text-[13px] text-[var(--text-secondary)]">AI为你从投研数据中筛选匹配基金</p>
+  </div>
+
+  <!-- Risk Profile -->
+  <div class="px-5 mb-4 fade-in-up" style="animation-delay:.08s">
+    <div class="flex items-center justify-between mb-2.5">
+      <span class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider">我的投资画像</span>
+      <span class="text-[10px] text-[var(--text-muted)]">点击修改</span>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <div class="profile-pill p-3" @click="openPicker('age')">
+        <div class="text-[10px] text-[var(--text-muted)] mb-1">年龄</div>
+        <div class="text-sm font-semibold text-[var(--text-primary)]">{{ riskProfile.age }}</div>
+      </div>
+      <div class="profile-pill p-3" @click="openPicker('risk')">
+        <div class="text-[10px] text-[var(--text-muted)] mb-1">风险偏好</div>
+        <div class="text-sm font-semibold text-[var(--gold-light)]">{{ riskProfile.riskPref }}</div>
+      </div>
+      <div class="profile-pill p-3" @click="openPicker('duration')">
+        <div class="text-[10px] text-[var(--text-muted)] mb-1">投资期限</div>
+        <div class="text-sm font-semibold text-[var(--text-primary)]">{{ riskProfile.duration }}</div>
+      </div>
+    </div>
+    <!-- Risk Level Bar -->
+    <div class="mt-3 px-1">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-[10px] text-[var(--text-muted)]">可承受基金风险等级</span>
+        <span class="text-[10px] font-medium" :style="{color: riskColor}">{{ riskProfile.maxRiskLabel }}</span>
+      </div>
+      <div class="relative">
+        <div class="risk-bar-bg"></div>
+        <div class="absolute top-1/2 -translate-y-1/2 risk-bar-indicator" :style="{left: riskBarPercent + '%'}"></div>
+      </div>
+      <div class="flex justify-between mt-1">
+        <span class="text-[9px] text-[#5dd49a]">R1</span>
+        <span class="text-[9px] text-[#6dc496]">R2</span>
+        <span class="text-[9px] text-[var(--gold)]">R3</span>
+        <span class="text-[9px] text-[#e8a23d]">R4</span>
+        <span class="text-[9px] text-[#e8554e]">R5</span>
+      </div>
+    </div>
+    <div v-if="profileUpdated" class="mt-2 text-[10px] text-[var(--gold)] fade-in" style="animation-duration:.3s">
+      风险画像已更新，选基结果将相应调整
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="px-5 mb-4 fade-in-up" style="animation-delay:.16s">
+    <div class="relative">
+      <textarea v-model="searchText" class="search-input resize-none" rows="2" maxlength="200"
+        placeholder="用大白话描述您的投资需求，如：想找波动小的债券基金"
+        @keydown.enter.prevent="doSearch"></textarea>
+      <div class="absolute right-3 bottom-3 text-[10px] text-[var(--text-muted)] mono">{{ searchText.length }}/200</div>
+    </div>
+    <button class="btn-gold w-full py-3.5 mt-3 text-sm flex items-center justify-center gap-2" 
+      :disabled="!searchText.trim()" @click="doSearch">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      开始选基
+    </button>
+  </div>
+
+  <!-- Quick Tags -->
+  <div class="px-5 mb-4 fade-in-up" style="animation-delay:.24s">
+    <div class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider mb-2.5">试试这些查询</div>
+    <div class="flex flex-wrap gap-2">
+      <div v-for="tag in quickTags" :key="tag" class="quick-tag" @click="useQuickTag(tag)">{{ tag }}</div>
+    </div>
+  </div>
+
+  <div class="flex-1"></div>
+
+  <!-- Risk Warning -->
+  <div class="px-5 pb-6 pt-2">
+    <div class="flex items-start gap-1.5 text-[10px] text-[var(--text-muted)] leading-relaxed">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 flex-shrink-0">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span>基金有风险，投资需谨慎。本工具输出不构成投资建议，数据为模拟脱敏数据。</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============== PAGE: LOADING ============== -->
+<div v-if="currentPage==='loading'" class="page-enter min-h-screen flex flex-col items-center justify-center px-8">
+  <div class="relative mb-6">
+    <div class="loading-orb"></div>
+    <div class="absolute inset-0 flex items-center justify-center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+        <path d="M3 17L9 11L13 15L21 7"/><path d="M15 7H21V13"/>
+      </svg>
+    </div>
+  </div>
+  <div class="text-[var(--text-primary)] text-sm font-medium mb-2">AI正在理解您的需求</div>
+  <div class="dot-loader mb-6"><span></span><span></span><span></span></div>
+  <div class="glass-card-gold px-4 py-3 max-w-xs text-center">
+    <div class="text-[11px] text-[var(--text-muted)] mb-1">您的查询</div>
+    <div class="text-[13px] text-[var(--gold-light)]">"{{ lastQuery }}"</div>
+  </div>
+  <div class="mt-6 text-[10px] text-[var(--text-muted)]">
+    模拟调用 deepseek-v4-flash 大模型意图识别
+  </div>
+  <div class="mt-1 text-[10px] text-[var(--text-muted)] mono">powered by RAG + 投研数据</div>
+</div>
+
+<!-- ============== PAGE: RESULTS ============== -->
+<div v-if="currentPage==='results'" class="page-enter min-h-screen flex flex-col">
+  <!-- Header -->
+  <div class="flex items-center justify-between px-5 pt-12 pb-2">
+    <div class="flex items-center gap-3">
+      <div @click="goHome" class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(26,48,85,.5)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </div>
+      <span class="text-sm font-bold">选基结果</span>
+    </div>
+    <button class="btn-ghost px-3 py-1.5 text-[11px]" @click="goHome">重新查询</button>
+  </div>
+
+  <!-- AI Analysis Card -->
+  <div class="px-5 pt-3">
+    <div class="glass-card-gold p-4 card-enter stagger-1">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="w-5 h-5 rounded-full flex items-center justify-center" style="background:rgba(212,168,81,.15)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5">
+            <path d="M3 17L9 11L13 15L21 7"/><path d="M15 7H21V13"/>
+          </svg>
+        </div>
+        <span class="text-[12px] font-medium gradient-gold-text">AI分析逻辑</span>
+      </div>
+      <div class="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-3">{{ aiResult.intentAnalysis }}</div>
+      <div class="flex flex-wrap gap-1.5 mb-3">
+        <span v-for="cond in aiResult.conditions" :key="cond.label" class="tag-pill">{{ cond.label }}</span>
+      </div>
+      <div class="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
+        <span>您的查询：</span>
+        <span class="text-[var(--gold-light)]">"{{ lastQuery }}"</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Count & Sort -->
+  <div class="px-5 pt-4 flex items-center justify-between">
+    <div class="text-[12px] text-[var(--text-secondary)]">
+      为您筛选出 <span class="text-[var(--gold)] font-bold mono">{{ filteredFunds.length }}</span> 只基金
+      <span class="text-[9px] text-[var(--text-muted)] ml-1">(模拟脱敏数据)</span>
+    </div>
+  </div>
+
+  <!-- Sort Bar -->
+  <div class="px-5 pt-2.5">
+    <div class="tab-bar">
+      <div v-for="s in sortOptions" :key="s.key" class="tab-item" :class="{active: sortBy===s.key}" @click="sortBy=s.key">
+        {{ s.label }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Match Reason -->
+  <div class="px-5 pt-3" v-if="aiResult.matchReason">
+    <div class="glass-card p-3 card-enter stagger-2 flex items-start gap-2">
+      <div class="indicator-dot mt-1.5" style="background:var(--gold)"></div>
+      <div class="text-[11px] text-[var(--text-secondary)] leading-relaxed">{{ aiResult.matchReason }}</div>
+    </div>
+  </div>
+
+  <!-- Fund Cards -->
+  <div class="px-5 pt-3 space-y-3 pb-24">
+    <div v-for="(fund, idx) in sortedFilteredFunds" :key="fund.fundCode"
+      class="fund-card p-4 card-enter" :class="'stagger-' + Math.min(idx+1, 6)" @click="goDetail(fund)">
+      <!-- Top Row -->
+      <div class="flex items-start justify-between mb-2.5">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="text-[14px] font-bold truncate">{{ fund.fundName }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-[var(--text-muted)] mono">{{ fund.fundCode }}</span>
+            <span class="tag-pill" style="font-size:10px;padding:1px 6px">{{ fund.fundTypeTag }}</span>
+          </div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="tag-pill" :class="riskTagClass(fund.riskLevel)">{{ fund.riskLevel }}</span>
+          <span v-if="isRiskMatched(fund)" class="text-[9px] text-[#5dd49a]">风险匹配</span>
+          <span v-else class="text-[9px] text-[#e8a23d]">超出风险偏好</span>
+        </div>
+      </div>
+
+      <!-- Metrics Row -->
+      <div class="grid grid-cols-4 gap-2 mb-2.5">
+        <div class="metric-box">
+          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">区间收益</div>
+          <div class="text-[13px] font-bold mono" :style="{color: fund.performance.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'}">
+            {{ (fund.performance.RETURNRATE * 100).toFixed(2) }}%
+          </div>
+        </div>
+        <div class="metric-box">
+          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">最大回撤</div>
+          <div class="text-[13px] font-bold mono text-[var(--green)]">
+            {{ (fund.performance.MAX_DRAWDOWN * 100).toFixed(2) }}%
+          </div>
+        </div>
+        <div class="metric-box">
+          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">波动率</div>
+          <div class="text-[13px] font-bold mono text-[var(--text-primary)]">
+            {{ (fund.performance.VOL * 100).toFixed(1) }}%
+          </div>
+        </div>
+        <div class="metric-box">
+          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">夏普比率</div>
+          <div class="text-[13px] font-bold mono" :style="{color: fund.performance.SHARP >= 1 ? 'var(--red)' : 'var(--text-primary)'}">
+            {{ fund.performance.SHARP.toFixed(2) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Tags + Industry Mini Pie -->
+      <div class="flex items-center justify-between">
+        <div class="flex flex-wrap gap-1">
+          <span v-for="t in fund.matchTags" :key="t" class="tag-pill" style="font-size:10px;padding:1px 6px">{{ t }}</span>
+        </div>
+        <div :id="'mini-pie-' + fund.fundCode.replace('.','')" class="flex-shrink-0" style="width:36px;height:36px"></div>
+      </div>
+
+      <!-- Bottom Buttons -->
+      <div class="flex items-center gap-2 mt-3 pt-3 border-t" style="border-color:var(--border)">
+        <button class="btn-ghost flex-1 py-2 text-[11px]" @click.stop="goDetail(fund)">查看详情</button>
+        <button class="btn-gold flex-1 py-2 text-[11px]" @click.stop="goExternal(fund)">查看完整详情</button>
+      </div>
+    </div>
+
+    <div v-if="filteredFunds.length===0" class="text-center py-16">
+      <div class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
+      <div class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
+    </div>
+  </div>
+
+  <!-- Risk Warning Fixed -->
+  <div class="fixed bottom-0 left-1/2 -translate-x-1/2 max-w-[440px] w-full px-5 py-3 z-20"
+    style="background:linear-gradient(0deg,var(--navy-darkest) 60%,transparent 100%)">
+    <div class="flex items-start gap-1.5 text-[10px] text-[var(--text-muted)] leading-relaxed">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 flex-shrink-0">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============== PAGE: DETAIL ============== -->
+<div v-if="currentPage==='detail'" class="page-enter min-h-screen flex flex-col">
+  <!-- Header -->
+  <div class="flex items-center justify-between px-5 pt-12 pb-2">
+    <div class="flex items-center gap-3 min-w-0">
+      <div @click="goResults" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(26,48,85,.5)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </div>
+      <span class="text-sm font-bold truncate">{{ selectedFund?.fundName }}</span>
+    </div>
+    <button class="btn-gold px-3 py-1.5 text-[11px] flex-shrink-0" @click="goExternal(selectedFund)">完整详情</button>
+  </div>
+
+  <div v-if="selectedFund" class="px-5 pb-32">
+    <!-- Basic Info -->
+    <div class="glass-card-gold p-4 card-enter stagger-1">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="text-base font-bold mb-0.5">{{ selectedFund.fundName }}</div>
+          <div class="text-[10px] text-[var(--text-muted)]">{{ selectedFund.fundFullName }}</div>
+        </div>
+        <span class="tag-pill" :class="riskTagClass(selectedFund.riskLevel)">{{ selectedFund.riskLevel }}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-y-2 gap-x-3 text-[11px]">
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金代码</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.fundCode }}</span></div>
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金类型</span><span class="text-[var(--text-primary)]">{{ selectedFund.fundTypeTag }}</span></div>
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金规模</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.fundScale }}亿</span></div>
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">管理费率</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.managementFee }}%</span></div>
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">报告日期</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.reportDate }}</span></div>
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金经理</span><span class="text-[var(--text-primary)]">{{ selectedFund.fundManager }}</span></div>
+      </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">绩效指标</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_index_value_v2_test</span>
+      </div>
+      <div class="glass-card p-4 card-enter stagger-2">
+        <!-- Radar Chart -->
+        <div id="perf-radar" class="chart-container" style="height:200px"></div>
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <div v-for="m in perfMetricsDisplay" :key="m.key" class="metric-box">
+            <div class="text-[9px] text-[var(--text-muted)] mb-0.5">{{ m.name }}</div>
+            <div class="text-[12px] font-bold mono" :style="{color: m.color}">{{ m.value }}</div>
+          </div>
+        </div>
+        <!-- Explanation -->
+        <div class="mt-3 p-2.5 rounded-lg" style="background:rgba(212,168,81,.06)">
+          <div class="text-[10px] text-[var(--gold-light)] leading-relaxed">
+            <span v-for="(exp, i) in perfExplanations" :key="i" class="block mb-1">
+              <span class="text-[var(--gold)] font-medium">{{ exp.name }}：</span>{{ exp.text }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Attribution -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">风险归因因子</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_multi_attr_riskmodel</span>
+      </div>
+      <div class="glass-card p-4 card-enter stagger-3">
+        <!-- Bar Chart -->
+        <div id="risk-bar" class="chart-container" style="height:180px"></div>
+        <!-- Factor Explanations -->
+        <div class="mt-3 space-y-1.5">
+          <div v-for="f in riskFactorDisplay" :key="f.key" class="flex items-start gap-2 text-[11px]">
+            <span class="mono font-medium" :style="{color: f.value >= 0 ? 'var(--red)' : 'var(--green)', minWidth:'55px'}">{{ f.name }}: {{ f.value.toFixed(2) }}</span>
+            <span class="text-[var(--text-muted)]">{{ f.desc }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Industry Config -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">行业配置</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_fund_industry_config</span>
+      </div>
+      <div class="glass-card p-4 card-enter stagger-4">
+        <!-- Top 3 Industries -->
+        <div class="mb-3 p-2.5 rounded-lg" style="background:rgba(212,168,81,.06)">
+          <div class="text-[10px] text-[var(--gold)] font-medium mb-1">前三大行业</div>
+          <div class="text-[11px] text-[var(--text-secondary)]">{{ top3IndustriesText }}</div>
+        </div>
+        <!-- Pie Chart -->
+        <div id="industry-pie" class="chart-container" style="height:260px"></div>
+      </div>
+    </div>
+
+    <!-- Valuation Metrics -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">估值指标</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_fund_multi_config_info</span>
+      </div>
+      <div class="glass-card p-4 card-enter stagger-5">
+        <div class="grid grid-cols-2 gap-2">
+          <div v-for="v in valuationDisplay" :key="v.key" class="flex items-center justify-between p-2 rounded-lg" style="background:rgba(10,21,40,.4)">
+            <div>
+              <div class="text-[10px] text-[var(--text-muted)]">{{ v.name }}</div>
+              <div class="text-[13px] font-bold mono text-[var(--text-primary)]">{{ v.value }}</div>
+            </div>
+            <div class="tag-pill" style="font-size:9px;padding:1px 5px" :style="{color:v.tagColor,borderColor:v.tagColor+'40',background:v.tagColor+'12'}">{{ v.tag }}</div>
+          </div>
+        </div>
+        <div class="mt-3 p-2.5 rounded-lg" style="background:rgba(212,168,81,.06)">
+          <div class="text-[10px] text-[var(--gold-light)] leading-relaxed">
+            <span class="text-[var(--gold)] font-medium">解读：</span>PE（市盈率）{{ selectedFund.valuation.PE < 15 ? '偏低，可能估值较便宜' : selectedFund.valuation.PE < 25 ? '适中' : '偏高' }}；ROE（净资产收益率）{{ (selectedFund.valuation.ROE * 100).toFixed(1) }}%{{ selectedFund.valuation.ROE > 0.15 ? '，盈利能力较强' : '，盈利能力一般' }}；股息率{{ (selectedFund.valuation.DIVIDEND * 100).toFixed(1) }}%{{ selectedFund.valuation.DIVIDEND > 0.03 ? '，分红较多' : '' }}。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Investment Education -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">投教解读</span>
+      </div>
+      <div class="glass-card-gold p-4 card-enter stagger-6">
+        <div class="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">{{ eduCard.analysis }}</div>
+        <div class="p-2.5 rounded-lg" style="background:rgba(10,21,40,.3)">
+          <div class="text-[11px] font-medium text-[var(--gold-light)] mb-1">{{ eduCard.title }}</div>
+          <div class="text-[10px] text-[var(--text-muted)] leading-relaxed">{{ eduCard.content }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Source -->
+    <div class="mt-5 text-center">
+      <div class="text-[10px] text-[var(--text-muted)]">以上数据来源于研究所投研标签数据（模拟脱敏）</div>
+      <div class="text-[10px] text-[var(--text-muted)] mt-0.5">报告期：{{ selectedFund.reportDate }} | 周期：{{ selectedFund.cycle }}</div>
+    </div>
+  </div>
+
+  <!-- Risk Warning Fixed -->
+  <div class="fixed bottom-0 left-1/2 -translate-x-1/2 max-w-[440px] w-full px-5 py-3 z-20"
+    style="background:linear-gradient(0deg,var(--navy-darkest) 70%,transparent 100%)">
+    <div class="text-[9px] text-[var(--text-muted)] leading-relaxed mb-2">
+      风险提示：基金有风险，投资需谨慎。本工具基于研究所投研数据，通过AI自然语言解析为您提供基金筛选服务，输出内容均为客观数据展示与通俗化解读，不构成任何投资建议或买卖推荐。基金的过往业绩并不预示其未来表现。请您根据自身风险承受能力，独立做出投资决策。
+    </div>
+    <button class="btn-gold w-full py-2.5 text-[11px]" @click="goExternal(selectedFund)">查看完整详情</button>
+  </div>
+</div>
+
+<!-- ============== PAGE: HISTORY ============== -->
+<div v-if="currentPage==='history'" class="page-enter min-h-screen flex flex-col">
+  <div class="flex items-center gap-3 px-5 pt-12 pb-2">
+    <div @click="goHome" class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(26,48,85,.5)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </div>
+    <span class="text-sm font-bold">历史记录</span>
+  </div>
+  <div class="px-5 pt-3 space-y-2.5 pb-10 flex-1">
+    <div v-for="(item, idx) in historyList" :key="idx" class="glass-card p-3.5 card-enter" :class="'stagger-' + Math.min(idx+1,6)" @click="replayHistory(item)">
+      <div class="text-[13px] text-[var(--text-primary)] mb-1.5">"{{ item.query }}"</div>
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] text-[var(--text-muted)] mono">{{ item.time }}</span>
+        <span class="text-[10px] text-[var(--gold)]">命中 {{ item.count }} 只</span>
+      </div>
+    </div>
+    <div v-if="historyList.length===0" class="text-center py-16">
+      <div class="text-[var(--text-muted)] text-sm mb-1">您还没有查询记录</div>
+      <div class="text-[var(--text-muted)] text-xs">试试开始第一次选基吧</div>
+    </div>
+  </div>
+  <div class="px-5 pb-6">
+    <div class="text-[10px] text-[var(--text-muted)] text-center">基金有风险，投资需谨慎</div>
+  </div>
+</div>
+
+<!-- ============== Bottom Sheet Picker ============== -->
+<transition name="fade">
+  <div v-if="pickerOpen" class="overlay" @click="pickerOpen=false"></div>
+</transition>
+<transition name="sheet">
+  <div v-if="pickerOpen" class="bottom-sheet p-5 pb-8">
+    <div class="text-sm font-bold mb-4 text-center">{{ pickerTitle }}</div>
+    <div class="space-y-1.5">
+      <div v-for="opt in pickerOptions" :key="opt.value" 
+        class="sheet-option" :class="{active: isPickerActive(opt.value)}" @click="selectPicker(opt.value)">
+        <span class="text-[13px]">{{ opt.label }}</span>
+        <svg v-if="isPickerActive(opt.value)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+    </div>
+  </div>
+</transition>
+
+<!-- ============== External Link Confirm ============== -->
+<transition name="fade">
+  <div v-if="externalConfirm" class="overlay flex items-center justify-center px-8" @click="externalConfirm=false">
+    <div class="glass-card-gold p-5 max-w-xs w-full" @click.stop style="animation:fadeUp .3s ease">
+      <div class="text-sm font-bold mb-2 text-center">即将离开本工具</div>
+      <div class="text-[12px] text-[var(--text-secondary)] text-center mb-4 leading-relaxed">将跳转至外部基金详情页（touker.com），外部页面不受本工具风险提示覆盖。是否继续？</div>
+      <div class="flex gap-2">
+        <button class="btn-ghost flex-1 py-2.5 text-[12px]" @click="externalConfirm=false">取消</button>
+        <button class="btn-gold flex-1 py-2.5 text-[12px]" @click="confirmExternal">继续</button>
+      </div>
+    </div>
+  </div>
+</transition>
+</div>
+
+<style>
+.fade-enter-active,.fade-leave-active{transition:opacity .3s}
+.fade-enter-from,.fade-leave-to{opacity:0}
+.sheet-enter-active,.sheet-leave-active{transition:transform .35s cubic-bezier(.22,.61,.36,1)}
+.sheet-enter-from,.sheet-leave-to{transform:translate(-50%,100%)}
+.sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
+</style>
+
+<script>
+const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
+
+// ============ INDUSTRY MAP ============
+const INDUSTRY_MAP = {
+  CI005001:'石油石化',CI005002:'煤炭',CI005003:'有色金属',CI005004:'电力及公用事业',CI005005:'钢铁',
+  CI005006:'基础化工',CI005007:'建筑',CI005008:'建材',CI005009:'轻工制造',CI005010:'机械',
+  CI005011:'电力设备及新能源',CI005012:'国防军工',CI005013:'汽车',CI005014:'商贸零售',CI005015:'消费者服务',
+  CI005016:'纺织服装',CI005017:'家电',CI005018:'医药',CI005019:'食品饮料',CI005020:'农林牧渔',
+  CI005021:'银行',CI005022:'非银行金融',CI005023:'房地产',CI005024:'交通运输',CI005025:'电子',
+  CI005026:'通信',CI005027:'计算机',CI005028:'传媒',CI005029:'综合金融',CI005030:'综合'
+};
+
+// ============ MOCK FUND DATA ============
+const MOCK_FUNDS = [
+  {
+    fundCode:'000001.OF', fundName:'华夏成长混合', fundFullName:'华夏成长证券投资基金',
+    fundTypeTag:'混合型', fundCompany:'华夏基金管理有限公司', fundManager:'刘文动',
+    establishDate:'20021023', fundScale:15.82, managementFee:1.50, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R3', riskLevelNum:3,
+    fundTags:['价值','蓝筹'],
+    matchTags:['低波动','价值风格'],
+    performance:{RETURNRATE:0.085,ANNUALRETURN_RATE:0.062,SHARP:1.20,MAX_DRAWDOWN:-0.053,VOL:0.032,KARMA:1.50,INFO_RATIO:0.80,BETA:0.85,SORTINO:1.80,TREYNOR:0.12,JASON:0.025,MSQUARE:0.013,VAR:-0.021,MAX_DRAWDOWN_RECOVER:120},
+    riskFactors:{BETA:0.85,EARNING:0.32,LEVERAGE:-0.15,LIQUIDITY:0.10,MOMENTUM:0.25,VALUE:0.40,VOLATILITY:-0.20,GROWTH:0.10,SIZE:0.28},
+    industryConfig:{CI005025:0.152,CI005027:0.085,CI005018:0.072,CI005019:0.065,CI005021:0.058,CI005011:0.045,CI005017:0.040,CI005010:0.035,CI005003:0.030,CI005001:0.025,CI005006:0.020,CI005012:0.018,CI005013:0.015,CI005014:0.012,CI005024:0.010,CI005004:0.008,CI005030:0.005,CI005005:0.003,CI005007:0.002,CI005008:0.001},
+    valuation:{PE:15.2,PB:1.8,ROE:0.185,ROA:0.082,GRONP:0.253,GROR:0.156,DIVIDEND:0.032,MKT:5000,CHANGE_RATE:0.85}
+  },
+  {
+    fundCode:'000006.OF', fundName:'华夏大盘精选', fundFullName:'华夏大盘精选证券投资基金',
+    fundTypeTag:'混合型', fundCompany:'华夏基金管理有限公司', fundManager:'王克明',
+    establishDate:'20051010', fundScale:8.36, managementFee:1.50, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:['成长','大盘'],
+    matchTags:['高收益','大盘风格'],
+    performance:{RETURNRATE:0.152,ANNUALRETURN_RATE:0.118,SHARP:1.85,MAX_DRAWDOWN:-0.085,VOL:0.045,KARMA:2.10,INFO_RATIO:0.95,BETA:1.12,SORTINO:2.20,TREYNOR:0.15,JASON:0.035,MSQUARE:0.018,VAR:-0.032,MAX_DRAWDOWN_RECOVER:85},
+    riskFactors:{BETA:1.12,EARNING:0.28,LEVERAGE:0.05,LIQUIDITY:0.18,MOMENTUM:0.35,VALUE:-0.10,VOLATILITY:0.15,GROWTH:0.42,SIZE:0.45},
+    industryConfig:{CI005027:0.185,CI005025:0.120,CI005011:0.095,CI005018:0.070,CI005019:0.055,CI005010:0.045,CI005012:0.040,CI005013:0.035,CI005003:0.025,CI005001:0.020,CI005006:0.015,CI005017:0.012,CI005021:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002,CI005007:0.001},
+    valuation:{PE:22.5,PB:2.8,ROE:0.158,ROA:0.065,GRONP:0.185,GROR:0.122,DIVIDEND:0.015,MKT:8000,CHANGE_RATE:1.20}
+  },
+  {
+    fundCode:'000008.OF', fundName:'嘉实沪深300ETF', fundFullName:'嘉实沪深300交易型开放式指数证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'嘉实基金管理有限公司', fundManager:'梁彬',
+    establishDate:'20120528', fundScale:125.60, managementFee:0.50, custodianFee:0.10,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:['宽基','低费率'],
+    matchTags:['低费率','宽基'],
+    performance:{RETURNRATE:0.062,ANNUALRETURN_RATE:0.055,SHARP:0.95,MAX_DRAWDOWN:-0.038,VOL:0.028,KARMA:1.20,INFO_RATIO:0.65,BETA:0.98,SORTINO:1.35,TREYNOR:0.09,JASON:0.012,MSQUARE:0.008,VAR:-0.018,MAX_DRAWDOWN_RECOVER:95},
+    riskFactors:{BETA:0.98,EARNING:0.25,LEVERAGE:-0.08,LIQUIDITY:0.22,MOMENTUM:0.15,VALUE:0.20,VOLATILITY:-0.05,GROWTH:0.18,SIZE:0.55},
+    industryConfig:{CI005021:0.142,CI005025:0.085,CI005027:0.075,CI005019:0.068,CI005018:0.055,CI005017:0.048,CI005010:0.040,CI005003:0.035,CI005001:0.032,CI005006:0.025,CI005012:0.020,CI005011:0.018,CI005013:0.015,CI005014:0.012,CI005024:0.010,CI005004:0.008,CI005022:0.005,CI005030:0.002},
+    valuation:{PE:12.8,PB:1.45,ROE:0.122,ROA:0.055,GRONP:0.085,GROR:0.062,DIVIDEND:0.035,MKT:12000,CHANGE_RATE:0.45}
+  },
+  {
+    fundCode:'050001.OF', fundName:'博时现金收益', fundFullName:'博时现金收益证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'博时基金管理有限公司', fundManager:'张岩',
+    establishDate:'20040116', fundScale:230.15, managementFee:0.33, custodianFee:0.10,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R1', riskLevelNum:1,
+    fundTags:['低波动','稳健'],
+    matchTags:['低波动','低风险'],
+    performance:{RETURNRATE:0.028,ANNUALRETURN_RATE:0.025,SHARP:1.05,MAX_DRAWDOWN:-0.008,VOL:0.012,KARMA:2.50,INFO_RATIO:0.45,BETA:0.02,SORTINO:1.50,TREYNOR:0.05,JASON:0.005,MSQUARE:0.002,VAR:-0.005,MAX_DRAWDOWN_RECOVER:15},
+    riskFactors:{BETA:0.02,EARNING:0.08,LEVERAGE:-0.20,LIQUIDITY:0.35,MOMENTUM:-0.05,VALUE:0.12,VOLATILITY:-0.30,GROWTH:0.02,SIZE:0.15},
+    industryConfig:{CI005021:0.025,CI005029:0.015,CI005024:0.010,CI005030:0.005},
+    valuation:{PE:8.5,PB:0.85,ROE:0.065,ROA:0.032,GRONP:0.025,GROR:0.018,DIVIDEND:0.045,MKT:500,CHANGE_RATE:0.15}
+  },
+  {
+    fundCode:'020003.OF', fundName:'嘉实多元收益债券', fundFullName:'嘉实多元收益债券型证券投资基金',
+    fundTypeTag:'债券型', fundCompany:'嘉实基金管理有限公司', fundManager:'王茜',
+    establishDate:'20080923', fundScale:18.50, managementFee:0.60, custodianFee:0.15,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R2', riskLevelNum:2,
+    fundTags:['债券','稳健'],
+    matchTags:['低波动','高夏普'],
+    performance:{RETURNRATE:0.045,ANNUALRETURN_RATE:0.038,SHARP:1.35,MAX_DRAWDOWN:-0.015,VOL:0.018,KARMA:2.00,INFO_RATIO:0.55,BETA:0.15,SORTINO:1.65,TREYNOR:0.07,JASON:0.008,MSQUARE:0.005,VAR:-0.008,MAX_DRAWDOWN_RECOVER:30},
+    riskFactors:{BETA:0.15,EARNING:0.12,LEVERAGE:-0.18,LIQUIDITY:0.28,MOMENTUM:0.02,VALUE:0.15,VOLATILITY:-0.25,GROWTH:0.05,SIZE:0.20},
+    industryConfig:{CI005021:0.085,CI005022:0.065,CI005029:0.045,CI005024:0.025,CI005030:0.015,CI005001:0.008,CI005003:0.005},
+    valuation:{PE:10.5,PB:1.12,ROE:0.092,ROA:0.045,GRONP:0.055,GROR:0.038,DIVIDEND:0.038,MKT:1200,CHANGE_RATE:0.25}
+  },
+  {
+    fundCode:'005827.OF', fundName:'易方达蓝筹精选', fundFullName:'易方达蓝筹精选混合型证券投资基金',
+    fundTypeTag:'股票型', fundCompany:'易方达基金管理有限公司', fundManager:'张坤',
+    establishDate:'20180123', fundScale:240.80, managementFee:1.50, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:['蓝筹','价值'],
+    matchTags:['价值风格','蓝筹'],
+    performance:{RETURNRATE:0.125,ANNUALRETURN_RATE:0.098,SHARP:1.45,MAX_DRAWDOWN:-0.072,VOL:0.038,KARMA:1.80,INFO_RATIO:0.88,BETA:0.92,SORTINO:1.95,TREYNOR:0.13,JASON:0.028,MSQUARE:0.015,VAR:-0.025,MAX_DRAWDOWN_RECOVER:100},
+    riskFactors:{BETA:0.92,EARNING:0.38,LEVERAGE:-0.12,LIQUIDITY:0.15,MOMENTUM:0.20,VALUE:0.45,VOLATILITY:-0.15,GROWTH:0.25,SIZE:0.42},
+    industryConfig:{CI005019:0.185,CI005018:0.125,CI005021:0.085,CI005017:0.065,CI005025:0.045,CI005027:0.035,CI005010:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005013:0.010,CI005024:0.008,CI005030:0.003,CI005004:0.002},
+    valuation:{PE:18.5,PB:2.2,ROE:0.195,ROA:0.078,GRONP:0.145,GROR:0.095,DIVIDEND:0.025,MKT:6500,CHANGE_RATE:0.65}
+  },
+  {
+    fundCode:'161725.OF', fundName:'招商中证白酒', fundFullName:'招商中证白酒指数证券投资基金',
+    fundTypeTag:'指数型', fundCompany:'招商基金管理有限公司', fundManager:'侯昊',
+    establishDate:'20150527', fundScale:85.20, managementFee:0.50, custodianFee:0.10,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:['行业','白酒'],
+    matchTags:['行业集中','高收益'],
+    performance:{RETURNRATE:0.185,ANNUALRETURN_RATE:0.145,SHARP:1.60,MAX_DRAWDOWN:-0.095,VOL:0.052,KARMA:1.85,INFO_RATIO:0.92,BETA:1.05,SORTINO:2.10,TREYNOR:0.14,JASON:0.032,MSQUARE:0.020,VAR:-0.035,MAX_DRAWDOWN_RECOVER:75},
+    riskFactors:{BETA:1.05,EARNING:0.42,LEVERAGE:-0.08,LIQUIDITY:0.20,MOMENTUM:0.38,VALUE:0.15,VOLATILITY:0.20,GROWTH:0.30,SIZE:0.35},
+    industryConfig:{CI005019:0.685,CI005014:0.045,CI005015:0.025,CI005030:0.010,CI005021:0.005},
+    valuation:{PE:28.5,PB:3.5,ROE:0.225,ROA:0.095,GRONP:0.185,GROR:0.125,DIVIDEND:0.012,MKT:4500,CHANGE_RATE:0.75}
+  },
+  {
+    fundCode:'110011.OF', fundName:'易方达中小盘', fundFullName:'易方达中小盘混合型证券投资基金',
+    fundTypeTag:'混合型', fundCompany:'易方达基金管理有限公司', fundManager:'张坤',
+    establishDate:'20080612', fundScale:95.30, managementFee:1.50, custodianFee:0.25,
+    reportDate:'20260630', cycle:'010005', riskLevel:'R4', riskLevelNum:4,
+    fundTags:['成长','中小盘'],
+    matchTags:['成长风格','中小盘'],
+    performance:{RETURNRATE:0.135,ANNUALRETURN_RATE:0.108,SHARP:1.50,MAX_DRAWDOWN:-0.078,VOL:0.042,KARMA:1.75,INFO_RATIO:0.85,BETA:1.08,SORTINO:1.90,TREYNOR:0.13,JASON:0.028,MSQUARE:0.016,VAR:-0.028,MAX_DRAWDOWN_RECOVER:90},
+    riskFactors:{BETA:1.08,EARNING:0.35,LEVERAGE:0.08,LIQUIDITY:0.12,MOMENTUM:0.30,VALUE:-0.05,VOLATILITY:0.18,GROWTH:0.45,SIZE:-0.15},
+    industryConfig:{CI005027:0.155,CI005025:0.135,CI005018:0.085,CI005011:0.065,CI005019:0.055,CI005010:0.040,CI005012:0.035,CI005013:0.028,CI005003:0.020,CI005001:0.015,CI005006:0.012,CI005017:0.010,CI005024:0.008,CI005030:0.003},
+    valuation:{PE:25.8,PB:3.2,ROE:0.172,ROA:0.072,GRONP:0.168,GROR:0.115,DIVIDEND:0.018,MKT:3500,CHANGE_RATE:0.92}
+  }
+];
+
+// ============ AI INTENT RECOGNITION ============
+const PRESET_RESPONSES = {
+  '想找波动小的债券基金': {
+    intentAnalysis: '您希望找波动较小的债券型基金，我将为您筛选年化波动率低于5%的债券基金，同时根据您当前的风险偏好，过滤掉风险等级超标的标的。',
+    conditions: [
+      {label:'债券型',type:'fundType'},
+      {label:'波动率<5%',type:'metric'},
+      {label:'夏普比率>0.5',type:'metric'},
+      {label:'风险等级匹配',type:'risk'}
+    ],
+    matchReason: '您想找"波动小的债券基金"，以下基金均为债券型且年化波动率较低，适合追求稳健收益的投资者。',
+    filterFn: (funds, maxRisk) => funds.filter(f => f.fundTypeTag === '债券型' && f.performance.VOL < 0.05 && f.riskLevelNum <= maxRisk),
+    sortBy: 'VOL'
+  },
+  '适合定投的低费率宽基ETF': {
+    intentAnalysis: '您希望找适合定投的低费率宽基ETF，我将为您筛选管理费率低于0.6%的宽基指数基金，关注波动适中、分红稳定的标的，适合定期定额投资。',
+    conditions: [
+      {label:'宽基指数',type:'fundType'},
+      {label:'管理费率<0.6%',type:'fee'},
+      {label:'波动适中',type:'metric'},
+      {label:'分红稳定',type:'metric'}
+    ],
+    matchReason: '您想找"适合定投的低费率宽基ETF"，以下基金费率较低、波动适中，适合作为定投底仓。',
+    filterFn: (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '指数型' || f.fundTypeTag === 'ETF') && f.managementFee < 0.6 && f.riskLevelNum <= maxRisk),
+    sortBy: 'MANAGEMENT_FEE'
+  },
+  '重仓新能源的基金': {
+    intentAnalysis: '您希望找重仓新能源的基金，我将为您筛选行业配置中电力设备及新能源（CI005011）占比超过10%的基金，并展示其行业集中度。',
+    conditions: [
+      {label:'重仓新能源',type:'industry'},
+      {label:'CI005011>10%',type:'industry'},
+      {label:'行业集中度高',type:'metric'}
+    ],
+    matchReason: '您想找"重仓新能源的基金"，以下基金在电力设备及新能源行业配置比例较高，可关注行业集中度带来的风险与机会。',
+    filterFn: (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005011'] || 0) > 0.10 && f.riskLevelNum <= maxRisk),
+    sortBy: 'CI005011'
+  },
+  '回撤小、收益还不错的基金': {
+    intentAnalysis: '您希望找回撤小且收益不错的基金，我将为您筛选最大回撤低于5%且区间收益率超过3%的基金，兼顾风险控制和收益获取。',
+    conditions: [
+      {label:'最大回撤<5%',type:'metric'},
+      {label:'收益率>3%',type:'metric'},
+      {label:'风险匹配',type:'risk'}
+    ],
+    matchReason: '您想找"回撤小、收益还不错的基金"，以下基金在控制回撤的同时获取了较合理的收益。',
+    filterFn: (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN) < 0.05 && f.performance.RETURNRATE > 0.03 && f.riskLevelNum <= maxRisk),
+    sortBy: 'SHARP'
+  },
+  '偏价值风格的基金': {
+    intentAnalysis: '您希望找偏价值风格的基金，我将为您筛选风险归因因子中价值因子（VALUE）排名靠前的基金，适合偏好低估值投资的投资者。',
+    conditions: [
+      {label:'价值因子>0.3',type:'factor'},
+      {label:'偏价值风格',type:'factor'},
+      {label:'风险匹配',type:'risk'}
+    ],
+    matchReason: '您想找"偏价值风格的基金"，以下基金的价值因子得分较高，持仓偏向低估值股票。',
+    filterFn: (funds, maxRisk) => funds.filter(f => f.riskFactors.VALUE > 0.3 && f.riskLevelNum <= maxRisk),
+    sortBy: 'VALUE'
+  }
+};
+
+// Generic intent analysis for unrecognized queries
+function genericIntent(text) {
+  const conditions = [];
+  let filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk);
+  let sortBy = 'RETURNRATE';
+
+  if (/债券|债基|债/.test(text)) {
+    conditions.push({label:'债券型',type:'fundType'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.fundTypeTag === '债券型' && f.riskLevelNum <= maxRisk);
+  }
+  if (/ETF|场内|宽基/.test(text)) {
+    conditions.push({label:'指数/ETF',type:'fundType'});
+    filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '指数型' || f.fundTypeTag === 'ETF') && f.riskLevelNum <= maxRisk);
+  }
+  if (/股票|权益/.test(text)) {
+    conditions.push({label:'股票型',type:'fundType'});
+    filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '股票型' || f.fundTypeTag === '混合型') && f.riskLevelNum <= maxRisk);
+  }
+  if (/波动小|低波动|波动低/.test(text)) {
+    conditions.push({label:'波动率<5%',type:'metric'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.performance.VOL < 0.05 && f.riskLevelNum <= maxRisk);
+    sortBy = 'VOL';
+  }
+  if (/收益|高收益|收益好|收益高/.test(text)) {
+    conditions.push({label:'收益率排序',type:'metric'});
+    sortBy = 'RETURNRATE';
+  }
+  if (/回撤小|低回撤/.test(text)) {
+    conditions.push({label:'回撤<5%',type:'metric'});
+    filterFn = (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN) < 0.05 && f.riskLevelNum <= maxRisk);
+    sortBy = 'MAX_DRAWDOWN';
+  }
+  if (/新能源|光伏|风电|储能|锂电/.test(text)) {
+    conditions.push({label:'重仓新能源',type:'industry'});
+    filterFn = (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005011'] || 0) > 0.08 && f.riskLevelNum <= maxRisk);
+    sortBy = 'CI005011';
+  }
+  if (/医药|医疗|生物医药|创新药/.test(text)) {
+    conditions.push({label:'重仓医药',type:'industry'});
+    filterFn = (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005018'] || 0) > 0.08 && f.riskLevelNum <= maxRisk);
+    sortBy = 'CI005018';
+  }
+  if (/科技|电子|芯片|半导体|计算机|软件|AI/.test(text)) {
+    conditions.push({label:'重仓科技',type:'industry'});
+    filterFn = (funds, maxRisk) => funds.filter(f => ((f.industryConfig['CI005025'] || 0) + (f.industryConfig['CI005026'] || 0) + (f.industryConfig['CI005027'] || 0)) > 0.10 && f.riskLevelNum <= maxRisk);
+  }
+  if (/价值|低估值/.test(text)) {
+    conditions.push({label:'价值因子>0.3',type:'factor'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.VALUE > 0.3 && f.riskLevelNum <= maxRisk);
+    sortBy = 'VALUE';
+  }
+  if (/成长|高增长/.test(text)) {
+    conditions.push({label:'成长因子高',type:'factor'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.GROWTH > 0.3 && f.riskLevelNum <= maxRisk);
+    sortBy = 'GROWTH';
+  }
+  if (/大盘|大市值/.test(text)) {
+    conditions.push({label:'大盘风格',type:'factor'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.SIZE > 0.3 && f.riskLevelNum <= maxRisk);
+  }
+  if (/低费率|费率低|便宜/.test(text)) {
+    conditions.push({label:'管理费率<0.6%',type:'fee'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.managementFee < 0.6 && f.riskLevelNum <= maxRisk);
+  }
+  if (/定投/.test(text)) {
+    conditions.push({label:'波动适中',type:'metric'});
+    conditions.push({label:'费率低',type:'fee'});
+  }
+
+  conditions.push({label:'风险等级匹配',type:'risk'});
+
+  return {
+    intentAnalysis: '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。',
+    conditions: conditions.length > 1 ? conditions : [{label:'风险等级匹配',type:'risk'}],
+    matchReason: '根据您的描述，以下基金符合筛选条件，请结合指标和风险等级综合参考。',
+    filterFn,
+    sortBy
+  };
+}
+
+// ============ VUE APP ============
+createApp({
+  setup() {
+    const currentPage = ref('home');
+    const searchText = ref('');
+    const lastQuery = ref('');
+    const selectedFund = ref(null);
+    const pickerOpen = ref(false);
+    const pickerType = ref('');
+    const profileUpdated = ref(false);
+    const externalConfirm = ref(false);
+    const pendingExternalUrl = ref('');
+    const sortBy = ref('match');
+    const historyList = ref([]);
+
+    const riskProfile = reactive({
+      age: '中年',
+      ageValue: 'middle',
+      riskPref: '平衡型',
+      riskPrefValue: 'C3',
+      duration: '中期',
+      durationValue: 'mid',
+      maxRiskLevel: 4,
+      maxRiskLabel: 'R1-R4'
+    });
+
+    const quickTags = [
+      '想找波动小的债券基金',
+      '适合定投的低费率宽基ETF',
+      '重仓新能源的基金',
+      '回撤小、收益还不错的基金',
+      '偏价值风格的基金'
+    ];
+
+    const aiResult = reactive({
+      intentAnalysis: '',
+      conditions: [],
+      matchReason: '',
+      filterFn: null,
+      sortBy: null
+    });
+
+    const sortOptions = [
+      {key:'match', label:'默认排序'},
+      {key:'return', label:'收益率'},
+      {key:'sharpe', label:'夏普'},
+      {key:'drawdown', label:'回撤'},
+      {key:'vol', label:'波动率'}
+    ];
+
+    // Risk bar
+    const riskBarPercent = computed(() => {
+      const m = {C1:10, C2:30, C3:50, C4:70, C5:90};
+      return m[riskProfile.riskPrefValue] || 50;
+    });
+    const riskColor = computed(() => {
+      const m = {C1:'#5dd49a', C2:'#6dc496', C3:'var(--gold)', C4:'#e8a23d', C5:'#e8554e'};
+      return m[riskProfile.riskPrefValue] || 'var(--gold)';
+    });
+
+    // Picker
+    const pickerTitle = computed(() => {
+      const m = {age:'选择年龄段', risk:'选择风险偏好', duration:'选择投资期限'};
+      return m[pickerType.value] || '';
+    });
+    const pickerOptions = computed(() => {
+      if (pickerType.value === 'age') return [
+        {label:'青年（18-35岁）',value:'young'},
+        {label:'中年（36-55岁）',value:'middle'},
+        {label:'老年（55岁以上）',value:'old'}
+      ];
+      if (pickerType.value === 'risk') return [
+        {label:'保守型（C1）',value:'C1'},
+        {label:'稳健型（C2）',value:'C2'},
+        {label:'平衡型（C3）',value:'C3'},
+        {label:'积极型（C4）',value:'C4'},
+        {label:'进取型（C5）',value:'C5'}
+      ];
+      if (pickerType.value === 'duration') return [
+        {label:'短期（<1年）',value:'short'},
+        {label:'中期（1-3年）',value:'mid'},
+        {label:'长期（>3年）',value:'long'}
+      ];
+      return [];
+    });
+
+    function openPicker(type) {
+      pickerType.value = type;
+      pickerOpen.value = true;
+    }
+    function isPickerActive(val) {
+      if (pickerType.value === 'age') return riskProfile.ageValue === val;
+      if (pickerType.value === 'risk') return riskProfile.riskPrefValue === val;
+      if (pickerType.value === 'duration') return riskProfile.durationValue === val;
+      return false;
+    }
+    function selectPicker(val) {
+      if (pickerType.value === 'age') {
+        const m = {young:'青年', middle:'中年', old:'老年'};
+        riskProfile.age = m[val];
+        riskProfile.ageValue = val;
+        // Auto adjust risk suggestion
+        if (val === 'young') { riskProfile.riskPref = '积极型'; riskProfile.riskPrefValue = 'C4'; riskProfile.maxRiskLevel = 5; riskProfile.maxRiskLabel = 'R1-R5'; }
+        if (val === 'middle') { riskProfile.riskPref = '平衡型'; riskProfile.riskPrefValue = 'C3'; riskProfile.maxRiskLevel = 4; riskProfile.maxRiskLabel = 'R1-R4'; }
+        if (val === 'old') { riskProfile.riskPref = '稳健型'; riskProfile.riskPrefValue = 'C2'; riskProfile.maxRiskLevel = 3; riskProfile.maxRiskLabel = 'R1-R3'; }
+      }
+      if (pickerType.value === 'risk') {
+        const labels = {C1:'保守型',C2:'稳健型',C3:'平衡型',C4:'积极型',C5:'进取型'};
+        const maxLevels = {C1:2,C2:3,C3:4,C4:5,C5:5};
+        const maxLabels = {C1:'R1-R2',C2:'R1-R3',C3:'R1-R4',C4:'R1-R5',C5:'R1-R5'};
+        riskProfile.riskPref = labels[val];
+        riskProfile.riskPrefValue = val;
+        riskProfile.maxRiskLevel = maxLevels[val];
+        riskProfile.maxRiskLabel = maxLabels[val];
+      }
+      if (pickerType.value === 'duration') {
+        const m = {short:'短期', mid:'中期', long:'长期'};
+        riskProfile.duration = m[val];
+        riskProfile.durationValue = val;
+      }
+      pickerOpen.value = false;
+      profileUpdated.value = true;
+      setTimeout(() => { profileUpdated.value = false; }, 3000);
+    }
+
+    // Search
+    function doSearch() {
+      if (!searchText.value.trim()) return;
+      lastQuery.value = searchText.value.trim();
+      currentPage.value = 'loading';
+      // Simulate AI processing delay
+      setTimeout(() => {
+        processAIIntent(lastQuery.value);
+      }, 1500 + Math.random() * 500);
+    }
+
+    function processAIIntent(text) {
+      // Check exact match first
+      let result = PRESET_RESPONSES[text];
+      if (!result) {
+        // Try partial match
+        for (const [key, val] of Object.entries(PRESET_RESPONSES)) {
+          if (text.includes(key) || key.includes(text)) {
+            result = val;
+            break;
+          }
+        }
+      }
+      if (!result) {
+        result = genericIntent(text);
+      }
+
+      aiResult.intentAnalysis = result.intentAnalysis;
+      aiResult.conditions = result.conditions;
+      aiResult.matchReason = result.matchReason;
+      aiResult.filterFn = result.filterFn;
+      aiResult.sortBy = result.sortBy;
+      sortBy.value = 'match';
+
+      // Save to history
+      const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
+      historyList.value.unshift({
+        query: text,
+        time: new Date().toLocaleString('zh-CN'),
+        count: filtered.length
+      });
+
+      currentPage.value = 'results';
+      nextTick(() => {
+        renderMiniPies();
+      });
+    }
+
+    function useQuickTag(tag) {
+      searchText.value = tag;
+      doSearch();
+    }
+
+    // Filtered funds
+    const filteredFunds = computed(() => {
+      if (!aiResult.filterFn) return MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
+      return aiResult.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel);
+    });
+
+    const sortedFilteredFunds = computed(() => {
+      const funds = [...filteredFunds.value];
+      if (sortBy.value === 'match' && aiResult.sortBy) {
+        if (aiResult.sortBy === 'VOL') funds.sort((a,b) => a.performance.VOL - b.performance.VOL);
+        else if (aiResult.sortBy === 'RETURNRATE') funds.sort((a,b) => b.performance.RETURNRATE - a.performance.RETURNRATE);
+        else if (aiResult.sortBy === 'SHARP') funds.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
+        else if (aiResult.sortBy === 'MAX_DRAWDOWN') funds.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
+        else if (aiResult.sortBy === 'MANAGEMENT_FEE') funds.sort((a,b) => a.managementFee - b.managementFee);
+        else if (aiResult.sortBy === 'VALUE') funds.sort((a,b) => b.riskFactors.VALUE - a.riskFactors.VALUE);
+        else if (aiResult.sortBy === 'GROWTH') funds.sort((a,b) => b.riskFactors.GROWTH - a.riskFactors.GROWTH);
+        else if (aiResult.sortBy === 'CI005011') funds.sort((a,b) => (b.industryConfig['CI005011']||0) - (a.industryConfig['CI005011']||0));
+        else if (aiResult.sortBy === 'CI005018') funds.sort((a,b) => (b.industryConfig['CI005018']||0) - (a.industryConfig['CI005018']||0));
+      } else if (sortBy.value === 'return') {
+        funds.sort((a,b) => b.performance.RETURNRATE - a.performance.RETURNRATE);
+      } else if (sortBy.value === 'sharpe') {
+        funds.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
+      } else if (sortBy.value === 'drawdown') {
+        funds.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
+      } else if (sortBy.value === 'vol') {
+        funds.sort((a,b) => a.performance.VOL - b.performance.VOL);
+      }
+      return funds;
+    });
+
+    // Navigation
+    function goHome() { currentPage.value = 'home'; }
+    function goResults() { 
+      currentPage.value = 'results';
+      nextTick(() => renderMiniPies());
+    }
+    function goHistory() { currentPage.value = 'history'; }
+    function goDetail(fund) {
+      selectedFund.value = fund;
+      currentPage.value = 'detail';
+      nextTick(() => {
+        renderPerfRadar();
+        renderRiskBar();
+        renderIndustryPie();
+      });
+    }
+    function replayHistory(item) {
+      searchText.value = item.query;
+      doSearch();
+    }
+
+    // External link
+    function goExternal(fund) {
+      if (!fund) return;
+      const code = fund.fundCode.replace('.OF','');
+      pendingExternalUrl.value = `https://financial.touker.com/publicfund/product?fundCode=${code}`;
+      externalConfirm.value = true;
+    }
+    function confirmExternal() {
+      window.open(pendingExternalUrl.value, '_blank');
+      externalConfirm.value = false;
+    }
+
+    // Risk helpers
+    function riskTagClass(level) {
+      const m = {R1:'tag-risk-r1',R2:'tag-risk-r2',R3:'tag-risk-r3',R4:'tag-risk-r4',R5:'tag-risk-r5'};
+      return m[level] || '';
+    }
+    function isRiskMatched(fund) {
+      return fund.riskLevelNum <= riskProfile.maxRiskLevel;
+    }
+
+    // ============ DETAIL PAGE COMPUTED ============
+    const perfMetricsDisplay = computed(() => {
+      if (!selectedFund.value) return [];
+      const p = selectedFund.value.performance;
+      return [
+        {key:'ret', name:'区间收益', value:(p.RETURNRATE*100).toFixed(2)+'%', color: p.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'},
+        {key:'annual', name:'年化收益', value:(p.ANNUALRETURN_RATE*100).toFixed(2)+'%', color: p.ANNUALRETURN_RATE >= 0 ? 'var(--red)' : 'var(--green)'},
+        {key:'sharp', name:'夏普比率', value:p.SHARP.toFixed(2), color: p.SHARP >= 1 ? 'var(--red)' : 'var(--text-primary)'},
+        {key:'dd', name:'最大回撤', value:(p.MAX_DRAWDOWN*100).toFixed(2)+'%', color: 'var(--green)'},
+        {key:'vol', name:'波动率', value:(p.VOL*100).toFixed(1)+'%', color: 'var(--text-primary)'},
+        {key:'karma', name:'卡玛比率', value:p.KARMA.toFixed(2), color: p.KARMA >= 1.5 ? 'var(--red)' : 'var(--text-primary)'},
+        {key:'info', name:'信息比率', value:p.INFO_RATIO.toFixed(2), color: 'var(--text-primary)'},
+        {key:'beta', name:'贝塔系数', value:p.BETA.toFixed(2), color: 'var(--text-primary)'},
+        {key:'sortino', name:'索提诺', value:p.SORTINO.toFixed(2), color: 'var(--text-primary)'},
+      ];
+    });
+
+    const perfExplanations = computed(() => {
+      if (!selectedFund.value) return [];
+      const p = selectedFund.value.performance;
+      return [
+        {name:'夏普比率', text:'收益相对于风险的性价比，一般>1算不错，当前为'+p.SHARP.toFixed(2)},
+        {name:'最大回撤', text:'从最高点到最低点的最大跌幅，当前为'+(p.MAX_DRAWDOWN*100).toFixed(2)+'%'},
+        {name:'波动率', text:'收益的波动幅度，越低越平稳，当前为'+(p.VOL*100).toFixed(1)+'%'},
+        {name:'贝塔系数', text:'相对于市场的敏感度，<1表示比市场波动小，当前为'+p.BETA.toFixed(2)},
+        {name:'在险价值', text:'在95%概率下的单日最大亏损，当前为'+(p.VAR*100).toFixed(2)+'%'}
+      ];
+    });
+
+    const riskFactorDisplay = computed(() => {
+      if (!selectedFund.value) return [];
+      const f = selectedFund.value.riskFactors;
+      return [
+        {key:'BETA', name:'贝塔', value:f.BETA, desc:'市场敏感度，>1比大盘波动更剧烈，<1比大盘更平稳'},
+        {key:'EARNING', name:'盈利', value:f.EARNING, desc:'盈利能力，值越高说明重仓股赚钱能力越强'},
+        {key:'LEVERAGE', name:'杠杆', value:f.LEVERAGE, desc:'杠杆水平，值越高说明负债越大，风险越高'},
+        {key:'LIQUIDITY', name:'流动性', value:f.LIQUIDITY, desc:'交易活跃度，值越高买卖越方便'},
+        {key:'MOMENTUM', name:'动量', value:f.MOMENTUM, desc:'趋势惯性，值越高近期上涨趋势越强'},
+        {key:'VALUE', name:'价值', value:f.VALUE, desc:'估值水平，值越高偏价值型，值越低偏成长型'},
+        {key:'VOLATILITY', name:'波动率', value:f.VOLATILITY, desc:'波动程度，值越高重仓股波动越大'},
+        {key:'GROWTH', name:'成长', value:f.GROWTH, desc:'成长性，值越高说明成长预期越强'},
+        {key:'SIZE', name:'规模', value:f.SIZE, desc:'市值规模，值越高偏大盘，值越低偏小盘'}
+      ];
+    });
+
+    const top3IndustriesText = computed(() => {
+      if (!selectedFund.value) return '';
+      const entries = Object.entries(selectedFund.value.industryConfig)
+        .map(([k,v]) => ({name:INDUSTRY_MAP[k]||k, pct:(v*100).toFixed(1)}))
+        .sort((a,b) => b.pct - a.pct)
+        .slice(0,3);
+      return entries.map(e => `${e.name}(${e.pct}%)`).join('、');
+    });
+
+    const valuationDisplay = computed(() => {
+      if (!selectedFund.value) return [];
+      const v = selectedFund.value.valuation;
+      const peTag = v.PE < 15 ? '偏低' : v.PE < 25 ? '适中' : '偏高';
+      const peColor = v.PE < 15 ? '#5dd49a' : v.PE < 25 ? 'var(--gold)' : '#e8a23d';
+      return [
+        {key:'PE', name:'市盈率', value:v.PE.toFixed(1)+'倍', tag:peTag, tagColor:peColor},
+        {key:'PB', name:'市净率', value:v.PB.toFixed(1)+'倍', tag:v.PB<1.5?'偏低':v.PB<3?'适中':'偏高', tagColor:v.PB<1.5?'#5dd49a':v.PB<3?'var(--gold)':'#e8a23d'},
+        {key:'ROE', name:'净资产收益率', value:(v.ROE*100).toFixed(1)+'%', tag:v.ROE>0.15?'较高':'一般', tagColor:v.ROE>0.15?'var(--red)':'var(--text-muted)'},
+        {key:'ROA', name:'总资产收益率', value:(v.ROA*100).toFixed(1)+'%', tag:v.ROA>0.08?'良好':'一般', tagColor:v.ROA>0.08?'var(--red)':'var(--text-muted)'},
+        {key:'GRONP', name:'净利润增速', value:(v.GRONP*100).toFixed(1)+'%', tag:v.GRONP>0.15?'高增长':'一般', tagColor:v.GRONP>0.15?'var(--red)':'var(--text-muted)'},
+        {key:'GROR', name:'营收增速', value:(v.GROR*100).toFixed(1)+'%', tag:v.GROR>0.1?'良好':'一般', tagColor:v.GROR>0.1?'var(--red)':'var(--text-muted)'},
+        {key:'DIVIDEND', name:'股息率', value:(v.DIVIDEND*100).toFixed(1)+'%', tag:v.DIVIDEND>0.03?'高分红':'一般', tagColor:v.DIVIDEND>0.03?'var(--red)':'var(--text-muted)'},
+        {key:'MKT', name:'总市值', value:v.MKT+'亿', tag:v.MKT>5000?'大盘':v.MKT>1000?'中盘':'小盘', tagColor:v.MKT>5000?'var(--gold)':'var(--text-muted)'},
+        {key:'CHANGE', name:'换手率', value:(v.CHANGE_RATE*100).toFixed(0)+'%', tag:v.CHANGE_RATE>0.8?'活跃':v.CHANGE_RATE>0.3?'适中':'低换手', tagColor:v.CHANGE_RATE>0.8?'#e8a23d':'var(--text-muted)'}
+      ];
+    });
+
+    const eduCard = computed(() => {
+      if (!selectedFund.value) return {title:'', content:'', analysis:''};
+      const f = selectedFund.value;
+      const isBond = f.fundTypeTag === '债券型';
+      const isIndex = f.fundTypeTag === '指数型';
+      const lowDrawdown = Math.abs(f.performance.MAX_DRAWDOWN) < 0.05;
+      const highSharpe = f.performance.SHARP >= 1.3;
+      const highValue = f.riskFactors.VALUE > 0.3;
+
+      let title = '基金基础知识';
+      let content = '';
+      if (isBond) { title = '什么是债券基金？'; content = '债券基金主要投资于债券，收益来源包括债券利息和债券价格变动。相比股票基金，债券基金波动通常较小，适合追求稳健收益的投资者。'; }
+      else if (isIndex) { title = '什么是指数基金？'; content = '指数基金跟踪特定指数（如沪深300），力求复制指数表现。费率通常较低，适合长期定投和资产配置。'; }
+      else if (lowDrawdown) { title = '什么是最大回撤？'; content = '最大回撤是指基金从最高点到后续最低点的最大跌幅，是衡量风险的重要指标。回撤越小，说明基金在市场下跌时控制越好。'; }
+      else if (highSharpe) { title = '什么是夏普比率？'; content = '夏普比率衡量每承担一单位风险所获得的超额收益。夏普比率越高，说明基金的风险性价比越好，一般大于1被认为不错。'; }
+      else if (highValue) { title = '价值vs成长'; content = '价值风格偏好低估值股票，成长风格偏好高增长预期股票。价值因子高的基金通常持仓估值较低的股票，适合偏好价值投资的投资者。'; }
+      else { title = '如何看基金指标？'; content = '选基金时，收益率、最大回撤、夏普比率是最重要的三个指标。收益率反映赚钱能力，最大回撤反映风险控制，夏普比率反映风险性价比。'; }
+
+      const analysis = `该基金为${f.fundTypeTag}，风险等级${f.riskLevel}。区间收益率${(f.performance.RETURNRATE*100).toFixed(2)}%，最大回撤${(f.performance.MAX_DRAWDOWN*100).toFixed(2)}%，年化波动率${(f.performance.VOL*100).toFixed(1)}%，夏普比率${f.performance.SHARP.toFixed(2)}。${lowDrawdown?'回撤控制较好，':'波动相对适中，'}${highSharpe?'风险性价比不错。':'建议结合自身风险承受能力参考。'}前三大行业为：${top3IndustriesText.value}。`;
+
+      return {title, content, analysis};
+    });
+
+    // ============ CHARTS ============
+    function renderMiniPies() {
+      nextTick(() => {
+        sortedFilteredFunds.value.forEach(fund => {
+          const id = 'mini-pie-' + fund.fundCode.replace('.','');
+          const el = document.getElementById(id);
+          if (!el) return;
+          const chart = echarts.init(el);
+          const entries = Object.entries(fund.industryConfig)
+            .map(([k,v]) => ({name:INDUSTRY_MAP[k]||k, value: v}))
+            .sort((a,b) => b.value - a.value)
+            .slice(0,4);
+          const others = 1 - entries.reduce((s,e) => s+e.value, 0);
+          if (others > 0) entries.push({name:'其他', value: Math.max(0,others)});
+          const colors = ['#d4a851','#1a3055','#2a4570','#3a5a90','#4a6faa'];
+          chart.setOption({
+            series: [{
+              type:'pie', radius:['55%','75%'], center:['50%','50%'],
+              label:{show:false},
+              data: entries.map((e,i) => ({...e, itemStyle:{color:colors[i]}})),
+              silent: true,
+              animation: false
+            }]
+          });
+        });
+      });
+    }
+
+    function renderPerfRadar() {
+      const el = document.getElementById('perf-radar');
+      if (!el || !selectedFund.value) return;
+      const chart = echarts.init(el);
+      const p = selectedFund.value.performance;
+      // Normalize values for radar (0-1 scale)
+      const data = [
+        {name:'收益', value: Math.min(Math.abs(p.RETURNRATE)/0.2, 1)*100},
+        {name:'夏普', value: Math.min(p.SHARP/2.5, 1)*100},
+        {name:'卡玛', value: Math.min(p.KARMA/3, 1)*100},
+        {name:'信息比率', value: Math.min(p.INFO_RATIO/1.5, 1)*100},
+        {name:'索提诺', value: Math.min(p.SORTINO/3, 1)*100},
+        {name:'回撤控制', value: Math.max(0, 1 - Math.abs(p.MAX_DRAWDOWN)/0.15)*100}
+      ];
+      chart.setOption({
+        radar: {
+          indicator: data.map(d => ({name:d.name, max:100})),
+          radius: '65%',
+          axisName: {color:'#8fa3c0', fontSize:10},
+          splitLine: {lineStyle:{color:'rgba(212,168,81,0.1)'}},
+          splitArea: {areaStyle:{color:['rgba(26,48,85,0.3)','rgba(20,36,64,0.3)']}},
+          axisLine: {lineStyle:{color:'rgba(212,168,81,0.15)'}},
+        },
+        series: [{
+          type:'radar',
+          data: [{
+            value: data.map(d => d.value),
+            name:'绩效',
+            areaStyle:{color:'rgba(212,168,81,0.2)'},
+            lineStyle:{color:'#d4a851',width:2},
+            itemStyle:{color:'#e8c878'}
+          }]
+        }]
+      });
+    }
+
+    function renderRiskBar() {
+      const el = document.getElementById('risk-bar');
+      if (!el || !selectedFund.value) return;
+      const chart = echarts.init(el);
+      const f = selectedFund.value.riskFactors;
+      const data = [
+        {name:'贝塔',value:f.BETA},{name:'盈利',value:f.EARNING},{name:'杠杆',value:f.LEVERAGE},
+        {name:'流动性',value:f.LIQUIDITY},{name:'动量',value:f.MOMENTUM},{name:'价值',value:f.VALUE},
+        {name:'波动率',value:f.VOLATILITY},{name:'成长',value:f.GROWTH},{name:'规模',value:f.SIZE}
+      ];
+      chart.setOption({
+        grid:{left:'0%',right:'5%',top:'5%',bottom:'15%',containLabel:true},
+        xAxis:{type:'category',data:data.map(d=>d.name),axisLabel:{color:'#8fa3c0',fontSize:9,rotate:30},axisLine:{lineStyle:{color:'rgba(212,168,81,0.15)'}}},
+        yAxis:{type:'value',show:false},
+        series:[{
+          type:'bar',
+          data:data.map(d => ({
+            value:d.value,
+            itemStyle:{
+              color: d.value >= 0 ? new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#d4a851'},{offset:1,color:'#8a7340'}]) : new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#2ec47e'},{offset:1,color:'#1a8a55'}]),
+              borderRadius:[3,3,0,0]
+            }
+          })),
+          barWidth:'50%',
+          label:{show:true,position:'top',color:'#e8eef7',fontSize:9,formatter:'{c}'}
+        }]
+      });
+    }
+
+    function renderIndustryPie() {
+      const el = document.getElementById('industry-pie');
+      if (!el || !selectedFund.value) return;
+      const chart = echarts.init(el);
+      const entries = Object.entries(selectedFund.value.industryConfig)
+        .map(([k,v]) => ({name:INDUSTRY_MAP[k]||k, value:(v*100).toFixed(2)}))
+        .filter(e => parseFloat(e.value) > 0.5)
+        .sort((a,b) => parseFloat(b.value) - parseFloat(a.value));
+      chart.setOption({
+        tooltip:{trigger:'item',formatter:'{b}: {c}%'},
+        legend:{
+          type:'scroll', orient:'vertical', right:0, top:'middle',
+          textStyle:{color:'#8fa3c0',fontSize:9},
+          pageTextStyle:{color:'#8fa3c0'}
+        },
+        color:['#d4a851','#e8c878','#c4983a','#1a3055','#2a4570','#3a5a90','#4a6faa','#5a82b8','#6a95c8','#7aa8d8','#8ec47e','#5dd49a','#e8a23d','#e8554e','#c0392b','#48bb78','#6dc496','#8cc4a6','#abc4b6','#cae4c6','#d4d4d4','#a0a0a0','#7a7a7a','#5a5a5a','#3a3a3a','#2a2a2a','#1a1a1a','#0a0a0a','#f0f0f0','#e0e0e0'],
+        series:[{
+          type:'pie',
+          radius:['30%','55%'],
+          center:['35%','50%'],
+          label:{show:false},
+          labelLine:{show:false},
+          emphasis:{
+            label:{show:true,fontSize:11,color:'#e8eef7',formatter:'{b}\n{c}%'},
+            itemStyle:{shadowBlur:10,shadowColor:'rgba(212,168,81,0.3)'}
+          },
+          data: entries.map((e,i) => ({
+            ...e,
+            value: parseFloat(e.value),
+            itemStyle: i < 3 ? {color:'#d4a851',borderWidth:2,borderColor:'#e8c878'} : {color: ['#1a3055','#2a4570','#3a5a90','#4a6faa','#5a82b8','#6a95c8','#7aa8d8'][i % 7]}
+          }))
+        }]
+      });
+    }
+
+    onMounted(() => {
+      // Nothing needed on mount for now
+    });
+
+    return {
+      currentPage, searchText, lastQuery, selectedFund, pickerOpen, pickerType,
+      profileUpdated, externalConfirm, riskProfile, quickTags, aiResult,
+      sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
+      riskBarPercent, riskColor, pickerTitle, pickerOptions,
+      openPicker, isPickerActive, selectPicker, doSearch, useQuickTag,
+      goHome, goResults, goHistory, goDetail, replayHistory, goExternal, confirmExternal,
+      riskTagClass, isRiskMatched,
+      perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
+      valuationDisplay, eduCard
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
