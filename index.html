@@ -303,10 +303,18 @@ body {
         <div class="text-[10px] text-[var(--text-muted)] -mt-0.5">用大白话选出你的基金</div>
       </div>
     </div>
-    <div class="text-[var(--text-muted)] text-xs" @click="goHistory">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
-      </svg>
+    <div class="flex items-center gap-3">
+      <div class="text-[var(--text-muted)] text-xs relative cursor-pointer" @click="openArkKey">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span v-if="arkKeyConfigured" class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style="background:#5dd49a"></span>
+      </div>
+      <div class="text-[var(--text-muted)] text-xs" @click="goHistory">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+        </svg>
+      </div>
     </div>
   </div>
 
@@ -356,6 +364,9 @@ body {
       </svg>
       开始选基
     </button>
+    <div v-if="!arkKeyConfigured" class="mt-2 text-[10px] text-[var(--text-muted)] text-center">
+      未配置模型 Key，当前使用本地规则匹配 · <span class="text-[var(--gold)] cursor-pointer underline" @click="openArkKey">点此配置</span>
+    </div>
   </div>
 
   <!-- Quick Tags -->
@@ -396,7 +407,7 @@ body {
     <div class="text-[13px] text-[var(--gold-light)]">"{{ lastQuery }}"</div>
   </div>
   <div class="mt-6 text-[10px] text-[var(--text-muted)]">
-    模拟调用 deepseek-v4-flash 大模型意图识别
+    调用 deepseek-v4-pro 大模型意图识别
   </div>
   <div class="mt-1 text-[10px] text-[var(--text-muted)] mono">powered by RAG + 投研数据</div>
 </div>
@@ -488,7 +499,7 @@ body {
       <!-- Metrics Row -->
       <div class="grid grid-cols-4 gap-2 mb-2.5">
         <div class="metric-box">
-          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">区间收益</div>
+          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">近一年收益</div>
           <div class="text-[13px] font-bold mono" :style="{color: fund.performance.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'}">
             {{ (fund.performance.RETURNRATE * 100).toFixed(2) }}%
           </div>
@@ -524,7 +535,7 @@ body {
       <!-- Bottom Buttons -->
       <div class="flex items-center gap-2 mt-3 pt-3 border-t" style="border-color:var(--border)">
         <button class="btn-ghost flex-1 py-2 text-[11px]" @click.stop="goDetail(fund)">查看详情</button>
-        <button class="btn-gold flex-1 py-2 text-[11px]" @click.stop="goExternal(fund)">查看完整详情</button>
+        <button class="btn-gold flex-1 py-2 text-[11px]" @click.stop="goExternal(fund)">立即购买</button>
       </div>
     </div>
 
@@ -560,7 +571,7 @@ body {
       </div>
       <span class="text-sm font-bold truncate">{{ selectedFund?.fundName }}</span>
     </div>
-    <button class="btn-gold px-3 py-1.5 text-[11px] flex-shrink-0" @click="goExternal(selectedFund)">完整详情</button>
+    <button class="btn-gold px-3 py-1.5 text-[11px] flex-shrink-0" @click="goExternal(selectedFund)">立即购买</button>
   </div>
 
   <div v-if="selectedFund" class="px-5 pb-32">
@@ -580,6 +591,21 @@ body {
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">管理费率</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.managementFee }}%</span></div>
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">报告日期</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.reportDate }}</span></div>
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金经理</span><span class="text-[var(--text-primary)]">{{ selectedFund.fundManager }}</span></div>
+      </div>
+    </div>
+
+    <!-- Investment Education -->
+    <div class="mt-5">
+      <div class="flex items-center gap-2 mb-2.5">
+        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
+        <span class="text-[13px] font-bold">投教解读</span>
+      </div>
+      <div class="glass-card-gold p-4 card-enter stagger-2">
+        <div class="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">{{ eduCard.analysis }}</div>
+        <div class="p-2.5 rounded-lg" style="background:rgba(10,21,40,.3)">
+          <div class="text-[11px] font-medium text-[var(--gold-light)] mb-1">{{ eduCard.title }}</div>
+          <div class="text-[10px] text-[var(--text-muted)] leading-relaxed">{{ eduCard.content }}</div>
+        </div>
       </div>
     </div>
 
@@ -717,25 +743,10 @@ body {
       </div>
     </div>
 
-    <!-- Investment Education -->
-    <div class="mt-5">
-      <div class="flex items-center gap-2 mb-2.5">
-        <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
-        <span class="text-[13px] font-bold">投教解读</span>
-      </div>
-      <div class="glass-card-gold p-4 card-enter stagger-6">
-        <div class="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">{{ eduCard.analysis }}</div>
-        <div class="p-2.5 rounded-lg" style="background:rgba(10,21,40,.3)">
-          <div class="text-[11px] font-medium text-[var(--gold-light)] mb-1">{{ eduCard.title }}</div>
-          <div class="text-[10px] text-[var(--text-muted)] leading-relaxed">{{ eduCard.content }}</div>
-        </div>
-      </div>
-    </div>
-
     <!-- Data Source -->
     <div class="mt-5 text-center">
       <div class="text-[10px] text-[var(--text-muted)]">以上数据来源于研究所投研标签数据（模拟脱敏）</div>
-      <div class="text-[10px] text-[var(--text-muted)] mt-0.5">报告期：{{ selectedFund.reportDate }} | 周期：{{ selectedFund.cycle }}</div>
+      <div class="text-[10px] text-[var(--text-muted)] mt-0.5">报告期：{{ selectedFund.reportDate }} | 统计区间：近一年</div>
     </div>
   </div>
 
@@ -745,7 +756,7 @@ body {
     <div class="text-[9px] text-[var(--text-muted)] leading-relaxed mb-2">
       风险提示：基金有风险，投资需谨慎。本工具基于研究所投研数据，通过AI自然语言解析为您提供基金筛选服务，输出内容均为客观数据展示与通俗化解读，不构成任何投资建议或买卖推荐。基金的过往业绩并不预示其未来表现。请您根据自身风险承受能力，独立做出投资决策。
     </div>
-    <button class="btn-gold w-full py-2.5 text-[11px]" @click="goExternal(selectedFund)">查看完整详情</button>
+    <button class="btn-gold w-full py-2.5 text-[11px]" @click="goExternal(selectedFund)">立即购买</button>
   </div>
 </div>
 
@@ -844,19 +855,21 @@ body {
   </div>
 </transition>
 
-<!-- ============== External Link Confirm ============== -->
+<!-- ============== API Key Settings Modal ============== -->
 <transition name="fade">
-  <div v-if="externalConfirm" class="overlay flex items-center justify-center px-8" @click="externalConfirm=false">
+  <div v-if="arkKeyOpen" class="overlay flex items-center justify-center px-8" @click="arkKeyOpen=false">
     <div class="glass-card-gold p-5 max-w-xs w-full" @click.stop style="animation:fadeUp .3s ease">
-      <div class="text-sm font-bold mb-2 text-center">即将离开本工具</div>
-      <div class="text-[12px] text-[var(--text-secondary)] text-center mb-4 leading-relaxed">将跳转至外部基金详情页（touker.com），外部页面不受本工具风险提示覆盖。是否继续？</div>
+      <div class="text-sm font-bold mb-2 text-center">模型 API Key</div>
+      <div class="text-[11px] text-[var(--text-secondary)] mb-3 leading-relaxed">密钥仅保存在你的浏览器本地（localStorage），不会写入仓库。填入火山方舟以 ark- 开头的 Key 后，选基将调用 deepseek-v4-pro 真实模型。</div>
+      <input v-model="arkKeyDraft" type="password" placeholder="ark-..." class="search-input mb-3" />
       <div class="flex gap-2">
-        <button class="btn-ghost flex-1 py-2.5 text-[12px]" @click="externalConfirm=false">取消</button>
-        <button class="btn-gold flex-1 py-2.5 text-[12px]" @click="confirmExternal">继续</button>
+        <button class="btn-ghost flex-1 py-2.5 text-[12px]" @click="arkKeyOpen=false">取消</button>
+        <button class="btn-gold flex-1 py-2.5 text-[12px]" @click="saveArkKey">保存</button>
       </div>
     </div>
   </div>
 </transition>
+
 </div>
 
 <style>
@@ -1558,10 +1571,10 @@ const PRESET_RESPONSES = {
     sortBy: 'CI005011'
   },
   '回撤小、收益还不错的基金': {
-    intentAnalysis: '您希望找回撤小且收益不错的基金，我将为您筛选最大回撤低于5%且区间收益率超过3%的基金，兼顾风险控制和收益获取。',
+    intentAnalysis: '您希望找回撤小且收益不错的基金，我将为您筛选最大回撤低于5%且近一年收益超过3%的基金，兼顾风险控制和收益获取。',
     conditions: [
       {label:'最大回撤<5%',type:'metric'},
-      {label:'收益率>3%',type:'metric'},
+      {label:'近一年收益>3%',type:'metric'},
       {label:'风险匹配',type:'risk'}
     ],
     matchReason: '您想找"回撤小、收益还不错的基金"，以下基金在控制回撤的同时获取了较合理的收益。',
@@ -1578,6 +1591,17 @@ const PRESET_RESPONSES = {
     matchReason: '您想找"偏价值风格的基金"，以下基金的价值因子得分较高，持仓偏向低估值股票。',
     filterFn: (funds, maxRisk) => funds.filter(f => f.riskFactors.VALUE > 0.3 && f.riskLevelNum <= maxRisk),
     sortBy: 'VALUE'
+  },
+  '偏短线的基金': {
+    intentAnalysis: '您希望找偏短线的基金，短线操作通常更看重波动弹性与风险性价比。我将为您筛选年化波动率≥3.5%、夏普比率≥1的基金，并按夏普比率从高到低排序。',
+    conditions: [
+      {label:'波动率≥3.5%',type:'metric'},
+      {label:'夏普比率≥1',type:'metric'},
+      {label:'风险等级匹配',type:'risk'}
+    ],
+    matchReason: '您想找"偏短线的基金"，以下基金波动率较高、夏普比率较高，短线弹性与风险性价比相对突出，适合作为波段操作参考。',
+    filterFn: (funds, maxRisk) => funds.filter(f => f.performance.VOL >= 0.035 && f.performance.SHARP >= 1.0 && f.riskLevelNum <= maxRisk),
+    sortBy: 'SHARP'
   }
 };
 
@@ -1649,6 +1673,12 @@ function genericIntent(text) {
     conditions.push({label:'波动适中',type:'metric'});
     conditions.push({label:'费率低',type:'fee'});
   }
+  if (/短线|短期|波段/.test(text)) {
+    conditions.push({label:'波动率≥3.5%',type:'metric'});
+    conditions.push({label:'夏普比率≥1',type:'metric'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.performance.VOL >= 0.035 && f.performance.SHARP >= 1.0 && f.riskLevelNum <= maxRisk);
+    sortBy = 'SHARP';
+  }
 
   conditions.push({label:'风险等级匹配',type:'risk'});
 
@@ -1661,6 +1691,128 @@ function genericIntent(text) {
   };
 }
 
+// ============ REAL AI MODEL (火山方舟 Ark, OpenAI 协议) ============
+const ARK_MODEL = 'deepseek-v4-pro';
+const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
+const ARK_KEY_STORAGE = 'ark_api_key';
+
+// API Key 不写入代码，运行时从浏览器 localStorage 读取，避免密钥泄露到公开仓库
+function getArkKey() {
+  try { return localStorage.getItem(ARK_KEY_STORAGE) || ''; } catch (e) { return ''; }
+}
+
+const ARK_SYSTEM_PROMPT = [
+  '你是基金筛选助手，把用户的自然语言投资需求解析成结构化筛选条件。',
+  '只输出一个JSON对象，不要输出任何解释文字或markdown代码块。',
+  '',
+  '可用的基金类型 fundTypeTag：债券型、混合型、指数型。',
+  '可用的绩效字段（performance）：',
+  '- VOL 年化波动率（0.05 表示5%）',
+  '- SHARP 夏普比率',
+  '- MAX_DRAWDOWN 最大回撤（负数，-0.05 表示回撤5%）',
+  '- RETURNRATE 近一年收益率（0.10 表示10%）',
+  '- managementFee 管理费率（0.6 表示0.6%）',
+  '可用的行业代码（industryConfig，值0~1占比）：CI005011新能源、CI005018医药、CI005019食品饮料/白酒、CI005025电子、CI005026通信、CI005027计算机。',
+  '可用的风险因子（riskFactors）：VALUE价值、GROWTH成长、SIZE规模、MOMENTUM动量。',
+  '',
+  '输出JSON结构（filter中不需要的字段一律为null，industry为对象或null）：',
+  '{"intentAnalysis":"对用户需求的通俗理解说明","conditions":[{"label":"筛选条件描述","type":"fundType|metric|fee|industry|factor|risk"}],"matchReason":"一句话说明为何这些基金匹配，尽量给出具体指标原因","filter":{"fundType":null,"volMax":null,"volMin":null,"sharpeMin":null,"maxDrawdownMax":null,"retMin":null,"maxFee":null,"valueMin":null,"growthMin":null,"industry":null},"sortBy":"VOL|RETURNRATE|SHARP|MAX_DRAWDOWN|MANAGEMENT_FEE|VALUE|GROWTH|CI005011|CI005018"}',
+  '',
+  '翻译规则：',
+  '1. "短线/短期/波段"：filter设置volMin约0.035、sharpeMin约1.0，sortBy为SHARP，matchReason要提到"波动率较高、夏普比率较高"。',
+  '2. "低波动/稳健"：filter设置volMax约0.05。',
+  '3. "回撤小"：filter设置maxDrawdownMax约0.05（取绝对值）。',
+  '4. "高收益/收益好"：sortBy为RETURNRATE。',
+  '5. "债券/债基"：fundType为"债券型"。',
+  '6. 行业/因子需求按上述代码翻译到industry或valueMin/growthMin。'
+].join('\n');
+
+function parseJSON(s) {
+  try { return JSON.parse(s); } catch (e) {}
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) { try { return JSON.parse(fence[1]); } catch (e) {} }
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try { return JSON.parse(s.slice(start, end + 1)); } catch (e) {}
+  }
+  return null;
+}
+
+function buildFilterFromJSON(filter) {
+  const f = filter || {};
+  const num = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
+  const volMax = num(f.volMax);
+  const volMin = num(f.volMin);
+  const sharpeMin = num(f.sharpeMin);
+  const maxDrawdownMax = num(f.maxDrawdownMax);
+  const retMin = num(f.retMin);
+  const maxFee = num(f.maxFee);
+  const valueMin = num(f.valueMin);
+  const growthMin = num(f.growthMin);
+  const fundType = f.fundType || null;
+  const industry = (f.industry && typeof f.industry === 'object') ? f.industry : null;
+
+  return (funds, maxRisk) => funds.filter(fd => {
+    if (fd.riskLevelNum > maxRisk) return false;
+    if (fundType && fd.fundTypeTag !== fundType) return false;
+    if (volMax !== null && fd.performance.VOL >= volMax) return false;
+    if (volMin !== null && fd.performance.VOL < volMin) return false;
+    if (sharpeMin !== null && fd.performance.SHARP < sharpeMin) return false;
+    if (maxDrawdownMax !== null && Math.abs(fd.performance.MAX_DRAWDOWN) >= maxDrawdownMax) return false;
+    if (retMin !== null && fd.performance.RETURNRATE < retMin) return false;
+    if (maxFee !== null && fd.managementFee >= maxFee) return false;
+    if (valueMin !== null && fd.riskFactors.VALUE < valueMin) return false;
+    if (growthMin !== null && fd.riskFactors.GROWTH < growthMin) return false;
+    if (industry) {
+      for (const k in industry) {
+        if ((fd.industryConfig[k] || 0) < Number(industry[k])) return false;
+      }
+    }
+    return true;
+  });
+}
+
+async function callArkAPI(text) {
+  const key = getArkKey();
+  if (!key) throw new Error('未配置API Key');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(ARK_CHAT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + key
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: ARK_MODEL,
+        messages: [
+          { role: 'system', content: ARK_SYSTEM_PROMPT },
+          { role: 'user', content: text }
+        ],
+        temperature: 0.2
+      })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!content) throw new Error('模型返回为空');
+    const json = parseJSON(content);
+    if (!json) throw new Error('模型返回无法解析为JSON');
+    return {
+      intentAnalysis: json.intentAnalysis || '我已理解您的投资需求，以下为根据投研数据筛选的结果。',
+      conditions: (Array.isArray(json.conditions) && json.conditions.length) ? json.conditions : [{label:'风险等级匹配',type:'risk'}],
+      matchReason: json.matchReason || '根据您的描述，以下基金符合筛选条件。',
+      filterFn: buildFilterFromJSON(json.filter),
+      sortBy: json.sortBy || 'RETURNRATE'
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ============ VUE APP ============
 createApp({
   setup() {
@@ -1671,10 +1823,13 @@ createApp({
     const pickerOpen = ref(false);
     const pickerType = ref('');
     const profileUpdated = ref(false);
-    const externalConfirm = ref(false);
-    const pendingExternalUrl = ref('');
     const sortBy = ref('match');
     const historyList = ref([]);
+
+    // Ark API Key 配置
+    const arkKeyOpen = ref(false);
+    const arkKeyDraft = ref('');
+    const arkKeyConfigured = ref(!!getArkKey());
 
     // KYC Questionnaire
     const kycOpen = ref(false);
@@ -1719,7 +1874,8 @@ createApp({
       '适合定投的低费率宽基ETF',
       '重仓新能源的基金',
       '回撤小、收益还不错的基金',
-      '偏价值风格的基金'
+      '偏价值风格的基金',
+      '偏短线的基金'
     ];
 
     const aiResult = reactive({
@@ -1818,13 +1974,10 @@ createApp({
       if (!searchText.value.trim()) return;
       lastQuery.value = searchText.value.trim();
       currentPage.value = 'loading';
-      // Simulate AI processing delay
-      setTimeout(() => {
-        processAIIntent(lastQuery.value);
-      }, 1500 + Math.random() * 500);
+      processAIIntent(lastQuery.value);
     }
 
-    function processAIIntent(text) {
+    function localIntent(text) {
       // Check exact match first
       let result = PRESET_RESPONSES[text];
       if (!result) {
@@ -1836,9 +1989,19 @@ createApp({
           }
         }
       }
-      if (!result) {
-        result = genericIntent(text);
+      if (!result) result = genericIntent(text);
+      return result;
+    }
+
+    async function processAIIntent(text) {
+      // 优先调用真实大模型，失败时回退本地规则
+      let result = null;
+      try {
+        result = await callArkAPI(text);
+      } catch (e) {
+        console.warn('[AI] 模型调用失败，回退本地规则：', e);
       }
+      if (!result) result = localIntent(text);
 
       aiResult.intentAnalysis = result.intentAnalysis;
       aiResult.conditions = result.conditions;
@@ -1917,16 +2080,11 @@ createApp({
       doSearch();
     }
 
-    // External link
+    // External link (direct jump, no confirm dialog)
     function goExternal(fund) {
       if (!fund) return;
       const code = fund.fundCode.replace('.OF','');
-      pendingExternalUrl.value = `https://financial.touker.com/publicfund/product?fundCode=${code}`;
-      externalConfirm.value = true;
-    }
-    function confirmExternal() {
-      window.open(pendingExternalUrl.value, '_blank');
-      externalConfirm.value = false;
+      window.open(`https://financial.touker.com/publicfund/product?fundCode=${code}`, '_blank');
     }
 
     // Risk helpers
@@ -1943,7 +2101,7 @@ createApp({
       if (!selectedFund.value) return [];
       const p = selectedFund.value.performance;
       return [
-        {key:'ret', name:'区间收益', value:(p.RETURNRATE*100).toFixed(2)+'%', color: p.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'},
+        {key:'ret', name:'近一年收益', value:(p.RETURNRATE*100).toFixed(2)+'%', color: p.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'},
         {key:'annual', name:'年化收益', value:(p.ANNUALRETURN_RATE*100).toFixed(2)+'%', color: p.ANNUALRETURN_RATE >= 0 ? 'var(--red)' : 'var(--green)'},
         {key:'sharp', name:'夏普比率', value:p.SHARP.toFixed(2), color: p.SHARP >= 1 ? 'var(--red)' : 'var(--text-primary)'},
         {key:'dd', name:'最大回撤', value:(p.MAX_DRAWDOWN*100).toFixed(2)+'%', color: 'var(--green)'},
@@ -2038,7 +2196,7 @@ createApp({
       else if (highValue) { title = '价值vs成长'; content = '价值风格偏好低估值股票，成长风格偏好高增长预期股票。价值因子高的基金通常持仓估值较低的股票，适合偏好价值投资的投资者。'; }
       else { title = '如何看基金指标？'; content = '选基金时，收益率、最大回撤、夏普比率是最重要的三个指标。收益率反映赚钱能力，最大回撤反映风险控制，夏普比率反映风险性价比。'; }
 
-      const analysis = `该基金为${f.fundTypeTag}，风险等级${f.riskLevel}。区间收益率${(f.performance.RETURNRATE*100).toFixed(2)}%，最大回撤${(f.performance.MAX_DRAWDOWN*100).toFixed(2)}%，年化波动率${(f.performance.VOL*100).toFixed(1)}%，夏普比率${f.performance.SHARP.toFixed(2)}。${lowDrawdown?'回撤控制较好，':'波动相对适中，'}${highSharpe?'风险性价比不错。':'建议结合自身风险承受能力参考。'}前三大行业为：${top3IndustriesText.value}。`;
+      const analysis = `该基金为${f.fundTypeTag}，风险等级${f.riskLevel}。近一年收益率${(f.performance.RETURNRATE*100).toFixed(2)}%，最大回撤${(f.performance.MAX_DRAWDOWN*100).toFixed(2)}%，年化波动率${(f.performance.VOL*100).toFixed(1)}%，夏普比率${f.performance.SHARP.toFixed(2)}。${lowDrawdown?'回撤控制较好，':'波动相对适中，'}${highSharpe?'风险性价比不错。':'建议结合自身风险承受能力参考。'}前三大行业为：${top3IndustriesText.value}。`;
 
       return {title, content, analysis};
     });
@@ -2175,6 +2333,21 @@ createApp({
       // Nothing needed on mount for now
     });
 
+    // Ark API Key 设置
+    function openArkKey() {
+      arkKeyDraft.value = getArkKey();
+      arkKeyOpen.value = true;
+    }
+    function saveArkKey() {
+      try {
+        const v = arkKeyDraft.value.trim();
+        if (v) localStorage.setItem(ARK_KEY_STORAGE, v);
+        else localStorage.removeItem(ARK_KEY_STORAGE);
+      } catch (e) { console.warn('[AI] 保存Key失败：', e); }
+      arkKeyConfigured.value = !!getArkKey();
+      arkKeyOpen.value = false;
+    }
+
     // KYC functions
     function openKYC() {
       kycStep.value = 0;
@@ -2230,16 +2403,17 @@ createApp({
 
     return {
       currentPage, searchText, lastQuery, selectedFund, pickerOpen, pickerType,
-      profileUpdated, externalConfirm, riskProfile, quickTags, aiResult,
+      profileUpdated, riskProfile, quickTags, aiResult,
       sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
       riskBarPercent, riskColor, pickerTitle, pickerOptions,
       openPicker, isPickerActive, selectPicker, doSearch, useQuickTag,
-      goHome, goResults, goHistory, goDetail, replayHistory, goExternal, confirmExternal,
+      goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
       valuationDisplay, topHoldingsDisplay, topHoldingsTotal, eduCard,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
-      openKYC, selectKYCAnswer, closeKYC
+      openKYC, selectKYCAnswer, closeKYC,
+      arkKeyOpen, arkKeyDraft, arkKeyConfigured, openArkKey, saveArkKey
     };
   }
 }).mount('#app');
