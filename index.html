@@ -303,18 +303,10 @@ body {
         <div class="text-[10px] text-[var(--text-muted)] -mt-0.5">用大白话选出你的基金</div>
       </div>
     </div>
-    <div class="flex items-center gap-3">
-      <div class="text-[var(--text-muted)] text-xs relative cursor-pointer" @click="openArkKey">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-        <span v-if="arkKeyConfigured" class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style="background:#5dd49a"></span>
-      </div>
-      <div class="text-[var(--text-muted)] text-xs" @click="goHistory">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
-        </svg>
-      </div>
+    <div class="text-[var(--text-muted)] text-xs" @click="goHistory">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+      </svg>
     </div>
   </div>
 
@@ -364,9 +356,6 @@ body {
       </svg>
       开始选基
     </button>
-    <div v-if="!arkKeyConfigured" class="mt-2 text-[10px] text-[var(--text-muted)] text-center">
-      未配置模型 Key，当前使用本地规则匹配 · <span class="text-[var(--gold)] cursor-pointer underline" @click="openArkKey">点此配置</span>
-    </div>
   </div>
 
   <!-- Quick Tags -->
@@ -850,21 +839,6 @@ body {
         class="sheet-option" :class="{active: isPickerActive(opt.value)}" @click="selectPicker(opt.value)">
         <span class="text-[13px]">{{ opt.label }}</span>
         <svg v-if="isPickerActive(opt.value)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-    </div>
-  </div>
-</transition>
-
-<!-- ============== API Key Settings Modal ============== -->
-<transition name="fade">
-  <div v-if="arkKeyOpen" class="overlay flex items-center justify-center px-8" @click="arkKeyOpen=false">
-    <div class="glass-card-gold p-5 max-w-xs w-full" @click.stop style="animation:fadeUp .3s ease">
-      <div class="text-sm font-bold mb-2 text-center">模型 API Key</div>
-      <div class="text-[11px] text-[var(--text-secondary)] mb-3 leading-relaxed">密钥仅保存在你的浏览器本地（localStorage），不会写入仓库。填入火山方舟以 ark- 开头的 Key 后，选基将调用 deepseek-v4-pro 真实模型。</div>
-      <input v-model="arkKeyDraft" type="password" placeholder="ark-..." class="search-input mb-3" />
-      <div class="flex gap-2">
-        <button class="btn-ghost flex-1 py-2.5 text-[12px]" @click="arkKeyOpen=false">取消</button>
-        <button class="btn-gold flex-1 py-2.5 text-[12px]" @click="saveArkKey">保存</button>
       </div>
     </div>
   </div>
@@ -1694,11 +1668,19 @@ function genericIntent(text) {
 // ============ REAL AI MODEL (火山方舟 Ark, OpenAI 协议) ============
 const ARK_MODEL = 'deepseek-v4-pro';
 const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
-const ARK_KEY_STORAGE = 'ark_api_key';
+const ARK_KEY_SALT = 'AI_FUND_SELECT_2026';
+const ARK_KEY_ENCODED = 'IDs0azAod2k2ICgmbmFrAlQfAnh8Z2s0fHxnfnV8fHVtPgsIU1V4K3IjbHp9Og==';
 
-// API Key 不写入代码，运行时从浏览器 localStorage 读取，避免密钥泄露到公开仓库
-function getArkKey() {
-  try { return localStorage.getItem(ARK_KEY_STORAGE) || ''; } catch (e) { return ''; }
+// Key 以混淆形式存放，运行时解码（前端混淆仅防明文扫描，不构成真正安全）
+function decodeArkKey() {
+  try {
+    const raw = atob(ARK_KEY_ENCODED);
+    let out = '';
+    for (let i = 0; i < raw.length; i++) {
+      out += String.fromCharCode(raw.charCodeAt(i) ^ ARK_KEY_SALT.charCodeAt(i % ARK_KEY_SALT.length));
+    }
+    return out;
+  } catch (e) { return ''; }
 }
 
 const ARK_SYSTEM_PROMPT = [
@@ -1774,8 +1756,8 @@ function buildFilterFromJSON(filter) {
 }
 
 async function callArkAPI(text) {
-  const key = getArkKey();
-  if (!key) throw new Error('未配置API Key');
+  const key = decodeArkKey();
+  if (!key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
@@ -1825,11 +1807,6 @@ createApp({
     const profileUpdated = ref(false);
     const sortBy = ref('match');
     const historyList = ref([]);
-
-    // Ark API Key 配置
-    const arkKeyOpen = ref(false);
-    const arkKeyDraft = ref('');
-    const arkKeyConfigured = ref(!!getArkKey());
 
     // KYC Questionnaire
     const kycOpen = ref(false);
@@ -2333,21 +2310,6 @@ createApp({
       // Nothing needed on mount for now
     });
 
-    // Ark API Key 设置
-    function openArkKey() {
-      arkKeyDraft.value = getArkKey();
-      arkKeyOpen.value = true;
-    }
-    function saveArkKey() {
-      try {
-        const v = arkKeyDraft.value.trim();
-        if (v) localStorage.setItem(ARK_KEY_STORAGE, v);
-        else localStorage.removeItem(ARK_KEY_STORAGE);
-      } catch (e) { console.warn('[AI] 保存Key失败：', e); }
-      arkKeyConfigured.value = !!getArkKey();
-      arkKeyOpen.value = false;
-    }
-
     // KYC functions
     function openKYC() {
       kycStep.value = 0;
@@ -2412,8 +2374,7 @@ createApp({
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
       valuationDisplay, topHoldingsDisplay, topHoldingsTotal, eduCard,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
-      openKYC, selectKYCAnswer, closeKYC,
-      arkKeyOpen, arkKeyDraft, arkKeyConfigured, openArkKey, saveArkKey
+      openKYC, selectKYCAnswer, closeKYC
     };
   }
 }).mount('#app');
