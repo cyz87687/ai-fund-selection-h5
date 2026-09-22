@@ -1024,6 +1024,31 @@ function genericIntent(text) {
   let filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk);
   let sortBy = 'RETURNRATE';
 
+  // ===== "重仓X" / "X主题" 模式：按基金名称关键词匹配（AI/白酒/医药/新能源/半导体等） =====
+  const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,6})/);
+  if (topicMatch) {
+    const topic = topicMatch[1];
+    // 中文主题词直接匹配名称；常见英文缩写补充
+    const kw = topic === 'AI' ? ['AI','人工智能'] : [topic];
+    conditions.push({label:'主题：' + topic, type:'keyword'});
+    filterFn = (funds, maxRisk) => funds.filter(f => {
+      if (f.riskLevelNum > maxRisk) return false;
+      const name = f.fundName || '';
+      return kw.some(k => name.includes(k));
+    });
+    // 若名称匹配结果过少（<5只），放宽到行业配置匹配
+    const baseFilter = filterFn;
+    filterFn = (funds, maxRisk) => {
+      const byName = baseFilter(funds, maxRisk);
+      if (byName.length >= 3) return byName;
+      // 行业兜底：AI→电子/通信/计算机；白酒→食品饮料；新能源→电力设备及新能源
+      const indMap = { 'AI':['CI005025','CI005026','CI005027'], '人工智能':['CI005025','CI005026','CI005027'], '新能源':['CI005011'], '光伏':['CI005011'], '半导体':['CI005025'], '芯片':['CI005025'], '白酒':['CI005019'], '医药':['CI005018'], '医疗':['CI005018'], '消费':['CI005019','CI005015'], '金融':['CI005021','CI005022'], '军工':['CI005012'], '汽车':['CI005013'] };
+      const inds = indMap[topic] || [];
+      if (!inds.length) return byName;
+      return funds.filter(f => f.riskLevelNum <= maxRisk && inds.some(code => (f.industryConfig[code] || 0) > 0.08));
+    };
+  }
+
   if (/债券|债基|债/.test(text)) {
     conditions.push({label:'债券型',type:'fundType'});
     filterFn = (funds, maxRisk) => funds.filter(f => f.fundTypeTag === '债券型' && f.riskLevelNum <= maxRisk);
@@ -1060,9 +1085,16 @@ function genericIntent(text) {
     filterFn = (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005018'] || 0) > 0.08 && f.riskLevelNum <= maxRisk);
     sortBy = 'CI005018';
   }
-  if (/科技|电子|芯片|半导体|计算机|软件|AI/.test(text)) {
-    conditions.push({label:'重仓科技',type:'industry'});
-    filterFn = (funds, maxRisk) => funds.filter(f => ((f.industryConfig['CI005025'] || 0) + (f.industryConfig['CI005026'] || 0) + (f.industryConfig['CI005027'] || 0)) > 0.10 && f.riskLevelNum <= maxRisk);
+  if (/科技|电子|芯片|半导体|计算机|软件|AI|人工智能|算力/.test(text)) {
+    conditions.push({label:'重仓科技/AI',type:'industry'});
+    const kwAI = /AI|人工智能|算力|大模型/.test(text);
+    filterFn = (funds, maxRisk) => funds.filter(f => {
+      if (f.riskLevelNum > maxRisk) return false;
+      // 名称含 AI 关键词优先
+      if (kwAI && /人工智能|AI|算力|大模型/.test(f.fundName || '')) return true;
+      // 否则按电子/通信/计算机行业占比
+      return ((f.industryConfig['CI005025'] || 0) + (f.industryConfig['CI005026'] || 0) + (f.industryConfig['CI005027'] || 0)) > 0.10;
+    });
   }
   if (/价值|低估值/.test(text)) {
     conditions.push({label:'价值因子>0.3',type:'factor'});
@@ -1167,13 +1199,22 @@ function parseJSON(s) {
 }
 
 function normalizeIndustry(industry) {
-  // 模型可能返回对象 {CI005011:0.1} / 数组 ["CI005011","CI005025"] / 字符串 "CI005011" / null
+  // 模型可能返回对象 {CI005011:0.1} / {code:"CI005011",name:"新能源"} / 数组 ["CI005011","CI005025"] / 字符串 "CI005011" / null
   if (!industry) return null;
+  // 单对象含 code 字段（模型漂移格式）
+  if (typeof industry === 'object' && !Array.isArray(industry) && industry.code) {
+    const c = String(industry.code).trim();
+    return /^CI\d+$/.test(c) ? { [c]: Number(industry.value) || 0 } : null;
+  }
+  // 数组内元素可能是 {code,value}
   if (Array.isArray(industry)) {
     const obj = {};
     industry.forEach(code => {
       if (typeof code === 'string' && /^CI\d+$/.test(code.trim())) obj[code.trim()] = 0;
-      else if (code && typeof code === 'object' && code.code) obj[code.code] = Number(code.value) || 0;
+      else if (code && typeof code === 'object' && code.code) {
+        const c = String(code.code).trim();
+        if (/^CI\d+$/.test(c)) obj[c] = Number(code.value) || 0;
+      }
     });
     return Object.keys(obj).length ? obj : null;
   }
@@ -1258,7 +1299,7 @@ async function callArkAPI(text, riskProfile) {
   const key = ARK_PROXY_URL ? '' : decodeArkKey();
   if (!ARK_PROXY_URL && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
+  const timer = setTimeout(() => controller.abort(), 8000);   // 8s超时，保证响应速度（禁用推理后通常<4s）
   try {
     // 拼接客户三要素（PRD 7.1 要求），用于生成风险匹配约束
     const riskContext = riskProfile && riskProfile.riskPrefValue
@@ -1276,7 +1317,11 @@ async function callArkAPI(text, riskProfile) {
           { role: 'system', content: ARK_SYSTEM_PROMPT + riskContext },
           { role: 'user', content: text }
         ],
-        temperature: 0.2
+        temperature: 0.2,
+        // 禁用推理模式（reasoning），直接返回结果，保证响应速度
+        thinking: { type: 'disabled' },
+        // 约束输出为 JSON 对象，降低格式漂移
+        response_format: { type: 'json_object' }
       })
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1285,12 +1330,23 @@ async function callArkAPI(text, riskProfile) {
     if (!content) throw new Error('模型返回为空');
     const json = parseJSON(content);
     if (!json) throw new Error('模型返回无法解析为JSON');
+    const SORT_ALIAS = {
+      'RETURNRATE':'RETURNRATE','RETURN':'RETURNRATE','ret':'RETURNRATE','RET':'RETURNRATE','收益率':'RETURNRATE','收益':'RETURNRATE','综合评分':'RETURNRATE',
+      'SHARP':'SHARP','sharpe':'SHARP','夏普':'SHARP',
+      'VOL':'VOL','vol':'VOL','波动率':'VOL',
+      'MAX_DRAWDOWN':'MAX_DRAWDOWN','DRAWDOWN':'MAX_DRAWDOWN','dd':'MAX_DRAWDOWN','回撤':'MAX_DRAWDOWN',
+      'MANAGEMENT_FEE':'MANAGEMENT_FEE','fee':'MANAGEMENT_FEE','费率':'MANAGEMENT_FEE',
+      'VALUE':'VALUE','价值':'VALUE','GROWTH':'GROWTH','成长':'GROWTH',
+      'CI005011':'CI005011','CI005018':'CI005018','CI005019':'CI005019','CI005025':'CI005025','CI005026':'CI005026','CI005027':'CI005027'
+    };
+    const rawSort = json.sortBy;
+    const sortKey = (rawSort && typeof rawSort === 'string') ? SORT_ALIAS[rawSort.trim()] : null;
     return {
       intentAnalysis: filterForbiddenText(json.intentAnalysis || '我已理解您的投资需求，以下为根据投研数据筛选的结果。'),
       conditions: (Array.isArray(json.conditions) && json.conditions.length) ? json.conditions : [{label:'风险等级匹配',type:'risk'}],
       matchReason: filterForbiddenText(json.matchReason || '根据您的描述，以下基金符合筛选条件。'),
       filterFn: buildFilterFromJSON(json.filter),
-      sortBy: json.sortBy || 'RETURNRATE'
+      sortBy: sortKey || 'RETURNRATE'   // 默认按收益率降序
     };
   } finally {
     clearTimeout(timer);
