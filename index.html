@@ -680,6 +680,8 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">前十大重仓股</span>
+        <span v-if="holdingsLoading" class="text-[10px] text-[var(--gold)] ml-1">东财加载中…</span>
+        <span v-else-if="holdingsSrc" class="text-[10px] text-[var(--text-muted)] ml-1">来源：{{ holdingsSrc }}</span>
         <span class="text-[10px] text-[var(--text-muted)] ml-1">报告期：2024Q4</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-4">
@@ -710,6 +712,9 @@ body {
               </tr>
             </tbody>
           </table>
+          <div v-if="!topHoldingsDisplay.length" class="text-center py-6 text-[10px] text-[var(--text-muted)]">
+            {{ holdingsLoading ? '正在经东方财富查询持仓数据…' : '暂未获取到持仓数据' }}
+          </div>
         </div>
         <div class="mt-2 px-1 flex justify-between text-[9px] text-[var(--text-muted)]">
           <span>合计持仓比例</span>
@@ -949,6 +954,20 @@ const RF_KEYS = ['BETA','EARNING','LEVERAGE','LIQUIDITY','MOMENTUM','VALUE','VOL
     if (!fd.industryConfig || typeof fd.industryConfig !== 'object') fd.industryConfig = {};
     if (!fd.matchTags || !Array.isArray(fd.matchTags)) fd.matchTags = [];
     if (!fd.topHoldings) fd.topHoldings = [];
+    // 因子代理推导：源数据 VALUE/GROWTH/SIZE 普遍缺失(填0)，用可用字段代理，使风格筛选/排序有区分度
+    const pe = (fd.valuation && fd.valuation.PE) ? Number(fd.valuation.PE) : 0;
+    const rf = fd.riskFactors;
+    if (rf.VALUE === 0) {
+      rf.VALUE = pe > 0 ? (pe <= 12 ? 0.85 : pe <= 20 ? 0.7 : pe <= 30 ? 0.5 : pe <= 45 ? 0.35 : 0.2) : 0;
+    }
+    if (rf.GROWTH === 0) {
+      const r = fd.performance.RETURNRATE || 0;
+      rf.GROWTH = pe > 45 ? 0.8 : r > 0.15 ? 0.7 : r > 0.05 ? 0.55 : r > 0 ? 0.4 : 0.3;
+    }
+    if (rf.SIZE === 0) {
+      const sc = fd.fundScale ? Number(fd.fundScale) : 0;
+      rf.SIZE = sc >= 50 ? 0.85 : sc >= 10 ? 0.6 : sc > 0 ? 0.4 : 0.3;
+    }
   });
 })();
 
@@ -1032,9 +1051,9 @@ function genericIntent(text) {
   let sortBy = 'RETURNRATE';
 
   // ===== "重仓X" / "X主题" 模式：按基金名称关键词匹配（AI/白酒/医药/新能源/半导体等） =====
-  const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,6})/);
-  if (topicMatch) {
-    const topic = topicMatch[1];
+    const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,6})/);
+    if (topicMatch) {
+      const topic = topicMatch[1].replace(/(的)?(基金|主题|板块|股票|标的)?$/, '').replace(/^的/, '') || topicMatch[1];
     // 中文主题词直接匹配名称；常见英文缩写补充
     const kw = topic === 'AI' ? ['AI','人工智能'] : [topic];
     conditions.push({label:'主题：' + topic, type:'keyword'});
@@ -1077,7 +1096,7 @@ function genericIntent(text) {
     conditions.push({label:'收益率排序',type:'metric'});
     sortBy = 'RETURNRATE';
   }
-  if (/回撤小|低回撤/.test(text)) {
+  if (/回撤小|低回撤|亏损小|回撤低/.test(text)) {
     conditions.push({label:'回撤<5%',type:'metric'});
     filterFn = (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN) < 0.05 && f.riskLevelNum <= maxRisk);
     sortBy = 'MAX_DRAWDOWN';
@@ -1116,6 +1135,11 @@ function genericIntent(text) {
   if (/大盘|大市值/.test(text)) {
     conditions.push({label:'大盘风格',type:'factor'});
     filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.SIZE > 0.3 && f.riskLevelNum <= maxRisk);
+  }
+  if (/小白|新手|入门|理财小白/.test(text)) {
+    conditions.push({label:'低风险偏好',type:'risk'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= 2 && f.riskLevelNum <= maxRisk);
+    sortBy = 'VOL';
   }
   if (/低费率|费率低|便宜/.test(text)) {
     conditions.push({label:'管理费率<0.6%',type:'fee'});
@@ -1430,12 +1454,10 @@ createApp({
     });
 
     const quickTags = [
-      '想找波动小的债券基金',
-      '适合定投的低费率宽基ETF',
-      '重仓新能源的基金',
-      '回撤小、收益还不错的基金',
-      '偏价值风格的基金',
-      '偏短线的基金'
+      '重仓AI的基金',
+      '偏短线的基金',
+      '适合长期拿亏损小的基金',
+      '适合小白的基金'
     ];
 
     const aiResult = reactive({
@@ -1621,19 +1643,9 @@ createApp({
       if (mode === 'sharpe') return arr.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
       if (mode === 'drawdown') return arr.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
       if (mode === 'vol') return arr.sort((a,b) => a.performance.VOL - b.performance.VOL);
-      // 'match' / 默认：按模型意图字段排序，命中枚举按其方向，否则按收益率降序兜底
-      switch (aiSort) {
-        case 'VOL': return arr.sort((a,b) => a.performance.VOL - b.performance.VOL);
-        case 'RETURNRATE': return byReturn();
-        case 'SHARP': return arr.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
-        case 'MAX_DRAWDOWN': return arr.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
-        case 'MANAGEMENT_FEE': return arr.sort((a,b) => a.managementFee - b.managementFee);
-        case 'VALUE': return arr.sort((a,b) => b.riskFactors.VALUE - a.riskFactors.VALUE);
-        case 'GROWTH': return arr.sort((a,b) => b.riskFactors.GROWTH - a.riskFactors.GROWTH);
-        case 'CI005011': return arr.sort((a,b) => (b.industryConfig['CI005011']||0) - (a.industryConfig['CI005011']||0));
-        case 'CI005018': return arr.sort((a,b) => (b.industryConfig['CI005018']||0) - (a.industryConfig['CI005018']||0));
-        default: return byReturn();
-      }
+      // 'match' / 默认：一律按收益率降序（高→低），保证默认结果按收益排序；
+      // 仅当用户主动点击排序 Tab（mode=return/sharpe/drawdown/vol）时才切换排序维度
+      return byReturn();
     }
 
     const sortedFilteredFunds = computed(() => {
@@ -1654,14 +1666,56 @@ createApp({
       nextTick(() => renderMiniPies());
     }
     function goHistory() { currentPage.value = 'history'; }
+    // 详情页持仓：缺失时运行时经东方财富(F10)补全（数据同妙想MCP，浏览器端按需查询）
+    const holdingsLoading = ref(false);
+    const holdingsSrc = ref('');
+    async function fillHoldingsFromEastmoney(fund) {
+      const code = String(fund.fundCode || '').replace(/\.OF$/, '').replace(/\.(SH|SZ)$/, '');
+      if (!code) return;
+      holdingsLoading.value = true;
+      holdingsSrc.value = '';
+      try {
+        const url = `https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=jjcc&code=${code}&topline=10`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const txt = await res.text();
+        const m = txt.match(/content:\s*"([\s\S]*?)"/);
+        if (!m) return;
+        const html = m[1].replace(/\\"/g, '"').replace(/\\r|\\n|\\t/g, '');
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const rows = [...doc.querySelectorAll('tr')].slice(1, 11);
+        const holdings = [];
+        rows.forEach(tr => {
+          const tds = tr.querySelectorAll('td');
+          if (tds.length >= 4) {
+            const name = tds[2].textContent.trim();
+            const w = parseFloat(tds[3].textContent.replace('%', ''));
+            const c = tds[1].textContent.trim();
+            if (name && !isNaN(w)) holdings.push({ stockName: name, stockCode: c, weight: w / 100 });
+          }
+        });
+        if (holdings.length) {
+          fund.topHoldings = holdings;
+          selectedFund.value = { ...fund };
+          holdingsSrc.value = '东方财富';
+        }
+      } catch (e) {
+        console.warn('[东财] 持仓补全失败(CORS/网络):', e);
+      } finally {
+        holdingsLoading.value = false;
+      }
+    }
     function goDetail(fund) {
       selectedFund.value = fund;
       currentPage.value = 'detail';
+      holdingsSrc.value = (fund.topHoldings && fund.topHoldings.length) ? '研究所投研' : '';
       nextTick(() => {
         renderPerfRadar();
         renderRiskBar();
         renderIndustryPie();
       });
+      if (!fund.topHoldings || !fund.topHoldings.length) {
+        fillHoldingsFromEastmoney(fund);
+      }
     }
     function replayHistory(item) {
       searchText.value = item.query;
@@ -1986,7 +2040,7 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
-      valuationDisplay, topHoldingsDisplay, topHoldingsTotal, eduCard,
+      valuationDisplay, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
