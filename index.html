@@ -638,7 +638,7 @@ body {
     </div>
 
     <!-- Risk Attribution -->
-    <div class="mt-5">
+    <div class="mt-5" v-if="hasRiskFactors">
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">风险归因因子</span>
@@ -696,25 +696,25 @@ body {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(s, idx) in topHoldingsDisplay" :key="s.stockCode"
+              <tr v-for="(s, idx) in topHoldingsDisplay" :key="s.stockCode || s.stockName"
                   :style="{background: idx % 2 === 0 ? 'rgba(10,21,40,.3)' : 'rgba(10,21,40,.1)'}">
                 <td class="py-1.5 px-2 text-[var(--text-muted)] mono">{{ idx + 1 }}</td>
-                <td class="py-1.5 px-2 text-[var(--text-primary)] mono">{{ s.stockCode }}</td>
+                <td class="py-1.5 px-2 text-[var(--text-primary)] mono">{{ s.stockCode || '--' }}</td>
                 <td class="py-1.5 px-2 text-[var(--text-secondary)]">{{ s.stockName }}</td>
                 <td class="py-1.5 px-2">
                   <div class="flex items-center justify-end gap-1.5">
                     <div class="rounded-full overflow-hidden" style="width:60px;height:4px;background:rgba(212,168,81,.15)">
-                      <div class="h-full rounded-full" :style="{width:(s.weight*100*1.5)+'%',background:'var(--gold)'}"></div>
+                      <div class="h-full rounded-full" :style="{width: s.weight ? Math.min(s.weight*100*1.5,100)+'%' : '0%', background:'var(--gold)'}"></div>
                     </div>
-                    <span class="text-[var(--gold-light)] mono" style="min-width:40px;text-align:right">{{ (s.weight*100).toFixed(2) }}%</span>
+                    <span class="text-[var(--gold-light)] mono" style="min-width:40px;text-align:right">{{ s.weight ? (s.weight*100).toFixed(2)+'%' : '--' }}</span>
                   </div>
                 </td>
               </tr>
             </tbody>
           </table>
-          <div v-if="!topHoldingsDisplay.length" class="text-center py-6 text-[10px] text-[var(--text-muted)]">
-            <template v-if="holdingsLoading">正在经东方财富查询持仓数据…</template>
-            <template v-else-if="selectedFund.topHoldingStock">第一大重仓股：{{ selectedFund.topHoldingStock }}</template>
+          <div v-if="!selectedFund.topHoldings || !selectedFund.topHoldings.length" class="text-center py-3 text-[10px] text-[var(--text-muted)]">
+            <template v-if="holdingsLoading">正在经东方财富查询完整持仓数据…</template>
+            <template v-else-if="selectedFund.topHoldingStock">当前仅展示第一大重仓股，完整前十大持仓数据暂未获取</template>
             <template v-else>暂未获取到持仓数据</template>
           </div>
         </div>
@@ -725,8 +725,8 @@ body {
       </div>
     </div>
 
-    <!-- Valuation Metrics -->
-    <div class="mt-5">
+    <!-- Valuation Metrics：仅在有有效估值指标时展示（场外基金通常无估值数据） -->
+    <div class="mt-5" v-if="hasAnyValuation">
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">估值指标</span>
@@ -1053,7 +1053,7 @@ function genericIntent(text) {
   let sortBy = 'RETURNRATE';
 
   // ===== "重仓X" / "X主题" 模式：按基金名称关键词匹配（AI/白酒/医药/新能源/半导体等） =====
-    const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,6})/);
+    const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,12})/);
     if (topicMatch) {
       const topic = topicMatch[1].replace(/(的)?(基金|主题|板块|股票|标的)?$/, '').replace(/^的/, '') || topicMatch[1];
     // 中文主题词直接匹配名称；常见英文缩写补充
@@ -1104,6 +1104,17 @@ function genericIntent(text) {
   if (/ETF|场内|宽基/.test(text)) {
     conditions.push({label:'指数/ETF',type:'fundType'});
     filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '指数型' || f.fundTypeTag === 'ETF') && f.riskLevelNum <= maxRisk);
+  }
+  // 宽基/常见指数名称兜底
+  const indexMatch = text.match(/(沪深300|中证500|中证1000|上证50|创业板|科创板|科创50|中证A500|中证800|国证2000|红利|低波)/);
+  if (indexMatch) {
+    const kw = indexMatch[1];
+    conditions.push({label:'指数：' + kw, type:'keyword'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk && (f.fundName || '').includes(kw));
+  }
+  if (/海外|美股|港股|QDII|纳斯达克|标普|恒生/.test(text)) {
+    conditions.push({label:'QDII/海外',type:'fundType'});
+    filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === 'QDII型' || /QDII|纳斯达克|标普|恒生|美元|港币|海外/.test(f.fundName || '')) && f.riskLevelNum <= maxRisk);
   }
   if (/股票|权益/.test(text)) {
     conditions.push({label:'股票型',type:'fundType'});
@@ -1163,6 +1174,11 @@ function genericIntent(text) {
     filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= 2 && f.riskLevelNum <= maxRisk);
     sortBy = 'VOL';
   }
+  if (/稳健|保守|长期|养老|躺平/.test(text)) {
+    conditions.push({label:'稳健低波',type:'metric'});
+    filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(3, maxRisk) && Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.10);
+    sortBy = 'RETURNRATE';
+  }
   if (/低费率|费率低|便宜/.test(text)) {
     conditions.push({label:'管理费率<0.6%',type:'fee'});
     filterFn = (funds, maxRisk) => funds.filter(f => f.managementFee < 0.6 && f.riskLevelNum <= maxRisk);
@@ -1194,7 +1210,11 @@ function genericIntent(text) {
 const ARK_MODEL = 'deepseek-v4-flash';
 const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
 // 可选：配置后端代理地址后，前端请求走代理（同时解决 CORS 与 Key 暴露）；留空则直连方舟
-const ARK_PROXY_URL = ''; // 示例: 'https://your-proxy-domain.example.com/ark'
+// 部署在 GitHub Pages 等静态托管时，浏览器无法直连方舟（CORS），必须配置代理：
+//   1. 把项目里的 ark-proxy-worker.js 部署到 Cloudflare Workers（环境变量 ARK_API_KEY=你的方舟Key）
+//   2. 将 Worker URL 填到下方 ARK_PROXY_URL
+// 未配置代理时，静态托管页面会自动回退到本地规则，保证基础筛选可用。
+const ARK_PROXY_URL = ''; // 示例: 'https://ai-fund-ark-proxy.xxx.workers.dev'
 const ARK_KEY_SALT = 'AI_FUND_SELECT_2026';
 // 由 encodeArkKey() 生成（XOR + Base64），仅防明文扫描，不构成真正安全；提交 git 前必须替换
 const ARK_KEY_ENCODED = 'IDs0azAod2k2ICgmbmFrAlQfAnh8Z2s0fHxnfnV8fHVtPgsIU1V4K3IjbHp9Og==';
@@ -1359,6 +1379,12 @@ function filterForbiddenText(text) {
 
 async function callArkAPI(text, riskProfile) {
   // 优先走代理（解决 CORS + Key 不在前端暴露）；否则直连方舟
+  const host = (typeof location !== 'undefined' && location.hostname) || '';
+  const isStaticHost = /github\.io|\.pages\.dev|netlify\.app|vercel\.app|surge\.sh|gitee\.io|coding\.pages\.com/.test(host);
+  if (isStaticHost && !ARK_PROXY_URL) {
+    // 静态托管（GitHub Pages 等）未配置代理时，浏览器无法直连方舟（CORS），直接回退本地规则
+    throw new Error('静态部署环境下未配置 ARK_PROXY_URL，已回退本地规则');
+  }
   const key = ARK_PROXY_URL ? '' : decodeArkKey();
   if (!ARK_PROXY_URL && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
@@ -1804,7 +1830,7 @@ createApp({
 
     const riskFactorDisplay = computed(() => {
       if (!selectedFund.value) return [];
-      const f = selectedFund.value.riskFactors;
+      const f = selectedFund.value.riskFactors || {};
       return [
         {key:'BETA', name:'贝塔', value:f.BETA, desc:'市场敏感度，>1比大盘波动更剧烈，<1比大盘更平稳'},
         {key:'EARNING', name:'盈利', value:f.EARNING, desc:'盈利能力，值越高说明重仓股赚钱能力越强'},
@@ -1815,7 +1841,14 @@ createApp({
         {key:'VOLATILITY', name:'波动率', value:f.VOLATILITY, desc:'波动程度，值越高重仓股波动越大'},
         {key:'GROWTH', name:'成长', value:f.GROWTH, desc:'成长性，值越高说明成长预期越强'},
         {key:'SIZE', name:'规模', value:f.SIZE, desc:'市值规模，值越高偏大盘，值越低偏小盘'}
-      ];
+      ].filter(item => item.value !== null && item.value !== undefined && !isNaN(item.value));
+    });
+    // 风险归因因子是否全部为空（用于控制模块显隐）
+    const hasRiskFactors = computed(() => {
+      if (!selectedFund.value) return false;
+      const f = selectedFund.value.riskFactors || {};
+      return ['BETA','EARNING','LEVERAGE','LIQUIDITY','MOMENTUM','VALUE','VOLATILITY','GROWTH','SIZE']
+        .some(k => f[k] !== null && f[k] !== undefined && !isNaN(f[k]));
     });
 
     const top3IndustriesText = computed(() => {
@@ -1827,10 +1860,19 @@ createApp({
       return entries.map(e => `${e.name}(${e.pct}%)`).join('、');
     });
 
+    // 是否存在任何有效估值指标（用于控制场外基金等无估值场景下的模块显隐）
+    const hasAnyValuation = computed(() => {
+      if (!selectedFund.value) return false;
+      const v = selectedFund.value.valuation || {};
+      return ['PE','PB','ROE','ROA','GRONP','GROR','DIVIDEND','MKT','CHANGE_RATE'].some(k => {
+        const val = v[k];
+        return val !== undefined && val !== null && Number(val) !== 0 && !isNaN(val);
+      });
+    });
     const valuationDisplay = computed(() => {
       if (!selectedFund.value) return [];
       const v = selectedFund.value.valuation || {};
-      const has = (k) => v[k] !== undefined && v[k] !== null && Number(v[k]) !== 0;
+      const has = (k) => v[k] !== undefined && v[k] !== null && Number(v[k]) !== 0 && !isNaN(v[k]);
       const fmt = (k, unit, dp) => has(k) ? Number(v[k]).toFixed(dp) + unit : '—';
       const tag = (k, lo, mid, hi) => { if (!has(k)) return ''; const x = Number(v[k]); return x < lo ? '偏低' : x < mid ? '适中' : hi || '偏高'; };
       const color = (k, lo, mid) => { if (!has(k)) return 'var(--text-muted)'; const x = Number(v[k]); return x < lo ? '#5dd49a' : x < mid ? 'var(--gold)' : '#e8a23d'; };
@@ -1848,12 +1890,20 @@ createApp({
     });
 
     const topHoldingsDisplay = computed(() => {
-      if (!selectedFund.value || !selectedFund.value.topHoldings) return [];
-      return selectedFund.value.topHoldings;
+      if (!selectedFund.value) return [];
+      // 若存在完整前十大数据，直接返回
+      if (selectedFund.value.topHoldings && selectedFund.value.topHoldings.length) {
+        return selectedFund.value.topHoldings;
+      }
+      // 底表仅提供第一大重仓股时，构造单条记录展示，避免表格完全空白
+      if (selectedFund.value.topHoldingStock) {
+        return [{ stockName: selectedFund.value.topHoldingStock, stockCode: '', weight: null }];
+      }
+      return [];
     });
     const topHoldingsTotal = computed(() => {
-      if (!selectedFund.value || !selectedFund.value.topHoldings) return '0.00%';
-      const total = selectedFund.value.topHoldings.reduce((s,h) => s + h.weight, 0);
+      if (!selectedFund.value || !selectedFund.value.topHoldings || !selectedFund.value.topHoldings.length) return '--';
+      const total = selectedFund.value.topHoldings.reduce((s,h) => s + (h.weight || 0), 0);
       return (total * 100).toFixed(2) + '%';
     });
 
@@ -1913,14 +1963,18 @@ createApp({
       if (!el || !selectedFund.value) return;
       const chart = echarts.init(el);
       const p = selectedFund.value.performance;
-      // Normalize values for radar (0-1 scale)
+      // 雷达图归一化：把各指标统一映射到 [0,100]，负值截断为0，超过上界截断为100，避免顶点画出雷达范围
+      function radarNorm(v, minVal, maxVal) {
+        if (v === null || v === undefined || isNaN(v)) return 0;
+        return Math.max(0, Math.min(100, (v - minVal) / (maxVal - minVal) * 100));
+      }
       const data = [
-        {name:'收益', value: Math.min(Math.abs(p.RETURNRATE)/0.2, 1)*100},
-        {name:'夏普', value: Math.min(p.SHARP/2.5, 1)*100},
-        {name:'卡玛', value: Math.min(p.KARMA/3, 1)*100},
-        {name:'信息比率', value: Math.min(p.INFO_RATIO/1.5, 1)*100},
-        {name:'索提诺', value: Math.min(p.SORTINO/3, 1)*100},
-        {name:'回撤控制', value: Math.max(0, 1 - Math.abs(p.MAX_DRAWDOWN)/0.15)*100}
+        {name:'收益', value: radarNorm(Math.abs(p.RETURNRATE || 0), 0, 0.20)},
+        {name:'夏普', value: radarNorm(p.SHARP || 0, -2, 3)},
+        {name:'卡玛', value: radarNorm(p.KARMA || 0, -3, 3)},
+        {name:'信息比率', value: radarNorm(p.INFO_RATIO || 0, -1.5, 1.5)},
+        {name:'索提诺', value: radarNorm(p.SORTINO || 0, -3, 3)},
+        {name:'回撤控制', value: Math.max(0, 1 - Math.abs(p.MAX_DRAWDOWN || 0)/0.15)*100}
       ];
       chart.setOption({
         radar: {
@@ -1948,12 +2002,12 @@ createApp({
       const el = document.getElementById('risk-bar');
       if (!el || !selectedFund.value) return;
       const chart = echarts.init(el);
-      const f = selectedFund.value.riskFactors;
+      const f = selectedFund.value.riskFactors || {};
       const data = [
         {name:'贝塔',value:f.BETA},{name:'盈利',value:f.EARNING},{name:'杠杆',value:f.LEVERAGE},
         {name:'流动性',value:f.LIQUIDITY},{name:'动量',value:f.MOMENTUM},{name:'价值',value:f.VALUE},
         {name:'波动率',value:f.VOLATILITY},{name:'成长',value:f.GROWTH},{name:'规模',value:f.SIZE}
-      ];
+      ].filter(d => d.value !== null && d.value !== undefined && !isNaN(d.value));
       chart.setOption({
         grid:{left:'0%',right:'5%',top:'5%',bottom:'15%',containLabel:true},
         xAxis:{type:'category',data:data.map(d=>d.name),axisLabel:{color:'#8fa3c0',fontSize:9,rotate:30},axisLine:{lineStyle:{color:'rgba(212,168,81,0.15)'}}},
@@ -2074,8 +2128,8 @@ createApp({
       openPicker, isPickerActive, selectPicker, doSearch, useQuickTag,
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
-      perfMetricsDisplay, perfExplanations, riskFactorDisplay, top3IndustriesText,
-      valuationDisplay, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc,
+      perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
+      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
