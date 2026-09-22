@@ -453,7 +453,7 @@ body {
   <!-- Sort Bar -->
   <div class="px-5 pt-2.5">
     <div class="tab-bar">
-      <div v-for="s in sortOptions" :key="s.key" class="tab-item" :class="{active: sortBy===s.key}" @click="sortBy=s.key">
+      <div v-for="s in sortOptions" :key="s.key" class="tab-item" :class="{active: sortBy===s.key}" @click="sortBy=s.key; pageNum=1">
         {{ s.label }}
       </div>
     </div>
@@ -469,7 +469,7 @@ body {
 
   <!-- Fund Cards -->
   <div class="px-5 pt-3 space-y-3 pb-24">
-    <div v-for="(fund, idx) in sortedFilteredFunds" :key="fund.fundCode"
+    <div v-for="(fund, idx) in pagedFunds" :key="fund.fundCode"
       class="fund-card p-4 card-enter" :class="'stagger-' + Math.min(idx+1, 6)" @click="goDetail(fund)">
       <!-- Top Row -->
       <div class="flex items-start justify-between mb-2.5">
@@ -537,6 +537,13 @@ body {
       <div v-if="fundsExcludedByRisk" class="text-[var(--gold)] text-xs">建议调整您的风险偏好</div>
       <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
       <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="filteredFunds.length > pageSize" class="flex items-center justify-center gap-3 mt-3 mb-2">
+      <button class="btn-ghost px-3 py-1.5 text-[11px] transition-opacity" :class="pageNum<=1 ? 'opacity-40' : ''" :disabled="pageNum<=1" @click="changePage(pageNum-1)">上一页</button>
+      <span class="text-[11px] text-[var(--text-secondary)] mono whitespace-nowrap">第 {{ pageNum }} / {{ totalPages }} 页 · 共 {{ filteredFunds.length }} 只</span>
+      <button class="btn-ghost px-3 py-1.5 text-[11px] transition-opacity" :class="pageNum>=totalPages ? 'opacity-40' : ''" :disabled="pageNum>=totalPages" @click="changePage(pageNum+1)">下一页</button>
     </div>
   </div>
 
@@ -1375,6 +1382,14 @@ createApp({
     const profileUpdated = ref(false);
     const sortBy = ref('match');
     const historyList = ref([]);
+    // 分页状态
+    const pageSize = 20;
+    const pageNum = ref(1);
+    function changePage(n) {
+      const max = Math.max(1, Math.ceil(filteredFunds.value.length / pageSize));
+      pageNum.value = Math.min(max, Math.max(1, n));
+      nextTick(() => renderMiniPies());
+    }
 
     // KYC Questionnaire
     const kycOpen = ref(false);
@@ -1571,6 +1586,7 @@ createApp({
         ? (fellBack ? 'AI·直连模式(结果空·已用本地规则)' : (ARK_PROXY_URL ? 'AI·代理模式' : 'AI·直连模式'))
         : '本地规则模式';
       sortBy.value = 'match';
+      pageNum.value = 1;
 
       // Save to history
       const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
@@ -1597,28 +1613,38 @@ createApp({
       return aiResult.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel);
     });
 
-    const sortedFilteredFunds = computed(() => {
-      const funds = [...filteredFunds.value];
-      if (sortBy.value === 'match' && aiResult.sortBy) {
-        if (aiResult.sortBy === 'VOL') funds.sort((a,b) => a.performance.VOL - b.performance.VOL);
-        else if (aiResult.sortBy === 'RETURNRATE') funds.sort((a,b) => b.performance.RETURNRATE - a.performance.RETURNRATE);
-        else if (aiResult.sortBy === 'SHARP') funds.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
-        else if (aiResult.sortBy === 'MAX_DRAWDOWN') funds.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
-        else if (aiResult.sortBy === 'MANAGEMENT_FEE') funds.sort((a,b) => a.managementFee - b.managementFee);
-        else if (aiResult.sortBy === 'VALUE') funds.sort((a,b) => b.riskFactors.VALUE - a.riskFactors.VALUE);
-        else if (aiResult.sortBy === 'GROWTH') funds.sort((a,b) => b.riskFactors.GROWTH - a.riskFactors.GROWTH);
-        else if (aiResult.sortBy === 'CI005011') funds.sort((a,b) => (b.industryConfig['CI005011']||0) - (a.industryConfig['CI005011']||0));
-        else if (aiResult.sortBy === 'CI005018') funds.sort((a,b) => (b.industryConfig['CI005018']||0) - (a.industryConfig['CI005018']||0));
-      } else if (sortBy.value === 'return') {
-        funds.sort((a,b) => b.performance.RETURNRATE - a.performance.RETURNRATE);
-      } else if (sortBy.value === 'sharpe') {
-        funds.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
-      } else if (sortBy.value === 'drawdown') {
-        funds.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
-      } else if (sortBy.value === 'vol') {
-        funds.sort((a,b) => a.performance.VOL - b.performance.VOL);
+    // 统一排序：默认/未知排序字段一律按收益率降序（从高到低），杜绝乱序与空集观感
+    function applySort(funds, mode, aiSort) {
+      const arr = [...funds];
+      const byReturn = () => arr.sort((a,b) => b.performance.RETURNRATE - a.performance.RETURNRATE);
+      if (mode === 'return') return byReturn();
+      if (mode === 'sharpe') return arr.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
+      if (mode === 'drawdown') return arr.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
+      if (mode === 'vol') return arr.sort((a,b) => a.performance.VOL - b.performance.VOL);
+      // 'match' / 默认：按模型意图字段排序，命中枚举按其方向，否则按收益率降序兜底
+      switch (aiSort) {
+        case 'VOL': return arr.sort((a,b) => a.performance.VOL - b.performance.VOL);
+        case 'RETURNRATE': return byReturn();
+        case 'SHARP': return arr.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
+        case 'MAX_DRAWDOWN': return arr.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
+        case 'MANAGEMENT_FEE': return arr.sort((a,b) => a.managementFee - b.managementFee);
+        case 'VALUE': return arr.sort((a,b) => b.riskFactors.VALUE - a.riskFactors.VALUE);
+        case 'GROWTH': return arr.sort((a,b) => b.riskFactors.GROWTH - a.riskFactors.GROWTH);
+        case 'CI005011': return arr.sort((a,b) => (b.industryConfig['CI005011']||0) - (a.industryConfig['CI005011']||0));
+        case 'CI005018': return arr.sort((a,b) => (b.industryConfig['CI005018']||0) - (a.industryConfig['CI005018']||0));
+        default: return byReturn();
       }
-      return funds;
+    }
+
+    const sortedFilteredFunds = computed(() => {
+      return applySort(filteredFunds.value, sortBy.value, aiResult.sortBy);
+    });
+
+    // 分页
+    const totalPages = computed(() => Math.max(1, Math.ceil(filteredFunds.value.length / pageSize)));
+    const pagedFunds = computed(() => {
+      const start = (pageNum.value - 1) * pageSize;
+      return sortedFilteredFunds.value.slice(start, start + pageSize);
     });
 
     // Navigation
@@ -1768,7 +1794,7 @@ createApp({
     // ============ CHARTS ============
     function renderMiniPies() {
       nextTick(() => {
-        sortedFilteredFunds.value.forEach(fund => {
+        pagedFunds.value.forEach(fund => {
           const id = 'mini-pie-' + fund.fundCode.replace('.','');
           const el = document.getElementById(id);
           if (!el) return;
@@ -1954,6 +1980,7 @@ createApp({
       currentPage, searchText, lastQuery, selectedFund, pickerOpen, pickerType,
       profileUpdated, riskProfile, quickTags, aiResult,
       sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
+      pagedFunds, pageSize, pageNum, totalPages, changePage,
       riskBarPercent, riskColor, pickerTitle, pickerOptions,
       openPicker, isPickerActive, selectPicker, doSearch, useQuickTag,
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
