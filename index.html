@@ -930,7 +930,7 @@ const MOCK_FUNDS = (window.FUND_POOL && window.FUND_POOL.length) ? window.FUND_P
 // ============ 数据兜底归一化（真实数据可能缺字段，渲染前补齐安全值） ============
 const PERF_KEYS = ['RETURNRATE','SHARP','VOL','MAX_DRAWDOWN','ANNUALRETURN_RATE','KARMA','INFO_RATIO','BETA','SORTINO','VAR','TREYNOR','JASON','MSQUARE','MAX_DRAWDOWN_RECOVER'];
 const VAL_KEYS = ['PE','PB','ROE','ROA','GRONP','GROR','DIVIDEND','MKT','CHANGE_RATE'];
-const RF_KEYS = ['BETA','VALUE','GROWTH','SIZE','MOMENTUM','VOLATILITY'];
+const RF_KEYS = ['BETA','EARNING','LEVERAGE','LIQUIDITY','MOMENTUM','VALUE','VOLATILITY','GROWTH','SIZE'];
 (function normalizeFundPool() {
   MOCK_FUNDS.forEach(fd => {
     if (!fd.performance || typeof fd.performance !== 'object') fd.performance = {};
