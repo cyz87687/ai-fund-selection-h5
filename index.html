@@ -1171,6 +1171,7 @@ const ARK_SYSTEM_PROMPT = [
   '- managementFee 管理费率（0.6 表示0.6%）',
   '可用的行业代码（industryConfig，值0~1占比）：CI005011新能源、CI005018医药、CI005019食品饮料/白酒、CI005025电子、CI005026通信、CI005027计算机。',
   '重要：filter.industry 必须是 JSON 对象 {"CI005011":0.1,"CI005025":0.08} 形式，key 为行业代码、value 为占比阈值(0~1)。严禁输出数组或字符串！不需要行业条件时 industry 置 null。',
+  '行业匹配语义：多个行业代码之间为 OR 关系（基金命中任一行业阈值即视为匹配），不要把多个子行业同时设成高阈值(如都>0.3)导致空集。主题类需求（如"AI/科技"=电子/通信/计算机、"新能源"=电力设备及新能源）只需选 1 个代表性行业代码即可，阈值建议 0.08~0.15（即占比 8%~15% 以上）。',
   '可用的风险因子（riskFactors）：VALUE价值、GROWTH成长、SIZE规模、MOMENTUM动量。',
   '',
   '输出JSON结构（filter中不需要的字段一律为null，industry为对象或null，keyword为数组或null）：',
@@ -1249,11 +1250,29 @@ function buildFilterFromJSON(filter) {
 
   return (funds, maxRisk) => funds.filter(fd => {
     if (fd.riskLevelNum > maxRisk) return false;
-    if (keywords.length) {
-      const name = String(fd.fundName || '');
-      const ok = keywords.some(k => name.includes(String(k)));
-      if (!ok) return false;
+
+    // ===== 主题匹配：keyword(名称关键词) 与 industry(行业配置) 之间为 OR 关系 =====
+    // 例："重仓AI" = 名称含AI 或 电子/通信/计算机任一行业占比达标，命中任一即视为主题匹配。
+    const hasKeyword = keywords.length > 0;
+    const hasIndustry = !!industry;
+    if (hasKeyword || hasIndustry) {
+      let hit = false;
+      if (hasKeyword) {
+        const name = String(fd.fundName || '');
+        if (keywords.some(k => name.includes(String(k)))) hit = true;
+      }
+      if (!hit && hasIndustry) {
+        // 多个行业代码之间为 OR 关系（命任一行业阈值即可），避免"电子>30%且通信>30%且计算机>30%"导致空集
+        for (const k in industry) {
+          const thr = Number(industry[k]) || 0;
+          const actual = fd.industryConfig[k] || 0;
+          if (thr <= 0) { if (actual > 0) { hit = true; break; } }
+          else if (actual >= thr) { hit = true; break; }
+        }
+      }
+      if (!hit) return false;
     }
+
     if (fundType && fd.fundTypeTag !== fundType) return false;
     if (volMax !== null && fd.performance.VOL >= volMax) return false;
     if (volMin !== null && fd.performance.VOL < volMin) return false;
@@ -1263,15 +1282,6 @@ function buildFilterFromJSON(filter) {
     if (maxFee !== null && fd.managementFee >= maxFee) return false;
     if (valueMin !== null && fd.riskFactors.VALUE < valueMin) return false;
     if (growthMin !== null && fd.riskFactors.GROWTH < growthMin) return false;
-    if (industry) {
-      for (const k in industry) {
-        const thr = Number(industry[k]) || 0;
-        const actual = fd.industryConfig[k] || 0;
-        // 数组/字符串形态（阈值=0）语义为"需持有该行业一定比例"；对象形态按阈值比较
-        if (thr <= 0) { if (actual <= 0) return false; }
-        else if (actual < thr) return false;
-      }
-    }
     return true;
   });
 }
@@ -1533,20 +1543,33 @@ createApp({
       // 优先调用真实大模型，失败时回退本地规则并标注当前模式
       let result = null;
       let aiModeUsed = false;
+      let fellBack = false;
       try {
         result = await callArkAPI(text, riskProfile);
         aiModeUsed = true;
       } catch (e) {
         console.warn('[AI] 模型调用失败，回退本地规则：', e);
       }
-      if (!result) result = localIntent(text);
+      if (!result) { result = localIntent(text); fellBack = true; }
+
+      // 安全网：AI 返回的筛选结果为空（如多行业 AND 导致空集）时，回退本地规则，避免页面出现空集
+      if (aiModeUsed && !fellBack) {
+        const aiCount = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0;
+        if (aiCount === 0) {
+          const local = localIntent(text);
+          const localCount = local.filterFn ? local.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0;
+          if (localCount > 0) { result = local; fellBack = true; }
+        }
+      }
 
       aiResult.intentAnalysis = result.intentAnalysis;
       aiResult.conditions = result.conditions;
       aiResult.matchReason = result.matchReason;
       aiResult.filterFn = result.filterFn;
       aiResult.sortBy = result.sortBy;
-      aiResult.modeLabel = aiModeUsed ? (ARK_PROXY_URL ? 'AI·代理模式' : 'AI·直连模式') : '本地规则模式';
+      aiResult.modeLabel = aiModeUsed
+        ? (fellBack ? 'AI·直连模式(结果空·已用本地规则)' : (ARK_PROXY_URL ? 'AI·代理模式' : 'AI·直连模式'))
+        : '本地规则模式';
       sortBy.value = 'match';
 
       // Save to history
