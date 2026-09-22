@@ -713,7 +713,9 @@ body {
             </tbody>
           </table>
           <div v-if="!topHoldingsDisplay.length" class="text-center py-6 text-[10px] text-[var(--text-muted)]">
-            {{ holdingsLoading ? '正在经东方财富查询持仓数据…' : '暂未获取到持仓数据' }}
+            <template v-if="holdingsLoading">正在经东方财富查询持仓数据…</template>
+            <template v-else-if="selectedFund.topHoldingStock">第一大重仓股：{{ selectedFund.topHoldingStock }}</template>
+            <template v-else>暂未获取到持仓数据</template>
           </div>
         </div>
         <div class="mt-2 px-1 flex justify-between text-[9px] text-[var(--text-muted)]">
