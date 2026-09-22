@@ -927,6 +927,24 @@ function genTop10Holdings(indCfg){
 // 数据已外置为 fund-pool.js（window.FUND_POOL），由研究所投研数据重构（9988只）
 const MOCK_FUNDS = (window.FUND_POOL && window.FUND_POOL.length) ? window.FUND_POOL : [];
 
+// ============ 数据兜底归一化（真实数据可能缺字段，渲染前补齐安全值） ============
+const PERF_KEYS = ['RETURNRATE','SHARP','VOL','MAX_DRAWDOWN','ANNUALRETURN_RATE','KARMA','INFO_RATIO','BETA','SORTINO','VAR','TREYNOR','JASON','MSQUARE','MAX_DRAWDOWN_RECOVER'];
+const VAL_KEYS = ['PE','PB','ROE','ROA','GRONP','GROR','DIVIDEND','MKT','CHANGE_RATE'];
+const RF_KEYS = ['BETA','VALUE','GROWTH','SIZE','MOMENTUM','VOLATILITY'];
+(function normalizeFundPool() {
+  MOCK_FUNDS.forEach(fd => {
+    if (!fd.performance || typeof fd.performance !== 'object') fd.performance = {};
+    PERF_KEYS.forEach(k => { if (fd.performance[k] === null || fd.performance[k] === undefined) fd.performance[k] = 0; });
+    if (!fd.valuation || typeof fd.valuation !== 'object') fd.valuation = {};
+    VAL_KEYS.forEach(k => { if (fd.valuation[k] === null || fd.valuation[k] === undefined) fd.valuation[k] = 0; });
+    if (!fd.riskFactors || typeof fd.riskFactors !== 'object') fd.riskFactors = {};
+    RF_KEYS.forEach(k => { if (fd.riskFactors[k] === null || fd.riskFactors[k] === undefined) fd.riskFactors[k] = 0; });
+    if (!fd.industryConfig || typeof fd.industryConfig !== 'object') fd.industryConfig = {};
+    if (!fd.matchTags || !Array.isArray(fd.matchTags)) fd.matchTags = [];
+    if (!fd.topHoldings) fd.topHoldings = [];
+  });
+})();
+
 
 // ============ AI INTENT RECOGNITION ============
 const PRESET_RESPONSES = {
@@ -1617,19 +1635,21 @@ createApp({
 
     const valuationDisplay = computed(() => {
       if (!selectedFund.value) return [];
-      const v = selectedFund.value.valuation;
-      const peTag = v.PE < 15 ? '偏低' : v.PE < 25 ? '适中' : '偏高';
-      const peColor = v.PE < 15 ? '#5dd49a' : v.PE < 25 ? 'var(--gold)' : '#e8a23d';
+      const v = selectedFund.value.valuation || {};
+      const has = (k) => v[k] !== undefined && v[k] !== null && Number(v[k]) !== 0;
+      const fmt = (k, unit, dp) => has(k) ? Number(v[k]).toFixed(dp) + unit : '—';
+      const tag = (k, lo, mid, hi) => { if (!has(k)) return ''; const x = Number(v[k]); return x < lo ? '偏低' : x < mid ? '适中' : hi || '偏高'; };
+      const color = (k, lo, mid) => { if (!has(k)) return 'var(--text-muted)'; const x = Number(v[k]); return x < lo ? '#5dd49a' : x < mid ? 'var(--gold)' : '#e8a23d'; };
       return [
-        {key:'PE', name:'市盈率', value:v.PE.toFixed(1)+'倍', tag:peTag, tagColor:peColor},
-        {key:'PB', name:'市净率', value:v.PB.toFixed(1)+'倍', tag:v.PB<1.5?'偏低':v.PB<3?'适中':'偏高', tagColor:v.PB<1.5?'#5dd49a':v.PB<3?'var(--gold)':'#e8a23d'},
-        {key:'ROE', name:'净资产收益率', value:(v.ROE*100).toFixed(1)+'%', tag:v.ROE>0.15?'较高':'一般', tagColor:v.ROE>0.15?'var(--red)':'var(--text-muted)'},
-        {key:'ROA', name:'总资产收益率', value:(v.ROA*100).toFixed(1)+'%', tag:v.ROA>0.08?'良好':'一般', tagColor:v.ROA>0.08?'var(--red)':'var(--text-muted)'},
-        {key:'GRONP', name:'净利润增速', value:(v.GRONP*100).toFixed(1)+'%', tag:v.GRONP>0.15?'高增长':'一般', tagColor:v.GRONP>0.15?'var(--red)':'var(--text-muted)'},
-        {key:'GROR', name:'营收增速', value:(v.GROR*100).toFixed(1)+'%', tag:v.GROR>0.1?'良好':'一般', tagColor:v.GROR>0.1?'var(--red)':'var(--text-muted)'},
-        {key:'DIVIDEND', name:'股息率', value:(v.DIVIDEND*100).toFixed(1)+'%', tag:v.DIVIDEND>0.03?'高分红':'一般', tagColor:v.DIVIDEND>0.03?'var(--red)':'var(--text-muted)'},
-        {key:'MKT', name:'总市值', value:v.MKT+'亿', tag:v.MKT>5000?'大盘':v.MKT>1000?'中盘':'小盘', tagColor:v.MKT>5000?'var(--gold)':'var(--text-muted)'},
-        {key:'CHANGE', name:'换手率', value:(v.CHANGE_RATE*100).toFixed(0)+'%', tag:v.CHANGE_RATE>0.8?'活跃':v.CHANGE_RATE>0.3?'适中':'低换手', tagColor:v.CHANGE_RATE>0.8?'#e8a23d':'var(--text-muted)'}
+        {key:'PE', name:'市盈率', value:fmt('PE','倍',1), tag:tag('PE',15,25), tagColor:color('PE',15,25)},
+        {key:'PB', name:'市净率', value:fmt('PB','倍',1), tag:tag('PB',1.5,3), tagColor:color('PB',1.5,3)},
+        {key:'ROE', name:'净资产收益率', value:fmt('ROE','%',1), tag:has('ROE') ? (Number(v.ROE)>0.15?'较高':'一般') : '', tagColor:has('ROE') ? (Number(v.ROE)>0.15?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'ROA', name:'总资产收益率', value:fmt('ROA','%',1), tag:has('ROA') ? (Number(v.ROA)>0.08?'良好':'一般') : '', tagColor:has('ROA') ? (Number(v.ROA)>0.08?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'GRONP', name:'净利润增速', value:fmt('GRONP','%',1), tag:has('GRONP') ? (Number(v.GRONP)>0.15?'高增长':'一般') : '', tagColor:has('GRONP') ? (Number(v.GRONP)>0.15?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'GROR', name:'营收增速', value:fmt('GROR','%',1), tag:has('GROR') ? (Number(v.GROR)>0.1?'良好':'一般') : '', tagColor:has('GROR') ? (Number(v.GROR)>0.1?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'DIVIDEND', name:'股息率', value:fmt('DIVIDEND','%',1), tag:has('DIVIDEND') ? (Number(v.DIVIDEND)>0.03?'高分红':'一般') : '', tagColor:has('DIVIDEND') ? (Number(v.DIVIDEND)>0.03?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'MKT', name:'总市值', value:has('MKT') ? Number(v.MKT)+'亿' : '—', tag:has('MKT') ? (Number(v.MKT)>5000?'大盘':Number(v.MKT)>1000?'中盘':'小盘') : '', tagColor:has('MKT') ? (Number(v.MKT)>5000?'var(--gold)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'CHANGE', name:'换手率', value:has('CHANGE_RATE') ? (Number(v.CHANGE_RATE)*100).toFixed(0)+'%' : '—', tag:has('CHANGE_RATE') ? (Number(v.CHANGE_RATE)>0.8?'活跃':Number(v.CHANGE_RATE)>0.3?'适中':'低换手') : '', tagColor:has('CHANGE_RATE') ? (Number(v.CHANGE_RATE)>0.8?'#e8a23d':'var(--text-muted)') : 'var(--text-muted)'}
       ];
     });
 
