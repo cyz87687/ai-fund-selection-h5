@@ -1658,16 +1658,29 @@ createApp({
     });
 
     // 统一排序：默认/未知排序字段一律按收益率降序（从高到低），杜绝乱序与空集观感
+    // 优先级规则：SHARP 与 VOL 均不为 0（风险数据完整）的基金优先展示（置顶），其余靠后
+    function hasRiskData(f) {
+      const p = f.performance || {};
+      return (p.SHARP || 0) !== 0 && (p.VOL || 0) !== 0;
+    }
     function applySort(funds, mode, aiSort) {
       const arr = [...funds];
-      const byReturn = () => arr.sort((a,b) => b.performance.RETURNRATE - a.performance.RETURNRATE);
-      if (mode === 'return') return byReturn();
-      if (mode === 'sharpe') return arr.sort((a,b) => b.performance.SHARP - a.performance.SHARP);
-      if (mode === 'drawdown') return arr.sort((a,b) => Math.abs(a.performance.MAX_DRAWDOWN) - Math.abs(b.performance.MAX_DRAWDOWN));
-      if (mode === 'vol') return arr.sort((a,b) => a.performance.VOL - b.performance.VOL);
-      // 'match' / 默认：一律按收益率降序（高→低），保证默认结果按收益排序；
-      // 仅当用户主动点击排序 Tab（mode=return/sharpe/drawdown/vol）时才切换排序维度
-      return byReturn();
+      const cmp = (a, b) => {
+        // 第一优先级：风险数据完整（夏普比率≠0 且 波动率≠0）置顶，缺失/为0的靠后
+        const ra = hasRiskData(a) ? 1 : 0;
+        const rb = hasRiskData(b) ? 1 : 0;
+        if (ra !== rb) return rb - ra;
+        // 第二优先级：按当前排序维度（默认收益率降序）
+        const pa = a.performance, pb = b.performance;
+        switch (mode) {
+          case 'sharpe':   return pb.SHARP - pa.SHARP;
+          case 'drawdown': return Math.abs(pa.MAX_DRAWDOWN) - Math.abs(pb.MAX_DRAWDOWN);
+          case 'vol':      return pa.VOL - pb.VOL;
+          case 'return':
+          default:          return pb.RETURNRATE - pa.RETURNRATE;
+        }
+      };
+      return arr.sort(cmp);
     }
 
     const sortedFilteredFunds = computed(() => {
