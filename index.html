@@ -1378,10 +1378,12 @@ function filterForbiddenText(text) {
 }
 
 async function callArkAPI(text, riskProfile) {
-  // 代理优先级：显式 ARK_PROXY_URL > 本地(localhost)自动用相对路径 /ark > 直连方舟
+  // 代理优先级：显式 ARK_PROXY_URL > 本地/局域网自动用相对路径 /ark > 直连方舟
   const host = (typeof location !== 'undefined' && location.hostname) || '';
   const isStaticHost = /github\.io|\.pages\.dev|netlify\.app|vercel\.app|surge\.sh|gitee\.io|coding\.pages\.com/.test(host);
-  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(host);
+  // localhost 或局域网地址（IPv4 私有段 / 链路本地 / .local mDNS）均视为本地，自动走相对 /ark 代理，
+  // 保证同一局域网内其他设备通过本机 IP / 主机名访问时 AI 也能生效
+  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]+\.local)$/.test(host);
   const proxyUrl = ARK_PROXY_URL || (isLocal ? '/ark' : '');
   if (isStaticHost && !proxyUrl) {
     // 静态托管（GitHub Pages 等）未配置代理时，浏览器无法直连方舟（CORS），直接回退本地规则
