@@ -1378,15 +1378,17 @@ function filterForbiddenText(text) {
 }
 
 async function callArkAPI(text, riskProfile) {
-  // 优先走代理（解决 CORS + Key 不在前端暴露）；否则直连方舟
+  // 代理优先级：显式 ARK_PROXY_URL > 本地(localhost)自动用相对路径 /ark > 直连方舟
   const host = (typeof location !== 'undefined' && location.hostname) || '';
   const isStaticHost = /github\.io|\.pages\.dev|netlify\.app|vercel\.app|surge\.sh|gitee\.io|coding\.pages\.com/.test(host);
-  if (isStaticHost && !ARK_PROXY_URL) {
+  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(host);
+  const proxyUrl = ARK_PROXY_URL || (isLocal ? '/ark' : '');
+  if (isStaticHost && !proxyUrl) {
     // 静态托管（GitHub Pages 等）未配置代理时，浏览器无法直连方舟（CORS），直接回退本地规则
     throw new Error('静态部署环境下未配置 ARK_PROXY_URL，已回退本地规则');
   }
-  const key = ARK_PROXY_URL ? '' : decodeArkKey();
-  if (!ARK_PROXY_URL && !key) throw new Error('API Key 解码失败');
+  const key = proxyUrl ? '' : decodeArkKey();
+  if (!proxyUrl && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);   // 8s超时，保证响应速度（禁用推理后通常<4s）
   try {
@@ -1394,9 +1396,9 @@ async function callArkAPI(text, riskProfile) {
     const riskContext = riskProfile && riskProfile.riskPrefValue
       ? `\n【客户画像】年龄：${riskProfile.age}；风险偏好：${riskProfile.riskPref}(${riskProfile.riskPrefValue})；投资期限：${riskProfile.duration}。请结合客户风险承受能力（可承受最高风险等级 ${riskProfile.maxRiskLabel}），在翻译条件时注意不要筛选明显超出其风险承受能力的基金。`
       : '';
-    const resp = await fetch(ARK_PROXY_URL || ARK_CHAT_URL, {
+    const resp = await fetch(proxyUrl || ARK_CHAT_URL, {
       method: 'POST',
-      headers: ARK_PROXY_URL
+      headers: proxyUrl
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
       signal: controller.signal,
