@@ -139,7 +139,11 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if not KEY:
         print("[警告] 未能解析到方舟 API Key，请设置环境变量 ARK_API_KEY")
-    with socketserver.TCPServer(("0.0.0.0", PORT), Handler) as httpd:
+    # ThreadingTCPServer：支持并发，便于局域网内多台设备同时访问；allow_reuse_address 避免端口占用
+    class ThreadingHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+    with ThreadingHTTPServer(("0.0.0.0", PORT), Handler) as httpd:
         print(f"本地代理已启动:")
         print(f"  页面:  http://localhost:{PORT}/")
         print(f"  AI接口: http://localhost:{PORT}/ark  (自动转发至火山方舟)")
