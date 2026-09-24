@@ -1877,17 +1877,19 @@ createApp({
       if (!selectedFund.value) return [];
       const v = selectedFund.value.valuation || {};
       const has = (k) => v[k] !== undefined && v[k] !== null && Number(v[k]) !== 0 && !isNaN(v[k]);
-      const fmt = (k, unit, dp) => has(k) ? Number(v[k]).toFixed(dp) + unit : '—';
+      // 数据层统一按小数存储；展示时：倍数/金额类直接显示，比率类需×100
+      const fmtAbs = (k, unit, dp) => has(k) ? Number(v[k]).toFixed(dp) + unit : '—';
+      const fmtPct = (k, dp) => has(k) ? (Number(v[k])*100).toFixed(dp) + '%' : '—';
       const tag = (k, lo, mid, hi) => { if (!has(k)) return ''; const x = Number(v[k]); return x < lo ? '偏低' : x < mid ? '适中' : hi || '偏高'; };
       const color = (k, lo, mid) => { if (!has(k)) return 'var(--text-muted)'; const x = Number(v[k]); return x < lo ? '#5dd49a' : x < mid ? 'var(--gold)' : '#e8a23d'; };
       return [
-        {key:'PE', name:'市盈率', value:fmt('PE','倍',1), tag:tag('PE',15,25), tagColor:color('PE',15,25)},
-        {key:'PB', name:'市净率', value:fmt('PB','倍',1), tag:tag('PB',1.5,3), tagColor:color('PB',1.5,3)},
-        {key:'ROE', name:'净资产收益率', value:fmt('ROE','%',1), tag:has('ROE') ? (Number(v.ROE)>0.15?'较高':'一般') : '', tagColor:has('ROE') ? (Number(v.ROE)>0.15?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
-        {key:'ROA', name:'总资产收益率', value:fmt('ROA','%',1), tag:has('ROA') ? (Number(v.ROA)>0.08?'良好':'一般') : '', tagColor:has('ROA') ? (Number(v.ROA)>0.08?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
-        {key:'GRONP', name:'净利润增速', value:fmt('GRONP','%',1), tag:has('GRONP') ? (Number(v.GRONP)>0.15?'高增长':'一般') : '', tagColor:has('GRONP') ? (Number(v.GRONP)>0.15?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
-        {key:'GROR', name:'营收增速', value:fmt('GROR','%',1), tag:has('GROR') ? (Number(v.GROR)>0.1?'良好':'一般') : '', tagColor:has('GROR') ? (Number(v.GROR)>0.1?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
-        {key:'DIVIDEND', name:'股息率', value:fmt('DIVIDEND','%',1), tag:has('DIVIDEND') ? (Number(v.DIVIDEND)>0.03?'高分红':'一般') : '', tagColor:has('DIVIDEND') ? (Number(v.DIVIDEND)>0.03?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'PE', name:'市盈率', value:fmtAbs('PE','倍',1), tag:tag('PE',15,25), tagColor:color('PE',15,25)},
+        {key:'PB', name:'市净率', value:fmtAbs('PB','倍',1), tag:tag('PB',1.5,3), tagColor:color('PB',1.5,3)},
+        {key:'ROE', name:'净资产收益率', value:fmtPct('ROE',1), tag:has('ROE') ? (Number(v.ROE)>0.15?'较高':'一般') : '', tagColor:has('ROE') ? (Number(v.ROE)>0.15?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'ROA', name:'总资产收益率', value:fmtPct('ROA',1), tag:has('ROA') ? (Number(v.ROA)>0.08?'良好':'一般') : '', tagColor:has('ROA') ? (Number(v.ROA)>0.08?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'GRONP', name:'净利润增速', value:fmtPct('GRONP',1), tag:has('GRONP') ? (Number(v.GRONP)>0.15?'高增长':'一般') : '', tagColor:has('GRONP') ? (Number(v.GRONP)>0.15?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'GROR', name:'营收增速', value:fmtPct('GROR',1), tag:has('GROR') ? (Number(v.GROR)>0.1?'良好':'一般') : '', tagColor:has('GROR') ? (Number(v.GROR)>0.1?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
+        {key:'DIVIDEND', name:'股息率', value:fmtPct('DIVIDEND',1), tag:has('DIVIDEND') ? (Number(v.DIVIDEND)>0.03?'高分红':'一般') : '', tagColor:has('DIVIDEND') ? (Number(v.DIVIDEND)>0.03?'var(--red)':'var(--text-muted)') : 'var(--text-muted)'},
         {key:'MKT', name:'总市值', value:has('MKT') ? Number(v.MKT)+'亿' : '—', tag:has('MKT') ? (Number(v.MKT)>5000?'大盘':Number(v.MKT)>1000?'中盘':'小盘') : '', tagColor:has('MKT') ? (Number(v.MKT)>5000?'var(--gold)':'var(--text-muted)') : 'var(--text-muted)'},
         {key:'CHANGE', name:'换手率', value:has('CHANGE_RATE') ? (Number(v.CHANGE_RATE)*100).toFixed(0)+'%' : '—', tag:has('CHANGE_RATE') ? (Number(v.CHANGE_RATE)>0.8?'活跃':Number(v.CHANGE_RATE)>0.3?'适中':'低换手') : '', tagColor:has('CHANGE_RATE') ? (Number(v.CHANGE_RATE)>0.8?'#e8a23d':'var(--text-muted)') : 'var(--text-muted)'}
       ];
