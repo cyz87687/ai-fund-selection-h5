@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
-<!-- CDN 使用国内稳定源(bootcdn/staticfile)，避免网络不佳时加载失败白屏；Vue 加载失败有兜底提示 -->
-<script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.4/tailwind.min.js"></script>
+<!-- CDN：Tailwind 必须用官方 Play CDN（浏览器运行时扫描生成CSS，编译版不生成样式会导致全页面无样式）；Vue/ECharts 用国内稳定源+加载失败兜底 -->
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js" onerror="window.__VUE_LOAD_FAILED__=true"></script>
 <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js" onerror="window.__ECHARTS_LOAD_FAILED__=true"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
