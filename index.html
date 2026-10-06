@@ -6,8 +6,24 @@
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用国内稳定源 bootcdn（失败则整页友好提示） -->
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js" onerror="window.__VUE_LOAD_FAILED__=true"></script>
-<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js" onerror="window.__ECHARTS_LOAD_FAILED__=true"></script>
+<!-- Vue / ECharts 本地化，离线/弱网仍可渲染；若本地文件缺失则自动回退 CDN -->
+<script>
+  (function(){
+    function loadLocal(src, fallback, failedFlag){
+      var s = document.createElement('script');
+      s.src = src;
+      s.onerror = function(){
+        window[failedFlag] = true;
+        var f = document.createElement('script');
+        f.src = fallback;
+        document.head.appendChild(f);
+      };
+      document.head.appendChild(s);
+    }
+    loadLocal('assets/vue.global.prod.min.js', 'https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js', '__VUE_LOAD_FAILED__');
+    loadLocal('assets/echarts.min.js', 'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js', '__ECHARTS_LOAD_FAILED__');
+  })();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -36,6 +52,7 @@ body {
   overflow-x:hidden;
   min-height:100vh;
 }
+[v-cloak] { display:none !important; }
 .mono { font-family:'DM Mono',monospace; }
 #app {
   max-width:440px;
@@ -287,7 +304,7 @@ body {
 </style>
 </head>
 <body>
-<div id="app">
+<div id="app" v-cloak>
 <!-- ============== PAGE: HOME ============== -->
 <div v-if="currentPage==='home'" class="page-enter min-h-screen flex flex-col">
   <!-- Header -->
@@ -889,8 +906,23 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool.js"></script>
+<script src="fund-pool-base.js" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
 <script>
+// 详情数据按需加载：首页先加载 base.js，进入基金详情时再动态加载 detail.js
+let __detailPromise = null;
+function loadFundDetailData() {
+  if (window.FUND_POOL_DETAIL) return Promise.resolve(window.FUND_POOL_DETAIL);
+  if (__detailPromise) return __detailPromise;
+  __detailPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'fund-pool-detail.js';
+    s.onload = () => resolve(window.FUND_POOL_DETAIL || {});
+    s.onerror = () => reject(new Error('基金详情数据加载失败'));
+    document.body.appendChild(s);
+  });
+  return __detailPromise;
+}
+
 const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
 
 // ============ INDUSTRY MAP ============
@@ -955,39 +987,42 @@ function genTop10Holdings(indCfg){
 }
 
 // ============ MOCK FUND DATA ============
-// 数据已外置为 fund-pool.js（window.FUND_POOL），由研究所投研数据重构（9988只）
-const MOCK_FUNDS = (window.FUND_POOL && window.FUND_POOL.length) ? window.FUND_POOL : [];
+// 数据已外置为 fund-pool-base.js（window.FUND_POOL_BASE），详情字段在 fund-pool-detail.js
+// 保留 fund-pool.js 兼容：若 base 不存在则回退到完整 fund-pool.js
+const MOCK_FUNDS = (window.FUND_POOL_BASE && window.FUND_POOL_BASE.length) ? window.FUND_POOL_BASE : (window.FUND_POOL || []);
 
 // ============ 数据兜底归一化（真实数据可能缺字段，渲染前补齐安全值） ============
 const PERF_KEYS = ['RETURNRATE','SHARP','VOL','MAX_DRAWDOWN','ANNUALRETURN_RATE','KARMA','INFO_RATIO','BETA','SORTINO','VAR','TREYNOR','JASON','MSQUARE','MAX_DRAWDOWN_RECOVER'];
 const VAL_KEYS = ['PE','PB','ROE','ROA','GRONP','GROR','DIVIDEND','MKT','CHANGE_RATE'];
 const RF_KEYS = ['BETA','EARNING','LEVERAGE','LIQUIDITY','MOMENTUM','VALUE','VOLATILITY','GROWTH','SIZE'];
+function normalizeFund(fd) {
+  if (!fd.performance || typeof fd.performance !== 'object') fd.performance = {};
+  PERF_KEYS.forEach(k => { if (fd.performance[k] === null || fd.performance[k] === undefined) fd.performance[k] = 0; });
+  if (!fd.valuation || typeof fd.valuation !== 'object') fd.valuation = {};
+  VAL_KEYS.forEach(k => { if (fd.valuation[k] === null || fd.valuation[k] === undefined) fd.valuation[k] = 0; });
+  if (!fd.riskFactors || typeof fd.riskFactors !== 'object') fd.riskFactors = {};
+  RF_KEYS.forEach(k => { if (fd.riskFactors[k] === null || fd.riskFactors[k] === undefined) fd.riskFactors[k] = 0; });
+  if (!fd.industryConfig || typeof fd.industryConfig !== 'object') fd.industryConfig = {};
+  if (!fd.matchTags || !Array.isArray(fd.matchTags)) fd.matchTags = [];
+  if (!fd.topHoldings) fd.topHoldings = [];
+  // 因子代理推导：源数据 VALUE/GROWTH/SIZE 普遍缺失(填0)，用可用字段代理，使风格筛选/排序有区分度
+  const pe = (fd.valuation && fd.valuation.PE) ? Number(fd.valuation.PE) : 0;
+  const rf = fd.riskFactors;
+  if (rf.VALUE === 0) {
+    rf.VALUE = pe > 0 ? (pe <= 12 ? 0.85 : pe <= 20 ? 0.7 : pe <= 30 ? 0.5 : pe <= 45 ? 0.35 : 0.2) : 0;
+  }
+  if (rf.GROWTH === 0) {
+    const r = fd.performance.RETURNRATE || 0;
+    rf.GROWTH = pe > 45 ? 0.8 : r > 0.15 ? 0.7 : r > 0.05 ? 0.55 : r > 0 ? 0.4 : 0.3;
+  }
+  if (rf.SIZE === 0) {
+    const sc = fd.fundScale ? Number(fd.fundScale) : 0;
+    rf.SIZE = sc >= 50 ? 0.85 : sc >= 10 ? 0.6 : sc > 0 ? 0.4 : 0.3;
+  }
+  return fd;
+}
 (function normalizeFundPool() {
-  MOCK_FUNDS.forEach(fd => {
-    if (!fd.performance || typeof fd.performance !== 'object') fd.performance = {};
-    PERF_KEYS.forEach(k => { if (fd.performance[k] === null || fd.performance[k] === undefined) fd.performance[k] = 0; });
-    if (!fd.valuation || typeof fd.valuation !== 'object') fd.valuation = {};
-    VAL_KEYS.forEach(k => { if (fd.valuation[k] === null || fd.valuation[k] === undefined) fd.valuation[k] = 0; });
-    if (!fd.riskFactors || typeof fd.riskFactors !== 'object') fd.riskFactors = {};
-    RF_KEYS.forEach(k => { if (fd.riskFactors[k] === null || fd.riskFactors[k] === undefined) fd.riskFactors[k] = 0; });
-    if (!fd.industryConfig || typeof fd.industryConfig !== 'object') fd.industryConfig = {};
-    if (!fd.matchTags || !Array.isArray(fd.matchTags)) fd.matchTags = [];
-    if (!fd.topHoldings) fd.topHoldings = [];
-    // 因子代理推导：源数据 VALUE/GROWTH/SIZE 普遍缺失(填0)，用可用字段代理，使风格筛选/排序有区分度
-    const pe = (fd.valuation && fd.valuation.PE) ? Number(fd.valuation.PE) : 0;
-    const rf = fd.riskFactors;
-    if (rf.VALUE === 0) {
-      rf.VALUE = pe > 0 ? (pe <= 12 ? 0.85 : pe <= 20 ? 0.7 : pe <= 30 ? 0.5 : pe <= 45 ? 0.35 : 0.2) : 0;
-    }
-    if (rf.GROWTH === 0) {
-      const r = fd.performance.RETURNRATE || 0;
-      rf.GROWTH = pe > 45 ? 0.8 : r > 0.15 ? 0.7 : r > 0.05 ? 0.55 : r > 0 ? 0.4 : 0.3;
-    }
-    if (rf.SIZE === 0) {
-      const sc = fd.fundScale ? Number(fd.fundScale) : 0;
-      rf.SIZE = sc >= 50 ? 0.85 : sc >= 10 ? 0.6 : sc > 0 ? 0.4 : 0.3;
-    }
-  });
+  MOCK_FUNDS.forEach(normalizeFund);
 })();
 
 
@@ -1574,6 +1609,7 @@ createApp({
     const searchText = ref('');
     const lastQuery = ref('');
     const selectedFund = ref(null);
+    const selectedFundDetail = ref({ valuation:{}, riskFactors:{}, topHoldings:[] });
     const pickerOpen = ref(false);
     const pickerType = ref('');
     const profileUpdated = ref(false);
@@ -1880,8 +1916,7 @@ createApp({
           }
         });
         if (holdings.length) {
-          fund.topHoldings = holdings;
-          selectedFund.value = { ...fund };
+          selectedFundDetail.value = { ...selectedFundDetail.value, topHoldings: holdings };
           holdingsSrc.value = '东方财富';
         }
       } catch (e) {
@@ -1890,16 +1925,27 @@ createApp({
         holdingsLoading.value = false;
       }
     }
-    function goDetail(fund) {
+    async function goDetail(fund) {
       selectedFund.value = fund;
+      selectedFundDetail.value = { valuation:{}, riskFactors:{}, topHoldings:[] };
       currentPage.value = 'detail';
-      holdingsSrc.value = (fund.topHoldings && fund.topHoldings.length) ? '研究所投研' : '';
+      // 按需加载详情字段（估值/风险因子/重仓股）
+      let detail = { valuation:{}, riskFactors:{}, topHoldings:[] };
+      try {
+        const pool = await loadFundDetailData();
+        detail = pool[fund.fundCode] || detail;
+        normalizeFund(detail);
+      } catch (e) {
+        console.warn('[detail] 详情数据加载失败，使用基础数据兜底:', e);
+      }
+      selectedFundDetail.value = detail;
+      holdingsSrc.value = (detail.topHoldings && detail.topHoldings.length) ? '研究所投研' : '';
       nextTick(() => {
         renderPerfRadar();
         renderRiskBar();
         renderIndustryPie();
       });
-      if (!fund.topHoldings || !fund.topHoldings.length) {
+      if (!detail.topHoldings || !detail.topHoldings.length) {
         fillHoldingsFromEastmoney(fund);
       }
     }
@@ -1955,7 +2001,7 @@ createApp({
 
     const riskFactorDisplay = computed(() => {
       if (!selectedFund.value) return [];
-      const f = selectedFund.value.riskFactors || {};
+      const f = selectedFundDetail.value.riskFactors || {};
       return [
         {key:'BETA', name:'贝塔', value:f.BETA, desc:'市场敏感度，>1比大盘波动更剧烈，<1比大盘更平稳'},
         {key:'EARNING', name:'盈利', value:f.EARNING, desc:'盈利能力，值越高说明重仓股赚钱能力越强'},
@@ -1971,7 +2017,7 @@ createApp({
     // 风险归因因子是否全部为空（用于控制模块显隐）
     const hasRiskFactors = computed(() => {
       if (!selectedFund.value) return false;
-      const f = selectedFund.value.riskFactors || {};
+      const f = selectedFundDetail.value.riskFactors || {};
       return ['BETA','EARNING','LEVERAGE','LIQUIDITY','MOMENTUM','VALUE','VOLATILITY','GROWTH','SIZE']
         .some(k => f[k] !== null && f[k] !== undefined && !isNaN(f[k]));
     });
@@ -1995,7 +2041,7 @@ createApp({
     // 是否存在任何有效估值指标（用于控制场外基金等无估值场景下的模块显隐）
     const hasAnyValuation = computed(() => {
       if (!selectedFund.value) return false;
-      const v = selectedFund.value.valuation || {};
+      const v = selectedFundDetail.value.valuation || {};
       return ['PE','PB','ROE','ROA','GRONP','GROR','DIVIDEND','MKT','CHANGE_RATE'].some(k => {
         const val = v[k];
         return val !== undefined && val !== null && Number(val) !== 0 && !isNaN(val);
@@ -2003,7 +2049,7 @@ createApp({
     });
     const valuationDisplay = computed(() => {
       if (!selectedFund.value) return [];
-      const v = selectedFund.value.valuation || {};
+      const v = selectedFundDetail.value.valuation || {};
       const has = (k) => v[k] !== undefined && v[k] !== null && Number(v[k]) !== 0 && !isNaN(v[k]);
       // 数据层统一按小数存储；展示时：倍数/金额类直接显示，比率类需×100
       const fmtAbs = (k, unit, dp) => has(k) ? Number(v[k]).toFixed(dp) + unit : '—';
@@ -2035,8 +2081,8 @@ createApp({
     const topHoldingsDisplay = computed(() => {
       if (!selectedFund.value) return [];
       // 若存在完整前十大数据，直接返回
-      if (selectedFund.value.topHoldings && selectedFund.value.topHoldings.length) {
-        return selectedFund.value.topHoldings;
+      if (selectedFundDetail.value.topHoldings && selectedFundDetail.value.topHoldings.length) {
+        return selectedFundDetail.value.topHoldings;
       }
       // 底表仅提供第一大重仓股时，构造单条记录展示，避免表格完全空白
       if (selectedFund.value.topHoldingStock) {
@@ -2045,8 +2091,8 @@ createApp({
       return [];
     });
     const topHoldingsTotal = computed(() => {
-      if (!selectedFund.value || !selectedFund.value.topHoldings || !selectedFund.value.topHoldings.length) return '--';
-      const total = selectedFund.value.topHoldings.reduce((s,h) => s + (h.weight || 0), 0);
+      if (!selectedFund.value || !selectedFundDetail.value.topHoldings || !selectedFundDetail.value.topHoldings.length) return '--';
+      const total = selectedFundDetail.value.topHoldings.reduce((s,h) => s + (h.weight || 0), 0);
       return (total * 100).toFixed(2) + '%';
     });
 
@@ -2159,7 +2205,7 @@ createApp({
       const el = document.getElementById('risk-bar');
       if (!el || !selectedFund.value) return;
       const chart = echarts.init(el);
-      const f = selectedFund.value.riskFactors || {};
+      const f = selectedFundDetail.value.riskFactors || {};
       const data = [
         {name:'贝塔',value:f.BETA},{name:'盈利',value:f.EARNING},{name:'杠杆',value:f.LEVERAGE},
         {name:'流动性',value:f.LIQUIDITY},{name:'动量',value:f.MOMENTUM},{name:'价值',value:f.VALUE},
@@ -2277,7 +2323,7 @@ createApp({
     });
 
     return {
-      currentPage, searchText, lastQuery, selectedFund, pickerOpen, pickerType,
+      currentPage, searchText, lastQuery, selectedFund, selectedFundDetail, pickerOpen, pickerType,
       profileUpdated, riskProfile, quickTags, aiResult,
       sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
       pagedFunds, pageSize, pageNum, totalPages, changePage,
@@ -2304,8 +2350,8 @@ if (typeof Vue === 'undefined') {
       <button onclick="location.reload()" style="background:#d4a851;color:#060d1f;border:none;padding:10px 28px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">重新加载</button>
     </div>`;
 }
-// 场景2：Vue 正常但基金数据未加载（fund-pool.js 网络失败）→ 首页显示数据缺失提示
-else if (!(window.FUND_POOL && window.FUND_POOL.length)) {
+// 场景2：Vue 正常但基金数据未加载（fund-pool-base.js 网络失败）→ 首页显示数据缺失提示
+else if (!(window.FUND_POOL_BASE && window.FUND_POOL_BASE.length)) {
   // 在挂载后追加一个数据加载失败提示层
   document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
