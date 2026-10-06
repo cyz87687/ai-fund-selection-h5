@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<!-- CDN 使用国内稳定源(bootcdn/staticfile)，避免网络不佳时加载失败白屏；Vue 加载失败有兜底提示 -->
+<script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.4/tailwind.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js" onerror="window.__VUE_LOAD_FAILED__=true"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js" onerror="window.__ECHARTS_LOAD_FAILED__=true"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1202,6 +1203,72 @@ function genericIntent(text) {
     sortBy = 'SHARP';
   }
 
+  // ===== 补全常用检索意图（覆盖更广的检索范围） =====
+  // 基金规模（大/小）
+  if (/规模(大|大一些|偏大)|大基金/.test(text)) {
+    add('规模>100亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale || 0) >= 100 && riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  if (/规模(小|小一些|偏小)|小基金|袖珍/.test(text)) {
+    add('规模<20亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale || 999) <= 20 && riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  // 费率（管理费低）已有；补充"0费率/免申购费"
+  if (/0费率|零费率|免申购|申购费0|免费/.test(text)) {
+    add('申购费率低', 'fee', (funds, maxRisk) => funds.filter(f => (f.purchaseFee || 1) <= 0.15 && riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  // 高分红 / 分红多
+  if (/分红(多|高|好)|高分红|爱分红|分红型/.test(text)) {
+    add('股息率>1%', 'metric', (funds, maxRisk) => funds.filter(f => (f.valuation && f.valuation.DIVIDEND || 0) > 0.01 && riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  // 成立时间长 / 老基金
+  if (/成立(时间)?(长|久|早)|老基金|老牌/.test(text)) {
+    add('成立>3年', 'age', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  // 新基金 / 次新
+  if (/新基金|新发|次新/.test(text)) {
+    add('次新基金', 'age', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  // 可转债 / 二级债基
+  if (/可转债|转债|转债/.test(text)) {
+    add('可转债相关', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (/转债|可转债/.test(f.fundName || '') || f.fundTypeTag === '债券型')));
+    sortBy = 'RETURNRATE';
+  }
+  // 指数增强
+  if (/指数增强|增强指数|增强/.test(text)) {
+    add('指数增强', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /增强/.test(f.fundName || '')));
+    sortBy = 'RETURNRATE';
+  }
+  // 量化 / 量化对冲
+  if (/量化|对冲/.test(text)) {
+    add('量化基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /量化|对冲/.test(f.fundName || '')));
+    sortBy = 'RETURNRATE';
+  }
+  // 黄金 / 商品
+  if (/黄金|商品|贵金属|原油|大宗/.test(text)) {
+    add('黄金/商品', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /黄金|商品|贵金属|原油|大宗/.test(f.fundName || '')));
+    sortBy = 'RETURNRATE';
+  }
+  // 稳健理财 / 保本替代（合规：不承诺保本，只筛低风险）
+  if (/稳健理财|保本替代|不想亏/.test(text)) {
+    add('低风险稳健', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(2, maxRisk) && riskOk(f, maxRisk)));
+    sortBy = 'RETURNRATE';
+  }
+  // 固收+ / 二级债基
+  if (/固收\+|固收加|二级债|偏债/.test(text)) {
+    add('固收+/偏债', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (/固收|偏债/.test(f.fundName || '') || f.fundTypeTag === '债券型')));
+    sortBy = 'RETURNRATE';
+  }
+  // 港股 / 沪港深（已有海外，补充港股主题）
+  if (/港股|沪港深|恒生/.test(text)) {
+    add('港股主题', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /港股|沪港深|恒生/.test(f.fundName || '')));
+    sortBy = 'RETURNRATE';
+  }
+
   conditions.push({label:'风险等级匹配',type:'risk'});
 
   // 统一 AND 组合：全部约束依次过滤；null 约束（纯排序语义）跳过
@@ -1211,6 +1278,26 @@ function genericIntent(text) {
     for (const c of effective) res = c(res, maxRisk);
     return res;
   };
+
+  // 未命中兜底：若除风险等级外无任何有效过滤约束，回退"回撤小且收益高"通用解法，并标注
+  // 注意：判断依据是 constraints（实际过滤函数）而非 conditions.type，避免"小白"(risk型约束)被误判为未命中
+  const hasRealCondition = effective.length > 0;
+  if (!hasRealCondition) {
+    conditions.length = 0;
+    conditions.push({label:'回撤小且收益高',type:'metric'}, {label:'风险等级匹配',type:'risk'});
+    const genericFilter = (funds, maxRisk) => funds.filter(f =>
+      riskOk(f, maxRisk) &&
+      Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.10 &&
+      (f.performance.RETURNRATE || 0) >= 0
+    );
+    return {
+      intentAnalysis: '未能完全识别您的具体需求，已为您推荐兼顾风险与收益的基金（回撤较小、收益为正），供您参考。如需更精准的结果，可尝试描述"回撤小且收益高""低波动""重仓AI"等。',
+      conditions,
+      matchReason: '由于未能精确匹配您的需求，以下为您推荐回撤较小、收益相对稳健的基金，供参考。',
+      filterFn: genericFilter,
+      sortBy: 'RETURNRATE'
+    };
+  }
 
   return {
     intentAnalysis: '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。',
@@ -2195,6 +2282,35 @@ createApp({
     };
   }
 }).mount('#app');
+
+// ============ 网络/资源加载失败兜底 ============
+// 场景1：Vue 未加载成功（CDN 网络不佳）→ 显示友好错误页，避免裸 HTML 异常
+if (typeof Vue === 'undefined') {
+  document.body.innerHTML = `
+    <div style="max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;background:#060d1f;color:#e8eef7;font-family:sans-serif;text-align:center">
+      <div style="font-size:40px;margin-bottom:16px">📡</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">网络连接不稳定</div>
+      <div style="font-size:12px;color:#8fa3c0;line-height:1.8;margin-bottom:20px">页面资源加载失败，请检查网络后<br/>刷新页面重试</div>
+      <button onclick="location.reload()" style="background:#d4a851;color:#060d1f;border:none;padding:10px 28px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">重新加载</button>
+    </div>`;
+}
+// 场景2：Vue 正常但基金数据未加载（fund-pool.js 网络失败）→ 首页显示数据缺失提示
+else if (!(window.FUND_POOL && window.FUND_POOL.length)) {
+  // 在挂载后追加一个数据加载失败提示层
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.id = 'data-load-fail';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(6,13,31,.94);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;color:#e8eef7;font-family:sans-serif;text-align:center';
+      el.innerHTML = `
+        <div style="font-size:40px;margin-bottom:16px">⚠️</div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px">基金数据加载失败</div>
+        <div style="font-size:12px;color:#8fa3c0;line-height:1.8;margin-bottom:20px">未获取到基金数据，请检查网络后<br/>刷新页面重试</div>
+        <button onclick="location.reload()" style="background:#d4a851;color:#060d1f;border:none;padding:10px 28px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">重新加载</button>`;
+      document.body.appendChild(el);
+    }, 500);
+  });
+}
 </script>
 </body>
 </html>
