@@ -15,8 +15,9 @@
 import csv, json, re, math, os
 import openpyxl
 
-BASE = '/Users/yzreal/Desktop/ai选基'
-OUT = '/Users/yzreal/WorkBuddy/2026-09-22-09-21-20/交付物/ai-fund-selection-h5-fixed'
+# 路径参数化：支持环境变量覆盖，便于复现与 CI（默认回退到原硬编码路径）
+BASE = os.environ.get('FUND_DATA_BASE', '/Users/yzreal/Desktop/ai选基')
+OUT = os.environ.get('FUND_POOL_OUT', '/Users/yzreal/WorkBuddy/2026-09-22-09-21-20/交付物/ai-fund-selection-h5-fixed')
 
 INDUSTRY_NAMES = {
     'CI005001':'石油石化','CI005002':'煤炭','CI005003':'有色金属','CI005004':'电力及公用事业',
