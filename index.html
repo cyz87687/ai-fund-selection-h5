@@ -1049,25 +1049,26 @@ const PRESET_RESPONSES = {
 // Generic intent analysis for unrecognized queries
 function genericIntent(text) {
   const conditions = [];
-  let filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk);
+  // ---- P0-A 修复：累加式条件组合 ----
+  // 原实现：各分支分别覆盖 filterFn/sortBy，多条件查询只保留最后一个分支（如"重仓AI且低波动"丢失主题约束）
+  // 现实现：每条命中规则追加为独立约束，最终 AND 组合；主题类规则内部（名称/行业）保持 OR
+  const constraints = [];
+  const riskOk = (f, maxRisk) => f.riskLevelNum <= maxRisk;
+  const add = (label, type, fn) => { conditions.push({ label, type }); constraints.push(fn); };
   let sortBy = 'RETURNRATE';
 
   // ===== "重仓X" / "X主题" 模式：按基金名称关键词匹配（AI/白酒/医药/新能源/半导体等） =====
-    const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,12})/);
-    if (topicMatch) {
-      const topic = topicMatch[1].replace(/(的)?(基金|主题|板块|股票|标的)?$/, '').replace(/^的/, '') || topicMatch[1];
+  // 约束：主题命中（名称关键词 OR 行业配置兜底）；不覆盖其他约束
+  const topicMatch = text.match(/(?:重仓|主题|聚焦|主投)([\u4e00-\u9fa5A-Za-z]{2,12})/);
+  if (topicMatch) {
+    // 主题词截取：到连接词/标点/空白即截断（"重仓AI且低波动"→"AI"），避免主题约束混入后续条件
+    let topic = topicMatch[1].replace(/(的)?(基金|主题|板块|股票|标的)?$/, '').replace(/^的/, '');
+    topic = topic.split(/[且和与及、，,\s]/)[0] || topic;
+    if (!topic) topic = topicMatch[1];
     // 中文主题词直接匹配名称；常见英文缩写补充
     const kw = topic === 'AI' ? ['AI','人工智能'] : [topic];
-    conditions.push({label:'主题：' + topic, type:'keyword'});
-    filterFn = (funds, maxRisk) => funds.filter(f => {
-      if (f.riskLevelNum > maxRisk) return false;
-      const name = f.fundName || '';
-      return kw.some(k => name.includes(k));
-    });
-    // 若名称匹配结果过少（<5只），放宽到行业配置匹配
-    const baseFilter = filterFn;
-    filterFn = (funds, maxRisk) => {
-      const byName = baseFilter(funds, maxRisk);
+    add('主题：' + topic, 'keyword', (funds, maxRisk) => {
+      const byName = funds.filter(f => riskOk(f, maxRisk) && kw.some(k => (f.fundName || '').includes(k)));
       if (byName.length >= 3) return byName;
       // 行业兜底：主题词 → 中信行业代码（覆盖主流赛道；存储/半导体/光模块/PCB/先进封装→电子）
       const indMap = {
@@ -1093,108 +1094,100 @@ function genericIntent(text) {
         }
       }
       if (!inds.length) return byName;
-      return funds.filter(f => f.riskLevelNum <= maxRisk && inds.some(code => (f.industryConfig[code] || 0) > 0.08));
-    };
+      const byInd = funds.filter(f => riskOk(f, maxRisk) && inds.some(code => (f.industryConfig[code] || 0) > 0.08));
+      return byName.length >= 3 ? byName : (byInd.length ? byInd : byName);
+    });
   }
 
   if (/债券|债基|债/.test(text)) {
-    conditions.push({label:'债券型',type:'fundType'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.fundTypeTag === '债券型' && f.riskLevelNum <= maxRisk);
+    add('债券型', 'fundType', (funds, maxRisk) => funds.filter(f => f.fundTypeTag === '债券型' && riskOk(f, maxRisk)));
   }
   if (/ETF|场内|宽基/.test(text)) {
-    conditions.push({label:'指数/ETF',type:'fundType'});
-    filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '指数型' || f.fundTypeTag === 'ETF') && f.riskLevelNum <= maxRisk);
+    add('指数/ETF', 'fundType', (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '指数型' || f.fundTypeTag === 'ETF') && riskOk(f, maxRisk)));
   }
   // 宽基/常见指数名称兜底
-  const indexMatch = text.match(/(沪深300|中证500|中证1000|上证50|创业板|科创板|科创50|中证A500|中证800|国证2000|红利|低波)/);
+  const indexMatch = text.match(/(沪深300|中证500|中证1000|上证50|创业板|科创板|科创50|中证A500|中证800|国证2000|红利(?!型)|低波(?!动))/);
   if (indexMatch) {
     const kw = indexMatch[1];
-    conditions.push({label:'指数：' + kw, type:'keyword'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk && (f.fundName || '').includes(kw));
+    add('指数：' + kw, 'keyword', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.fundName || '').includes(kw)));
   }
   if (/海外|美股|港股|QDII|纳斯达克|标普|恒生/.test(text)) {
-    conditions.push({label:'QDII/海外',type:'fundType'});
-    filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === 'QDII型' || /QDII|纳斯达克|标普|恒生|美元|港币|海外/.test(f.fundName || '')) && f.riskLevelNum <= maxRisk);
+    add('QDII/海外', 'fundType', (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === 'QDII型' || /QDII|纳斯达克|标普|恒生|美元|港币|海外/.test(f.fundName || '')) && riskOk(f, maxRisk)));
   }
   if (/股票|权益/.test(text)) {
-    conditions.push({label:'股票型',type:'fundType'});
-    filterFn = (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '股票型' || f.fundTypeTag === '混合型') && f.riskLevelNum <= maxRisk);
+    add('股票型', 'fundType', (funds, maxRisk) => funds.filter(f => (f.fundTypeTag === '股票型' || f.fundTypeTag === '混合型') && riskOk(f, maxRisk)));
   }
   if (/波动小|低波动|波动低/.test(text)) {
-    conditions.push({label:'波动率<5%',type:'metric'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.performance.VOL < 0.05 && f.riskLevelNum <= maxRisk);
+    add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL || 1) < 0.05 && riskOk(f, maxRisk)));
     sortBy = 'VOL';
   }
   if (/收益|高收益|收益好|收益高/.test(text)) {
-    conditions.push({label:'收益率排序',type:'metric'});
+    add('收益率排序', 'metric', null);
     sortBy = 'RETURNRATE';
   }
   if (/回撤小|低回撤|亏损小|回撤低/.test(text)) {
-    conditions.push({label:'回撤<5%',type:'metric'});
-    filterFn = (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN) < 0.05 && f.riskLevelNum <= maxRisk);
+    add('回撤<5%', 'metric', (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.05 && riskOk(f, maxRisk)));
     sortBy = 'MAX_DRAWDOWN';
   }
   if (/新能源|光伏|风电|储能|锂电/.test(text)) {
-    conditions.push({label:'重仓新能源',type:'industry'});
-    filterFn = (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005011'] || 0) > 0.08 && f.riskLevelNum <= maxRisk);
+    add('重仓新能源', 'industry', (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005011'] || 0) > 0.08 && riskOk(f, maxRisk)));
     sortBy = 'CI005011';
   }
   if (/医药|医疗|生物医药|创新药/.test(text)) {
-    conditions.push({label:'重仓医药',type:'industry'});
-    filterFn = (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005018'] || 0) > 0.08 && f.riskLevelNum <= maxRisk);
+    add('重仓医药', 'industry', (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005018'] || 0) > 0.08 && riskOk(f, maxRisk)));
     sortBy = 'CI005018';
   }
   if (/科技|电子|芯片|半导体|计算机|软件|AI|人工智能|算力/.test(text)) {
-    conditions.push({label:'重仓科技/AI',type:'industry'});
-    const kwAI = /AI|人工智能|算力|大模型/.test(text);
-    filterFn = (funds, maxRisk) => funds.filter(f => {
-      if (f.riskLevelNum > maxRisk) return false;
-      // 名称含 AI 关键词优先
-      if (kwAI && /人工智能|AI|算力|大模型/.test(f.fundName || '')) return true;
-      // 否则按电子/通信/计算机行业占比
-      return ((f.industryConfig['CI005025'] || 0) + (f.industryConfig['CI005026'] || 0) + (f.industryConfig['CI005027'] || 0)) > 0.10;
+    add('重仓科技/AI', 'industry', (funds, maxRisk) => {
+      const kwAI = /AI|人工智能|算力|大模型/.test(text);
+      return funds.filter(f => {
+        if (!riskOk(f, maxRisk)) return false;
+        if (kwAI && /人工智能|AI|算力|大模型/.test(f.fundName || '')) return true;
+        return ((f.industryConfig['CI005025'] || 0) + (f.industryConfig['CI005026'] || 0) + (f.industryConfig['CI005027'] || 0)) > 0.10;
+      });
     });
   }
   if (/价值|低估值/.test(text)) {
-    conditions.push({label:'价值因子>0.3',type:'factor'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.VALUE > 0.3 && f.riskLevelNum <= maxRisk);
+    add('价值因子>0.3', 'factor', (funds, maxRisk) => funds.filter(f => (f.riskFactors.VALUE || 0) > 0.3 && riskOk(f, maxRisk)));
     sortBy = 'VALUE';
   }
   if (/成长|高增长/.test(text)) {
-    conditions.push({label:'成长因子高',type:'factor'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.GROWTH > 0.3 && f.riskLevelNum <= maxRisk);
+    add('成长因子高', 'factor', (funds, maxRisk) => funds.filter(f => (f.riskFactors.GROWTH || 0) > 0.3 && riskOk(f, maxRisk)));
     sortBy = 'GROWTH';
   }
   if (/大盘|大市值/.test(text)) {
-    conditions.push({label:'大盘风格',type:'factor'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.riskFactors.SIZE > 0.3 && f.riskLevelNum <= maxRisk);
+    add('大盘风格', 'factor', (funds, maxRisk) => funds.filter(f => (f.riskFactors.SIZE || 0) > 0.3 && riskOk(f, maxRisk)));
   }
   if (/小白|新手|入门|理财小白/.test(text)) {
-    conditions.push({label:'低风险偏好',type:'risk'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= 2 && f.riskLevelNum <= maxRisk);
+    add('低风险偏好', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= 2 && riskOk(f, maxRisk)));
     sortBy = 'VOL';
   }
   if (/稳健|保守|长期|养老|躺平/.test(text)) {
-    conditions.push({label:'稳健低波',type:'metric'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(3, maxRisk) && Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.10);
+    add('稳健低波', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && f.riskLevelNum <= Math.min(3, maxRisk) && Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.10));
     sortBy = 'RETURNRATE';
   }
   if (/低费率|费率低|便宜/.test(text)) {
-    conditions.push({label:'管理费率<0.6%',type:'fee'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.managementFee < 0.6 && f.riskLevelNum <= maxRisk);
+    add('管理费率<0.6%', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee || 1) < 0.6 && riskOk(f, maxRisk)));
   }
   if (/定投/.test(text)) {
-    conditions.push({label:'波动适中',type:'metric'});
-    conditions.push({label:'费率低',type:'fee'});
+    add('波动适中', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL || 0) >= 0.02 && (f.performance.VOL || 0) <= 0.20 && riskOk(f, maxRisk)));
+    add('费率低', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee || 1) < 0.8 && riskOk(f, maxRisk)));
   }
   if (/短线|短期|波段/.test(text)) {
-    conditions.push({label:'波动率≥3.5%',type:'metric'});
-    conditions.push({label:'夏普比率≥1',type:'metric'});
-    filterFn = (funds, maxRisk) => funds.filter(f => f.performance.VOL >= 0.035 && f.performance.SHARP >= 1.0 && f.riskLevelNum <= maxRisk);
+    add('波动率≥3.5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL || 0) >= 0.035 && riskOk(f, maxRisk)));
+    add('夏普比率≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP || 0) >= 1.0 && riskOk(f, maxRisk)));
     sortBy = 'SHARP';
   }
 
   conditions.push({label:'风险等级匹配',type:'risk'});
+
+  // 统一 AND 组合：全部约束依次过滤；null 约束（纯排序语义）跳过
+  const effective = constraints.filter(c => typeof c === 'function');
+  const filterFn = (funds, maxRisk) => {
+    let res = funds.filter(f => riskOk(f, maxRisk));
+    for (const c of effective) res = c(res, maxRisk);
+    return res;
+  };
 
   return {
     intentAnalysis: '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。',
