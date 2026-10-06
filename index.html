@@ -1549,7 +1549,8 @@ async function callArkAPI(text, riskProfile) {
   const key = proxyUrl ? '' : decodeArkKey();
   if (!proxyUrl && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);   // 8s超时，保证响应速度（禁用推理后通常<4s）
+  // 5s超时保证不无限等待：正常响应（关推理后）1-3s 足够；超时/失败快速回退本地规则，避免用户干等
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
     // 拼接客户三要素（PRD 7.1 要求），用于生成风险匹配约束
     const riskContext = riskProfile && riskProfile.riskPrefValue
@@ -1794,8 +1795,60 @@ createApp({
       return result;
     }
 
+    // 判断本地规则是否"高置信命中"（preset 精确/部分命中）：是则可秒开，AI 后台增强
+    function localHighConfidence(text) {
+      if (PRESET_RESPONSES[text]) return true;
+      for (const key of Object.keys(PRESET_RESPONSES)) {
+        if (text.includes(key) || key.includes(text)) return true;
+      }
+      return false;
+    }
+
+    function applyResult(result, text, modeLabel, recordHistory) {
+      aiResult.intentAnalysis = result.intentAnalysis;
+      aiResult.conditions = result.conditions;
+      aiResult.matchReason = result.matchReason;
+      aiResult.filterFn = result.filterFn;
+      aiResult.sortBy = result.sortBy;
+      aiResult.modeLabel = modeLabel;
+      sortBy.value = 'match';
+      pageNum.value = 1;
+      if (recordHistory) {
+        const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
+        historyList.value.unshift({ query: text, time: new Date().toLocaleString('zh-CN'), count: filtered.length });
+      }
+      currentPage.value = 'results';
+      nextTick(() => { renderMiniPies(); });
+    }
+
     async function processAIIntent(text) {
-      // 优先调用真实大模型，失败时回退本地规则并标注当前模式
+      // 本地高置信命中时：先用本地结果"秒开"页面，同时后台并行调 AI（探针通过再无缝替换为真AI）
+      if (localHighConfidence(text)) {
+        const local = localIntent(text);
+        // 立即出结果（本地规则模式），保证体验不等待
+        applyResult(local, text, '本地规则模式', true);
+        // 后台 AI 增强：成功且探针通过则替换；失败静默，保留本地结果
+        try {
+          const ai = await callArkAPI(text, riskProfile);
+          if (ai && ai.aiVerified) {
+            const cnt = ai.filterFn ? ai.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0;
+            if (cnt > 0) {
+              aiResult.intentAnalysis = ai.intentAnalysis;
+              aiResult.conditions = ai.conditions;
+              aiResult.matchReason = ai.matchReason;
+              aiResult.filterFn = ai.filterFn;
+              aiResult.sortBy = ai.sortBy;
+              aiResult.modeLabel = ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓';
+              nextTick(() => { renderMiniPies(); });
+            }
+          }
+        } catch (e) {
+          console.warn('[AI] 后台增强失败，保留本地结果：', e);
+        }
+        return;
+      }
+
+      // 非高置信：等 AI（探针通过即真AI），失败才回退本地
       let result = null;
       let aiModeUsed = false;
       let fellBack = false;
@@ -1817,31 +1870,11 @@ createApp({
         }
       }
 
-      aiResult.intentAnalysis = result.intentAnalysis;
-      aiResult.conditions = result.conditions;
-      aiResult.matchReason = result.matchReason;
-      aiResult.filterFn = result.filterFn;
-      aiResult.sortBy = result.sortBy;
-      // 只有探针校验通过（result.aiVerified===true）才算真·AI；否则一律归为本地规则
       const realAI = !!(aiModeUsed && result.aiVerified && !fellBack);
-      aiResult.modeLabel = realAI
+      const modeLabel = realAI
         ? (ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓')
         : (aiModeUsed ? (fellBack ? '本地规则模式(已回退)' : '本地规则模式(校验未过)') : '本地规则模式');
-      sortBy.value = 'match';
-      pageNum.value = 1;
-
-      // Save to history
-      const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
-      historyList.value.unshift({
-        query: text,
-        time: new Date().toLocaleString('zh-CN'),
-        count: filtered.length
-      });
-
-      currentPage.value = 'results';
-      nextTick(() => {
-        renderMiniPies();
-      });
+      applyResult(result, text, modeLabel, true);
     }
 
     function useQuickTag(tag) {
