@@ -1,0 +1,10 @@
+name = "ai-fund-ark-proxy"
+main = "ark-proxy-worker.js"
+compatibility_date = "2026-10-06"
+
+# 部署前需设置机密变量（不要写入本文件）：
+#   npx wrangler secret put ARK_API_KEY
+# 或在 Cloudflare Dashboard → Workers → Variables 里添加。
+
+[vars]
+# 公开环境变量可放这里；ARK_API_KEY 请用 secret 方式设置。
