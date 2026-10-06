@@ -1345,12 +1345,12 @@ function genericIntent(text) {
 }
 
 // ============ REAL AI MODEL (火山方舟 Ark, OpenAI 协议) ============
-// 模型配置：与 PRD 对齐，使用 deepseek-v4-flash
+// 模型配置：使用火山方舟的 DeepSeek V4 Flash（deepseek-v4-flash）
 const ARK_MODEL = 'deepseek-v4-flash';
 const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
-// 可选：配置后端代理地址后，前端请求走代理（同时解决 CORS 与 Key 暴露）；留空则直连方舟
-// 部署在 GitHub Pages 等静态托管时，浏览器无法直连方舟（CORS），必须配置代理：
-//   1. 把项目里的 ark-proxy-worker.js 部署到 Cloudflare Workers（环境变量 ARK_API_KEY=你的方舟Key）
+// 可选：配置后端代理地址后，前端请求走代理（同时解决 CORS 与 Key 暴露）；留空则直连（不推荐，Key 会暴露）
+// 部署在 GitHub Pages 等静态托管时，浏览器无法直连方舟（CORS + Key 暴露），必须配置代理：
+//   1. 把项目里的 ark-proxy-worker.js 部署到 Cloudflare Workers（secret ARK_API_KEY=你的方舟Key）
 //   2. 将 Worker URL 填到下方 ARK_PROXY_URL
 // 未配置代理时，静态托管页面会自动回退到本地规则，保证基础筛选可用。
 const ARK_PROXY_URL = ''; // 示例: 'https://ai-fund-ark-proxy.xxx.workers.dev'
@@ -1567,8 +1567,6 @@ async function callArkAPI(text, riskProfile) {
           { role: 'user', content: text }
         ],
         temperature: 0.2,
-        // 禁用推理模式（reasoning），直接返回结果，保证响应速度
-        thinking: { type: 'disabled' },
         // 约束输出为 JSON 对象，降低格式漂移
         response_format: { type: 'json_object' }
       })
