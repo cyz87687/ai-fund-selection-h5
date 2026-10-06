@@ -1387,7 +1387,8 @@ const ARK_SYSTEM_PROMPT = [
   '可用的风险因子（riskFactors）：VALUE价值、GROWTH成长、SIZE规模、MOMENTUM动量。',
   '',
   '输出JSON结构（filter中不需要的字段一律为null，industry为对象或null，keyword为数组或null）：',
-  '{"intentAnalysis":"对用户需求的通俗理解说明","conditions":[{"label":"筛选条件描述","type":"fundType|metric|fee|industry|factor|risk|keyword"}],"matchReason":"一句话说明为何这些基金匹配，尽量给出具体指标原因","filter":{"fundType":null,"volMax":null,"volMin":null,"sharpeMin":null,"maxDrawdownMax":null,"retMin":null,"maxFee":null,"valueMin":null,"growthMin":null,"industry":null,"keyword":null},"sortBy":"VOL|RETURNRATE|SHARP|MAX_DRAWDOWN|MANAGEMENT_FEE|VALUE|GROWTH|CI005011|CI005018"}',
+  '{"intentAnalysis":"对用户需求的通俗理解说明","conditions":[{"label":"筛选条件描述","type":"fundType|metric|fee|industry|factor|risk|keyword"}],"matchReason":"一句话说明为何这些基金匹配，尽量给出具体指标原因","filter":{"fundType":null,"volMax":null,"volMin":null,"sharpeMin":null,"maxDrawdownMax":null,"retMin":null,"maxFee":null,"valueMin":null,"growthMin":null,"industry":null,"keyword":null},"sortBy":"VOL|RETURNRATE|SHARP|MAX_DRAWDOWN|MANAGEMENT_FEE|VALUE|GROWTH|CI005011|CI005018","ai_probe":"__PROBE__"}',
+  '重要：JSON中必须包含 ai_probe 字段，其值必须是用户消息末尾【PROBE:xxx】括号内的原样字符串，一字不差地原样返回，不要改写、不要省略。这是用于验证模型真实性的校验码，省略或篡改都会导致结果被判为无效。',
   '',
   '翻译规则：',
   '1. "短线/短期/波段"：filter设置volMin约0.035、sharpeMin约1.0，sortBy为SHARP，matchReason要提到"波动率较高、夏普比率较高"。',
@@ -1554,6 +1555,9 @@ async function callArkAPI(text, riskProfile) {
     const riskContext = riskProfile && riskProfile.riskPrefValue
       ? `\n【客户画像】年龄：${riskProfile.age}；风险偏好：${riskProfile.riskPref}(${riskProfile.riskPrefValue})；投资期限：${riskProfile.duration}。请结合客户风险承受能力（可承受最高风险等级 ${riskProfile.maxRiskLabel}），在翻译条件时注意不要筛选明显超出其风险承受能力的基金。`
       : '';
+    // 真 AI 校验探针：随机串，模型必须原样回传 ai_probe，前端据此确认是真实模型返回
+    const aiProbe = 'PROBE_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    const probeUserText = text + `\n【PROBE:${aiProbe}】`;
     const resp = await fetch(proxyUrl || ARK_CHAT_URL, {
       method: 'POST',
       headers: proxyUrl
@@ -1564,9 +1568,11 @@ async function callArkAPI(text, riskProfile) {
         model: ARK_MODEL,
         messages: [
           { role: 'system', content: ARK_SYSTEM_PROMPT + riskContext },
-          { role: 'user', content: text }
+          { role: 'user', content: probeUserText }
         ],
         temperature: 0.2,
+        // 显式关闭推理模式（deepseek-v4-flash 默认可能走推理链路，意图识别轻任务无需推理，关闭后更快更稳）
+        thinking: { type: 'disabled' },
         // 约束输出为 JSON 对象，降低格式漂移
         response_format: { type: 'json_object' }
       })
@@ -1577,6 +1583,10 @@ async function callArkAPI(text, riskProfile) {
     if (!content) throw new Error('模型返回为空');
     const json = parseJSON(content);
     if (!json) throw new Error('模型返回无法解析为JSON');
+    // 真 AI 校验：返回的 ai_probe 必须与请求探针一致，否则判定为未走真实模型
+    if (!json.ai_probe || String(json.ai_probe).trim() !== aiProbe) {
+      throw new Error('AI 探针校验失败（未走真实模型）');
+    }
     const SORT_ALIAS = {
       'RETURNRATE':'RETURNRATE','RETURN':'RETURNRATE','ret':'RETURNRATE','RET':'RETURNRATE','收益率':'RETURNRATE','收益':'RETURNRATE','综合评分':'RETURNRATE',
       'SHARP':'SHARP','sharpe':'SHARP','夏普':'SHARP',
@@ -1593,7 +1603,8 @@ async function callArkAPI(text, riskProfile) {
       conditions: (Array.isArray(json.conditions) && json.conditions.length) ? json.conditions : [{label:'风险等级匹配',type:'risk'}],
       matchReason: filterForbiddenText(json.matchReason || '根据您的描述，以下基金符合筛选条件。'),
       filterFn: buildFilterFromJSON(json.filter),
-      sortBy: sortKey || 'RETURNRATE'   // 默认按收益率降序
+      sortBy: sortKey || 'RETURNRATE',   // 默认按收益率降序
+      aiVerified: true                    // 探针校验通过，确认是真实模型返回
     };
   } finally {
     clearTimeout(timer);
@@ -1811,9 +1822,11 @@ createApp({
       aiResult.matchReason = result.matchReason;
       aiResult.filterFn = result.filterFn;
       aiResult.sortBy = result.sortBy;
-      aiResult.modeLabel = aiModeUsed
-        ? (fellBack ? 'AI·直连模式(结果空·已用本地规则)' : (ARK_PROXY_URL ? 'AI·代理模式' : 'AI·直连模式'))
-        : '本地规则模式';
+      // 只有探针校验通过（result.aiVerified===true）才算真·AI；否则一律归为本地规则
+      const realAI = !!(aiModeUsed && result.aiVerified && !fellBack);
+      aiResult.modeLabel = realAI
+        ? (ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓')
+        : (aiModeUsed ? (fellBack ? '本地规则模式(已回退)' : '本地规则模式(校验未过)') : '本地规则模式');
       sortBy.value = 'match';
       pageNum.value = 1;
 
