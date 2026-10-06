@@ -650,8 +650,8 @@ body {
       </div>
     </div>
 
-    <!-- Risk Attribution -->
-    <div class="mt-5" v-if="hasRiskFactors">
+    <!-- Risk Attribution (v-if="false" 永久隐藏：风险归因因子数据空洞且对普通用户难懂，按产品决策移除) -->
+    <div class="mt-5" v-if="false && hasRiskFactors">
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">风险归因因子</span>
@@ -1191,6 +1191,16 @@ function genericIntent(text) {
     add('夏普比率≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP || 0) >= 1.0 && riskOk(f, maxRisk)));
     sortBy = 'SHARP';
   }
+  // 夏普比率低 / 风险性价比差
+  if (/夏普(比率)?\s*(低|差|不高|偏低)|风险(性价比|调整后收益)\s*(低|差)|性价比低/.test(text)) {
+    add('夏普比率<0.5', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP !== null && f.performance.SHARP !== undefined && f.performance.SHARP < 0.5) && riskOk(f, maxRisk)));
+    sortBy = 'SHARP';
+  }
+  // 夏普比率高 / 风险性价比好
+  if (/夏普(比率)?\s*(高|好|不错|优秀|大于|超过|>)/.test(text) || /风险性价比\s*(高|好)/.test(text)) {
+    add('夏普比率≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP || 0) >= 1.0 && riskOk(f, maxRisk)));
+    sortBy = 'SHARP';
+  }
 
   conditions.push({label:'风险等级匹配',type:'risk'});
 
@@ -1263,7 +1273,8 @@ const ARK_SYSTEM_PROMPT = [
   '4. "高收益/收益好"：sortBy为RETURNRATE。',
   '5. "债券/债基"：fundType为"债券型"。',
   '6. 行业/因子需求按上述代码翻译到industry或valueMin/growthMin。',
-  '7. 用户提到的具体主题词（如"AI/人工智能/算力/白酒/新能源车/半导体"等）放入filter.keyword数组，前端会按基金名称关键词匹配；若主题可明确对应行业代码则优先用industry，keyword作为补充。'
+  '7. 用户提到的具体主题词（如"AI/人工智能/算力/白酒/新能源车/半导体"等）放入filter.keyword数组，前端会按基金名称关键词匹配；若主题可明确对应行业代码则优先用industry，keyword作为补充。',
+  '8. "夏普比率低/风险性价比差"：filter设置sharpeMax约0.5（表示夏普<0.5），sortBy为SHARP。注意输出JSON中sharpeMin与sharpeMax二选一。'
 ].join('\n');
 
 function parseJSON(s) {
@@ -1318,6 +1329,7 @@ function buildFilterFromJSON(filter) {
   const volMax = num(f.volMax);
   const volMin = num(f.volMin);
   const sharpeMin = num(f.sharpeMin);
+  const sharpeMax = num(f.sharpeMax);
   const maxDrawdownMax = num(f.maxDrawdownMax);
   const retMin = num(f.retMin);
   const maxFee = num(f.maxFee);
@@ -1356,6 +1368,7 @@ function buildFilterFromJSON(filter) {
     if (volMax !== null && fd.performance.VOL >= volMax) return false;
     if (volMin !== null && fd.performance.VOL < volMin) return false;
     if (sharpeMin !== null && fd.performance.SHARP < sharpeMin) return false;
+    if (sharpeMax !== null && fd.performance.SHARP >= sharpeMax) return false;
     if (maxDrawdownMax !== null && Math.abs(fd.performance.MAX_DRAWDOWN) >= maxDrawdownMax) return false;
     if (retMin !== null && fd.performance.RETURNRATE < retMin) return false;
     if (maxFee !== null && fd.managementFee >= maxFee) return false;
@@ -1945,22 +1958,36 @@ createApp({
       const f = selectedFund.value;
       const isBond = f.fundTypeTag === '债券型';
       const isIndex = f.fundTypeTag === '指数型';
-      const lowDrawdown = Math.abs(f.performance.MAX_DRAWDOWN) < 0.05;
-      const highSharpe = f.performance.SHARP >= 1.3;
-      const highValue = f.riskFactors.VALUE > 0.3;
+      const ret = (f.performance.RETURNRATE || 0);
+      const mdd = Math.abs(f.performance.MAX_DRAWDOWN || 0);
+      const vol = (f.performance.VOL || 0);
+      const sharpe = (f.performance.SHARP || 0);
+      const lowDrawdown = mdd < 0.05;
+      const lowVol = vol < 0.05;
+      const highSharpe = sharpe >= 1.3;
 
-      let title = '基金基础知识';
+      // 用大白话解释"这是什么基金"
+      let title = '这只基金是什么？';
       let content = '';
-      if (isBond) { title = '什么是债券基金？'; content = '债券基金主要投资于债券，收益来源包括债券利息和债券价格变动。相比股票基金，债券基金波动通常较小，适合追求稳健收益的投资者。'; }
-      else if (isIndex) { title = '什么是指数基金？'; content = '指数基金跟踪特定指数（如沪深300），力求复制指数表现。费率通常较低，适合长期定投和资产配置。'; }
-      else if (lowDrawdown) { title = '什么是最大回撤？'; content = '最大回撤是指基金从最高点到后续最低点的最大跌幅，是衡量风险的重要指标。回撤越小，说明基金在市场下跌时控制越好。'; }
-      else if (highSharpe) { title = '什么是夏普比率？'; content = '夏普比率衡量每承担一单位风险所获得的超额收益。夏普比率越高，说明基金的风险性价比越好，一般大于1被认为不错。'; }
-      else if (highValue) { title = '价值vs成长'; content = '价值风格偏好低估值股票，成长风格偏好高增长预期股票。价值因子高的基金通常持仓估值较低的股票，适合偏好价值投资的投资者。'; }
-      else { title = '如何看基金指标？'; content = '选基金时，收益率、最大回撤、夏普比率是最重要的三个指标。收益率反映赚钱能力，最大回撤反映风险控制，夏普比率反映风险性价比。'; }
+      if (isBond) { title = '这是一只债券型基金'; content = '简单说，它的钱主要借给国家或企业收利息，靠利息和债券涨价赚钱。波动一般比股票基金小，涨跌没那么刺激，适合想稳稳赚点小钱、不太能接受大波动的投资者。'; }
+      else if (isIndex) { title = '这是一只指数型基金'; content = '简单说，它不靠基金经理"猜"买什么，而是照着某个指数（比如沪深300）把对应的股票都买一遍。指数涨它就涨，指数跌它就跌，费率通常也便宜，适合长期定投、跟着大盘走。'; }
+      else { title = '这是一只主动管理基金'; content = '简单说，钱交给基金经理来"挑股票"——他研究哪些公司好、有潜力就买哪些。它的表现很大程度上取决于基金经理的水平，涨起来可能比指数猛，跌起来也可能更狠。'; }
 
-      const analysis = `该基金为${f.fundTypeTag}，风险等级${f.riskLevel}。近一年收益率${(f.performance.RETURNRATE*100).toFixed(2)}%，最大回撤${(f.performance.MAX_DRAWDOWN*100).toFixed(2)}%，年化波动率${(f.performance.VOL*100).toFixed(1)}%，夏普比率${f.performance.SHARP.toFixed(2)}。${lowDrawdown?'回撤控制较好，':'波动相对适中，'}${highSharpe?'风险性价比不错。':'建议结合自身风险承受能力参考。'}前三大行业为：${top3IndustriesText.value}。`;
+      // 用大白话点评这只基金的表现
+      let perf = '';
+      if (ret >= 0.3) perf += `近一年赚了${(ret*100).toFixed(0)}%，收益相当亮眼，但越高的收益往往伴随越大的波动。`;
+      else if (ret >= 0.1) perf += `近一年赚了${(ret*100).toFixed(0)}%，收益还不错。`;
+      else if (ret >= 0) perf += `近一年基本持平（${(ret*100).toFixed(1)}%），没亏但也没怎么赚。`;
+      else perf += `近一年亏了${(Math.abs(ret)*100).toFixed(0)}%，市场行情不好的时候亏损是难免的。`;
+      if (lowDrawdown && lowVol) perf += `它的回撤和波动都很小，属于"比较稳"的类型，拿着心里踏实。`;
+      else if (lowDrawdown) perf += `它的最大回撤只有${(mdd*100).toFixed(0)}%，跌得不多，抗跌能力不错。`;
+      else perf += `它的最大回撤达到${(mdd*100).toFixed(0)}%，意思是历史上从高点最多跌过这么多，要有心理准备。`;
+      if (highSharpe) perf += `夏普比率${sharpe.toFixed(2)}说明"每冒一分险能换来多少收益"性价比不错。`;
 
-      return {title, content, analysis};
+      // 简单风险提示
+      const riskTip = `这只基金风险等级为${f.riskLevel}${(f.riskLevelNum>=4)?'，属于中高风险，波动可能较大，请量力而行':''}。`;
+
+      return {title, content, analysis: `【怎么理解这只基金】${content} 【它最近表现】${perf} ${riskTip}`};
     });
 
     // ============ CHARTS ============
