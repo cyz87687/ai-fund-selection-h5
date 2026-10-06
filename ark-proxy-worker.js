@@ -24,50 +24,54 @@ function corsHeaders(origin) {
   };
 }
 
-export default {
-  async fetch(request, env, ctx) {
-    const origin = request.headers.get('Origin') || '';
+// Classic Worker 格式（Cloudflare 直接 PUT 上传时按 Classic 解析，故用 addEventListener）
+async function handleRequest(request) {
+  const origin = request.headers.get('Origin') || '';
 
-    // 处理 CORS 预检
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
-    }
-
-    if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
-      });
-    }
-
-    const apiKey = env.ARK_API_KEY;
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'ARK_API_KEY not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
-      });
-    }
-
-    try {
-      const body = await request.text();
-      const resp = await fetch(ARK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body
-      });
-
-      // 透传响应（保留 streaming 能力）
-      const headers = new Headers(resp.headers);
-      Object.entries(corsHeaders(origin)).forEach(([k, v]) => headers.set(k, v));
-      return new Response(resp.body, { status: resp.status, headers });
-    } catch (err) {
-      return new Response(JSON.stringify({ error: err.message || 'Proxy error' }), {
-        status: 502,
-        headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
-      });
-    }
+  // 处理 CORS 预检
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
-};
+
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
+    });
+  }
+
+  // 兼容 Classic Worker 下 secret 绑定注入方式（直接全局变量或 globalThis 上）
+  const apiKey = (typeof ARK_API_KEY !== 'undefined') ? ARK_API_KEY : (globalThis.ARK_API_KEY || '');
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'ARK_API_KEY not configured' }), {
+      status: 500,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    const body = await request.text();
+    const resp = await fetch(ARK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body
+    });
+
+    // 透传响应（保留 streaming 能力）
+    const headers = new Headers(resp.headers);
+    Object.entries(corsHeaders(origin)).forEach(([k, v]) => headers.set(k, v));
+    return new Response(resp.body, { status: resp.status, headers });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message || 'Proxy error' }), {
+      status: 502,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+addEventListener('fetch', (event) => {
+  event.respondWith(handleRequest(event.request));
+});
