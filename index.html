@@ -1353,7 +1353,7 @@ const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/complet
 //   1. 把项目里的 ark-proxy-worker.js 部署到 Cloudflare Workers（secret ARK_API_KEY=你的方舟Key）
 //   2. 将 Worker URL 填到下方 ARK_PROXY_URL
 // 未配置代理时，静态托管页面会自动回退到本地规则，保证基础筛选可用。
-const ARK_PROXY_URL = ''; // 示例: 'https://ai-fund-ark-proxy.xxx.workers.dev'
+const ARK_PROXY_URL = 'https://ai-fund-ark-proxy.aifundark-29c1b4.workers.dev'; // Cloudflare Worker 代理（已部署，密钥走 ARK_API_KEY secret）
 const ARK_KEY_SALT = 'AI_FUND_SELECT_2026';
 // 由 encodeArkKey() 生成（XOR + Base64），仅防明文扫描，不构成真正安全；提交 git 前必须替换
 const ARK_KEY_ENCODED = 'IDs0azAod2k2ICgmbmFrAlQfAnh8Z2s0fHxnfnV8fHVtPgsIU1V4K3IjbHp9Og==';
