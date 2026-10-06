@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
-<!-- CDN：Tailwind 必须用官方 Play CDN（浏览器运行时扫描生成CSS，编译版不生成样式会导致全页面无样式）；Vue/ECharts 用国内稳定源+加载失败兜底 -->
+<!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用国内稳定源 bootcdn（失败则整页友好提示） -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js" onerror="window.__VUE_LOAD_FAILED__=true"></script>
 <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js" onerror="window.__ECHARTS_LOAD_FAILED__=true"></script>
@@ -713,7 +713,10 @@ body {
               <tr v-for="(s, idx) in topHoldingsDisplay" :key="s.stockCode || s.stockName"
                   :style="{background: idx % 2 === 0 ? 'rgba(10,21,40,.3)' : 'rgba(10,21,40,.1)'}">
                 <td class="py-1.5 px-2 text-[var(--text-muted)] mono">{{ idx + 1 }}</td>
-                <td class="py-1.5 px-2 text-[var(--text-primary)] mono">{{ s.stockCode || '--' }}</td>
+                <td class="py-1.5 px-2 text-[var(--text-primary)] mono">
+                  {{ s.stockCode || '--' }}
+                  <span v-if="holdingMarket(s.stockCode)" class="ml-1 text-[9px] px-1 py-0.5 rounded" style="background:rgba(212,168,81,.12);color:var(--gold-light)">{{ holdingMarket(s.stockCode) }}</span>
+                </td>
                 <td class="py-1.5 px-2 text-[var(--text-secondary)]">{{ s.stockName }}</td>
                 <td class="py-1.5 px-2">
                   <div class="flex items-center justify-end gap-1.5">
@@ -766,7 +769,7 @@ body {
 
     <!-- Data Source -->
     <div class="mt-5 text-center">
-      <div class="text-[10px] text-[var(--text-muted)]">以上数据来源于研究所投研标签数据（模拟脱敏）</div>
+      <div class="text-[10px] text-[var(--text-muted)]">以上数据来源于研究所投研标签数据（模拟脱敏） · 数据更新于 2026-10-06（重仓股为2026Q2季报）</div>
       <div class="text-[10px] text-[var(--text-muted)] mt-0.5">报告期：{{ selectedFund.reportDate }} | 统计区间：近一年</div>
     </div>
   </div>
@@ -1048,14 +1051,13 @@ const PRESET_RESPONSES = {
     sortBy: 'VALUE'
   },
   '偏短线的基金': {
-    intentAnalysis: '您希望找偏短线的基金，短线操作通常更看重波动弹性与风险性价比。我将为您筛选年化波动率≥3.5%、夏普比率≥1的基金，并按夏普比率从高到低排序。',
+    intentAnalysis: '您希望找偏短线的基金，短线操作通常更看重波动弹性与交易活跃度。我将为您筛选年化波动率≥3.5%的基金，并按夏普比率从高到低排序，兼顾弹性与风险性价比。',
     conditions: [
       {label:'波动率≥3.5%',type:'metric'},
-      {label:'夏普比率≥1',type:'metric'},
       {label:'风险等级匹配',type:'risk'}
     ],
-    matchReason: '您想找"偏短线的基金"，以下基金波动率较高、夏普比率较高，短线弹性与风险性价比相对突出，适合作为波段操作参考。',
-    filterFn: (funds, maxRisk) => funds.filter(f => f.performance.VOL >= 0.035 && f.performance.SHARP >= 1.0 && f.riskLevelNum <= maxRisk),
+    matchReason: '您想找"偏短线的基金"，以下基金波动率较高、弹性较好，适合作为波段操作的参考标的。',
+    filterFn: (funds, maxRisk) => funds.filter(f => (f.performance.VOL || 0) >= 0.035 && f.riskLevelNum <= maxRisk),
     sortBy: 'SHARP'
   }
 };
@@ -1189,7 +1191,6 @@ function genericIntent(text) {
   }
   if (/短线|短期|波段/.test(text)) {
     add('波动率≥3.5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL || 0) >= 0.035 && riskOk(f, maxRisk)));
-    add('夏普比率≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP || 0) >= 1.0 && riskOk(f, maxRisk)));
     sortBy = 'SHARP';
   }
   // 夏普比率低 / 风险性价比差
@@ -2022,6 +2023,15 @@ createApp({
       ];
     });
 
+    // 判断持仓代码所属市场：A股6位数字无标签；美股(字母)/港股(5位数字)/其他 标注市场，避免用户误解
+    function holdingMarket(code) {
+      if (!code) return '';
+      const c = String(code).trim();
+      if (/^\d{6}$/.test(c)) return '';              // A股
+      if (/^[A-Za-z.]+$/.test(c)) return '美股';      // GOOG / BRK.B 等
+      if (/^\d{5}$/.test(c)) return '港股';           // 00700 等5位港股代码
+      return '';                                     // 其他不标注
+    }
     const topHoldingsDisplay = computed(() => {
       if (!selectedFund.value) return [];
       // 若存在完整前十大数据，直接返回
@@ -2276,7 +2286,7 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
-      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc, isHighRiskFund,
+      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc, isHighRiskFund, holdingMarket,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
