@@ -594,6 +594,19 @@ body {
       </div>
     </div>
 
+    <!-- 高风险警示条（R4/R5） -->
+    <div v-if="isHighRiskFund" class="mt-4 rounded-xl p-3.5 card-enter" style="background:linear-gradient(135deg,rgba(232,85,78,.14),rgba(232,85,78,.05));border:1px solid rgba(232,85,78,.35)">
+      <div class="flex items-start gap-2.5">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8554e" stroke-width="2" class="flex-shrink-0 mt-0.5">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div class="min-w-0">
+          <div class="text-[12px] font-bold" style="color:#e8554e">高风险产品提示</div>
+          <div class="text-[10.5px] leading-relaxed mt-1" style="color:#e8a0a0">本基金风险等级为 <span class="font-bold">{{ selectedFund.riskLevel }}</span>，属于中高风险/高风险产品，净值波动可能较大。该产品超出您当前风险承受等级（{{ riskProfile.maxRiskLabel }}）时，请审慎评估后再决定是否参与，切勿盲目跟投。</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Investment Education -->
     <div class="mt-5">
       <div class="flex items-center gap-2 mb-2.5">
@@ -1364,6 +1377,20 @@ const FORBIDDEN_PATTERNS = [
 function filterForbiddenText(text) {
   if (!text) return text;
   let out = String(text);
+  // 整句级拦截：命中任何禁止性表述的完整句子（以标点/句号分隔），整体替换为中性合规表述
+  const FORBIDDEN_ANY = new RegExp(FORBIDDEN_PATTERNS.map(p => p.source.replace(/\/g$/, '')).join('|'), 'g');
+  // 按句拆分，逐句检查
+  const sentences = out.split(/(?<=[。；;！!？?])/);
+  const cleaned = sentences.map(s => {
+    const trimmed = s.trim();
+    if (FORBIDDEN_ANY.test(trimmed)) {
+      return '以上数据仅供客观参考，不构成任何投资建议，请您根据自身风险承受能力独立决策。';
+    }
+    FORBIDDEN_ANY.lastIndex = 0;
+    return s;
+  });
+  out = cleaned.join('');
+  // 残留的短语级替换兜底（防漏网之鱼）
   FORBIDDEN_PATTERNS.forEach(re => {
     out = out.replace(re, '相关产品');
   });
@@ -1857,6 +1884,13 @@ createApp({
       return entries.map(e => `${e.name}(${e.pct}%)`).join('、');
     });
 
+    // 是否为中高风险/高风险基金（R4/R5），用于详情页显著风险警示
+    const isHighRiskFund = computed(() => {
+      if (!selectedFund.value) return false;
+      const r = Number(selectedFund.value.riskLevelNum);
+      return r >= 4;
+    });
+
     // 是否存在任何有效估值指标（用于控制场外基金等无估值场景下的模块显隐）
     const hasAnyValuation = computed(() => {
       if (!selectedFund.value) return false;
@@ -2128,7 +2162,7 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
-      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc,
+      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc, isHighRiskFund,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
