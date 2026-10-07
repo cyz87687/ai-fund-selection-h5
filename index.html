@@ -453,6 +453,35 @@ body {
       <div class="flex flex-wrap gap-1.5 mb-3">
         <span v-for="cond in aiResult.conditions" :key="cond.label" class="tag-pill">{{ cond.label }}</span>
       </div>
+      <!-- AI 思考过程（展开查看） -->
+      <div class="mb-3 border-t" style="border-color:rgba(212,168,81,.15)">
+        <div class="flex items-center gap-1.5 pt-2 cursor-pointer select-none" @click="aiTraceOpen = !aiTraceOpen">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5"
+               :style="{transform: aiTraceOpen ? 'rotate(90deg)' : 'none', transition:'transform .2s'}">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+          <span class="text-[10px] text-[var(--text-muted)]">
+            AI思考过程
+            <span v-if="aiResult.aiStatus==='enhancing'" class="text-[#5dd49a]">(后台增强中…)</span>
+            <span v-else-if="aiResult.aiStatus==='done'" class="text-[#5dd49a]">(已完成)</span>
+            <span v-else-if="aiResult.aiStatus==='failed'" class="text-[#e8554e]">(失败)</span>
+          </span>
+          <span v-if="aiResult.aiError" class="ml-auto text-[9px] text-[#e8554e] truncate max-w-[160px]">{{ aiResult.aiError }}</span>
+        </div>
+        <div v-if="aiTraceOpen" class="pt-1.5 pb-0.5 space-y-1">
+          <div v-for="(tr, ti) in aiResult.aiTrace" :key="ti" class="flex items-start gap-1.5">
+            <span class="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0" :style="{background: tr.ok===false ? '#e8554e' : '#5dd49a'}"></span>
+            <span class="text-[9px] text-[var(--text-muted)] mono shrink-0">{{ tr.t }}</span>
+            <span class="text-[10px] text-[var(--text-secondary)]">{{ tr.step }}</span>
+            <span class="text-[9px] text-[var(--text-muted)] truncate">{{ tr.detail }}</span>
+          </div>
+          <div v-if="!aiResult.aiTrace || !aiResult.aiTrace.length" class="text-[9px] text-[var(--text-muted)]">
+            <span v-if="aiResult.aiStatus==='local'">未调用大模型，使用内置规则匹配</span>
+            <span v-else-if="aiResult.aiStatus==='failed'">AI 调用失败，已回退本地规则</span>
+            <span v-else>等待 AI 响应…</span>
+          </div>
+        </div>
+      </div>
       <div class="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
         <span>您的查询：</span>
         <span class="text-[var(--gold-light)]">"{{ lastQuery }}"</span>
@@ -1542,6 +1571,8 @@ async function callArkAPI(text, riskProfile) {
   // 保证同一局域网内其他设备通过本机 IP / 主机名访问时 AI 也能生效
   const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]+\.local)$/.test(host);
   const proxyUrl = ARK_PROXY_URL || (isLocal ? '/ark' : '');
+  const trace = [];   // AI 思考过程记录
+  const ts = () => new Date().toLocaleTimeString('zh-CN', {hour12:false});
   if (isStaticHost && !proxyUrl) {
     // 静态托管（GitHub Pages 等）未配置代理时，浏览器无法直连方舟（CORS），直接回退本地规则
     throw new Error('静态部署环境下未配置 ARK_PROXY_URL，已回退本地规则');
@@ -1559,7 +1590,9 @@ async function callArkAPI(text, riskProfile) {
     // 真 AI 校验探针：随机串，模型必须原样回传 ai_probe，前端据此确认是真实模型返回
     const aiProbe = 'PROBE_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     const probeUserText = text + `\n【PROBE:${aiProbe}】`;
-    const resp = await fetch(proxyUrl || ARK_CHAT_URL, {
+    const target = proxyUrl || ARK_CHAT_URL;
+    trace.push({ t: ts(), step: '发起请求', detail: `POST ${target} · 模型 ${ARK_MODEL} · 推理模式关闭`, ok: true });
+    const resp = await fetch(target, {
       method: 'POST',
       headers: proxyUrl
         ? { 'Content-Type': 'application/json' }
@@ -1579,15 +1612,19 @@ async function callArkAPI(text, riskProfile) {
       })
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    trace.push({ t: ts(), step: '收到响应', detail: `HTTP ${resp.status} · ${((await resp.clone().text()).length/1024).toFixed(1)}KB`, ok: true });
     const data = await resp.json();
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (!content) throw new Error('模型返回为空');
     const json = parseJSON(content);
     if (!json) throw new Error('模型返回无法解析为JSON');
+    trace.push({ t: ts(), step: '解析 JSON', detail: '模型返回已解析为结构化筛选条件', ok: true });
     // 真 AI 校验：返回的 ai_probe 必须与请求探针一致，否则判定为未走真实模型
     if (!json.ai_probe || String(json.ai_probe).trim() !== aiProbe) {
+      trace.push({ t: ts(), step: '探针校验', detail: '探针不匹配，判定非真实模型', ok: false });
       throw new Error('AI 探针校验失败（未走真实模型）');
     }
+    trace.push({ t: ts(), step: '探针校验', detail: '探针匹配，确认为真实模型返回', ok: true });
     const SORT_ALIAS = {
       'RETURNRATE':'RETURNRATE','RETURN':'RETURNRATE','ret':'RETURNRATE','RET':'RETURNRATE','收益率':'RETURNRATE','收益':'RETURNRATE','综合评分':'RETURNRATE',
       'SHARP':'SHARP','sharpe':'SHARP','夏普':'SHARP',
@@ -1599,14 +1636,19 @@ async function callArkAPI(text, riskProfile) {
     };
     const rawSort = json.sortBy;
     const sortKey = (rawSort && typeof rawSort === 'string') ? SORT_ALIAS[rawSort.trim()] : null;
+    trace.push({ t: ts(), step: '生成筛选条件', detail: `筛选 ${(json.conditions||[]).length} 项 · 排序 ${sortKey||'RETURNRATE'}`, ok: true });
     return {
       intentAnalysis: filterForbiddenText(json.intentAnalysis || '我已理解您的投资需求，以下为根据投研数据筛选的结果。'),
       conditions: (Array.isArray(json.conditions) && json.conditions.length) ? json.conditions : [{label:'风险等级匹配',type:'risk'}],
       matchReason: filterForbiddenText(json.matchReason || '根据您的描述，以下基金符合筛选条件。'),
       filterFn: buildFilterFromJSON(json.filter),
       sortBy: sortKey || 'RETURNRATE',   // 默认按收益率降序
-      aiVerified: true                    // 探针校验通过，确认是真实模型返回
+      aiVerified: true,                    // 探针校验通过，确认是真实模型返回
+      aiTrace: trace                       // 思考过程（供前端展示）
     };
+  } catch (e) {
+    trace.push({ t: ts(), step: '失败', detail: String(e.message || e), ok: false });
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -1685,8 +1727,12 @@ createApp({
       matchReason: '',
       filterFn: null,
       sortBy: null,
-      modeLabel: ''
+      modeLabel: '',
+      aiStatus: '',          // AI 当前状态：thinking / done / failed
+      aiError: '',           // AI 失败原因（供展示）
+      aiTrace: []            // AI 思考过程步骤 [{t:'时间', step:'步骤名', detail:'内容', ok:true/false}]
     });
+    const aiTraceOpen = ref(false);   // AI 思考过程展开/收起
 
     const sortOptions = [
       {key:'match', label:'默认排序'},
@@ -1804,13 +1850,17 @@ createApp({
       return false;
     }
 
-    function applyResult(result, text, modeLabel, recordHistory) {
+    function applyResult(result, text, modeLabel, recordHistory, opts) {
+      opts = opts || {};
       aiResult.intentAnalysis = result.intentAnalysis;
       aiResult.conditions = result.conditions;
       aiResult.matchReason = result.matchReason;
       aiResult.filterFn = result.filterFn;
       aiResult.sortBy = result.sortBy;
       aiResult.modeLabel = modeLabel;
+      aiResult.aiStatus = opts.status || (modeLabel.startsWith('AI') ? 'done' : 'local');
+      aiResult.aiError = opts.error || '';
+      aiResult.aiTrace = result.aiTrace || [];
       sortBy.value = 'match';
       pageNum.value = 1;
       if (recordHistory) {
@@ -1825,9 +1875,9 @@ createApp({
       // 本地高置信命中时：先用本地结果"秒开"页面，同时后台并行调 AI（探针通过再无缝替换为真AI）
       if (localHighConfidence(text)) {
         const local = localIntent(text);
-        // 立即出结果（本地规则模式），保证体验不等待
-        applyResult(local, text, '本地规则模式', true);
-        // 后台 AI 增强：成功且探针通过则替换；失败静默，保留本地结果
+        // 立即出结果（本地规则模式），保证体验不等待；AI 后台增强中
+        applyResult(local, text, '本地规则模式', true, { status: 'enhancing' });
+        // 后台 AI 增强：成功且探针通过则替换；失败记录原因，保留本地结果
         try {
           const ai = await callArkAPI(text, riskProfile);
           if (ai && ai.aiVerified) {
@@ -1838,12 +1888,19 @@ createApp({
               aiResult.matchReason = ai.matchReason;
               aiResult.filterFn = ai.filterFn;
               aiResult.sortBy = ai.sortBy;
+              aiResult.aiTrace = ai.aiTrace || [];
+              aiResult.aiStatus = 'done';
+              aiResult.aiError = '';
               aiResult.modeLabel = ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓';
               nextTick(() => { renderMiniPies(); });
             }
           }
         } catch (e) {
           console.warn('[AI] 后台增强失败，保留本地结果：', e);
+          aiResult.aiStatus = 'failed';
+          aiResult.aiError = String(e.message || e);
+          // 保留本地结果，但明确标注 AI 增强失败原因
+          aiResult.modeLabel = '本地规则模式(AI增强失败)';
         }
         return;
       }
@@ -1852,10 +1909,12 @@ createApp({
       let result = null;
       let aiModeUsed = false;
       let fellBack = false;
+      let aiErr = '';
       try {
         result = await callArkAPI(text, riskProfile);
         aiModeUsed = true;
       } catch (e) {
+        aiErr = String(e.message || e);
         console.warn('[AI] 模型调用失败，回退本地规则：', e);
       }
       if (!result) { result = localIntent(text); fellBack = true; }
@@ -1874,7 +1933,10 @@ createApp({
       const modeLabel = realAI
         ? (ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓')
         : (aiModeUsed ? (fellBack ? '本地规则模式(已回退)' : '本地规则模式(校验未过)') : '本地规则模式');
-      applyResult(result, text, modeLabel, true);
+      applyResult(result, text, modeLabel, true, {
+        status: realAI ? 'done' : (fellBack ? 'failed' : 'local'),
+        error: aiErr
+      });
     }
 
     function useQuickTag(tag) {
@@ -2368,7 +2430,7 @@ createApp({
 
     return {
       currentPage, searchText, lastQuery, selectedFund, selectedFundDetail, pickerOpen, pickerType,
-      profileUpdated, riskProfile, quickTags, aiResult,
+      profileUpdated, riskProfile, quickTags, aiResult, aiTraceOpen,
       sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
       pagedFunds, pageSize, pageNum, totalPages, changePage,
       riskBarPercent, riskColor, pickerTitle, pickerOptions,
