@@ -1602,7 +1602,14 @@ async function callArkAPI(text, riskProfile) {
         response_format: { type: 'json_object' }
       })
     });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) {
+      // 尝试读取上游错误详情（Worker 已透传 Ark 错误体）
+      let detail = '';
+      try { detail = (await resp.text()).slice(0, 300); } catch (e) {}
+      const errMsg = detail ? `HTTP ${resp.status}: ${detail}` : 'HTTP ' + resp.status;
+      trace.push({ t: ts(), step: '收到响应', detail: errMsg.slice(0, 150), ok: false });
+      throw new Error(errMsg);
+    }
     trace.push({ t: ts(), step: '收到响应', detail: `HTTP ${resp.status} · ${((await resp.clone().text()).length/1024).toFixed(1)}KB`, ok: true });
     const data = await resp.json();
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
@@ -1638,8 +1645,18 @@ async function callArkAPI(text, riskProfile) {
       aiTrace: trace                       // 思考过程（供前端展示）
     };
   } catch (e) {
-    trace.push({ t: ts(), step: '失败', detail: String(e.message || e), ok: false });
-    throw e;
+    // 错误分类：CORS / 超时 / 网络 / 上游错误，转成可读原因
+    let readable = String((e && e.message) || e);
+    if (e && e.name === 'AbortError') readable = '请求超时(>5s)，代理或模型响应过慢';
+    else if (/Failed to fetch|NetworkError|Network request failed|load failed/i.test(readable)) {
+      readable = '网络/跨域失败：无法连接 AI 代理(' + (proxyUrl || ARK_CHAT_URL) + ')。请检查代理是否在线或 CORS 配置';
+    } else if (/Unexpected token|JSON|parse/i.test(readable)) {
+      readable = '模型返回格式异常：' + readable;
+    }
+    trace.push({ t: ts(), step: '失败', detail: readable, ok: false });
+    const err = new Error(readable);
+    err.aiTrace = trace;
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -1851,7 +1868,7 @@ createApp({
       aiResult.modeLabel = modeLabel;
       aiResult.aiStatus = opts.status || (modeLabel.startsWith('AI') ? 'done' : 'local');
       aiResult.aiError = opts.error || '';
-      aiResult.aiTrace = result.aiTrace || [];
+      aiResult.aiTrace = opts.trace || result.aiTrace || [];
       sortBy.value = 'match';
       pageNum.value = 1;
       if (recordHistory) {
@@ -1889,7 +1906,8 @@ createApp({
         } catch (e) {
           console.warn('[AI] 后台增强失败，保留本地结果：', e);
           aiResult.aiStatus = 'failed';
-          aiResult.aiError = String(e.message || e);
+          aiResult.aiError = String((e && e.message) || e);
+          aiResult.aiTrace = (e && e.aiTrace) || [];
           // 保留本地结果，但明确标注 AI 增强失败原因
           aiResult.modeLabel = '本地规则模式(AI增强失败)';
         }
@@ -1901,11 +1919,13 @@ createApp({
       let aiModeUsed = false;
       let fellBack = false;
       let aiErr = '';
+      let aiTraceErr = [];
       try {
         result = await callArkAPI(text, riskProfile);
         aiModeUsed = true;
       } catch (e) {
-        aiErr = String(e.message || e);
+        aiErr = String((e && e.message) || e);
+        aiTraceErr = (e && e.aiTrace) || [];
         console.warn('[AI] 模型调用失败，回退本地规则：', e);
       }
       if (!result) { result = localIntent(text); fellBack = true; }
@@ -1926,7 +1946,8 @@ createApp({
         : (aiModeUsed ? (fellBack ? '本地规则模式(已回退)' : '本地规则模式(校验未过)') : '本地规则模式');
       applyResult(result, text, modeLabel, true, {
         status: realAI ? 'done' : (fellBack ? 'failed' : 'local'),
-        error: aiErr
+        error: aiErr,
+        trace: aiTraceErr
       });
     }
 
