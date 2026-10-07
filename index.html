@@ -1540,22 +1540,29 @@ function filterForbiddenText(text) {
 }
 
 async function callArkAPI(text, riskProfile) {
-  // 代理优先级：显式 ARK_PROXY_URL > 本地/局域网自动用相对路径 /ark > 直连方舟
+  // 代理通道（唯一可用，经实测）：
+  //   ① 显式 ARK_PROXY_URL（如自建反向代理）
+  //   ② 本地/局域网部署时走同源相对路径 /ark（由 local-ark-proxy.py 转发，Key 在服务端注入，前端不持有）
+  // 浏览器【绝不可直连】方舟 API：跨域 CORS 必然被拦（实测 Failed to fetch），故代码中不存在直连分支。
   const host = (typeof location !== 'undefined' && location.hostname) || '';
+  const isFile = (typeof location !== 'undefined' && location.protocol === 'file:');
   const isStaticHost = /github\.io|\.pages\.dev|netlify\.app|vercel\.app|surge\.sh|gitee\.io|coding\.pages\.com/.test(host);
-  // localhost 或局域网地址（IPv4 私有段 / 链路本地 / .local mDNS）均视为本地，自动走相对 /ark 代理，
+  // localhost 或局域网地址（IPv4 私有段 / 链路本地 / .local mDNS）均视为本地，自动走同源 /ark 代理，
   // 保证同一局域网内其他设备通过本机 IP / 主机名访问时 AI 也能生效
   const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]+\.local)$/.test(host);
   const proxyUrl = ARK_PROXY_URL || (isLocal ? '/ark' : '');
   const trace = [];   // AI 思考过程记录
   const ts = () => new Date().toLocaleTimeString('zh-CN', {hour12:false});
-  // 静态托管（GitHub Pages 等）无可用代理：浏览器无法直连方舟（CORS 拦截，实测 Failed to fetch），
-  // 优雅回退本地规则（离线原型定位），不报"网络/跨域失败"
-  if (isStaticHost && !proxyUrl) {
-    throw new Error('静态部署环境未配置可用代理，已回退本地规则（离线模式）');
+  // 无可用的 AI 通道（file:// 直接打开 / 未配置代理的静态托管）：不发起任何网络请求，
+  // 直接回退本地规则（离线原型定位），避免误报"网络/跨域失败"
+  if (!proxyUrl) {
+    if (isFile) {
+      throw new Error('当前以本地文件(file://)方式打开，无可用 AI 代理。如需真 AI，请先运行 python3 local-ark-proxy.py 并访问 http://localhost:8080/');
+    }
+    throw new Error(isStaticHost
+      ? '静态部署环境未配置可用代理，已回退本地规则（离线模式）'
+      : '当前环境无可用 AI 代理，已回退本地规则（离线模式）');
   }
-  const key = proxyUrl ? '' : decodeArkKey();
-  if (!proxyUrl && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
   // 12s 超时：方舟本身 3-4s，本地代理转发叠加网络延迟；宁可等足也不误杀（后台增强模式下用户已先看到结果）
   const timer = setTimeout(() => controller.abort(), 12000);
@@ -1567,13 +1574,11 @@ async function callArkAPI(text, riskProfile) {
     // 真 AI 校验探针：随机串，模型必须原样回传 ai_probe，前端据此确认是真实模型返回
     const aiProbe = 'PROBE_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     const probeUserText = text + `\n【PROBE:${aiProbe}】`;
-    const target = proxyUrl || ARK_CHAT_URL;
+    const target = proxyUrl;
     trace.push({ t: ts(), step: '发起请求', detail: `POST ${target} · 模型 ${ARK_MODEL} · 推理模式关闭`, ok: true });
     const resp = await fetch(target, {
       method: 'POST',
-      headers: proxyUrl
-        ? { 'Content-Type': 'application/json' }
-        : { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
         model: ARK_MODEL,
@@ -1629,7 +1634,7 @@ async function callArkAPI(text, riskProfile) {
       sortBy: sortKey || 'RETURNRATE',   // 默认按收益率降序
       aiVerified: true,                    // 探针校验通过，确认是真实模型返回
       aiTrace: trace,                      // 思考过程（供前端展示）
-      aiChannel: proxyUrl ? 'proxy' : 'direct'   // 实际通道：本地代理 or 直连
+      aiChannel: 'proxy'                   // 实际通道：本地代理（已杜绝浏览器直连）
     };
   } catch (e) {
     // 错误分类：CORS / 超时 / 网络 / 上游错误，转成可读原因
@@ -1888,7 +1893,7 @@ createApp({
               aiResult.aiTrace = ai.aiTrace || [];
               aiResult.aiStatus = 'done';
               aiResult.aiError = '';
-              aiResult.aiChannel = ai.aiChannel || 'direct';
+              aiResult.aiChannel = ai.aiChannel || 'proxy';
               aiResult.modeLabel = ai.aiChannel === 'proxy' ? 'AI·本地代理✓' : 'AI·直连模式✓';
               nextTick(() => { renderMiniPies(); });
             }
