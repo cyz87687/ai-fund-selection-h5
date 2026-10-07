@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用国内稳定源 bootcdn（失败则整页友好提示） -->
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com?v=20261007"></script>
 <!-- Vue / ECharts 本地化，离线/弱网仍可渲染；若本地文件缺失则自动回退 CDN -->
 <script>
   (function(){
+    var V = '20261007';   // 资源版本号：升级时 +1 强制刷新 CDN 缓存
     function loadLocal(src, fallback, failedFlag){
       var s = document.createElement('script');
-      s.src = src;
+      s.src = src + '?v=' + V;
       s.onerror = function(){
         window[failedFlag] = true;
         var f = document.createElement('script');
@@ -740,8 +741,7 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">前十大重仓股</span>
-        <span v-if="holdingsLoading" class="text-[10px] text-[var(--gold)] ml-1">东财加载中…</span>
-        <span v-else-if="holdingsSrc" class="text-[10px] text-[var(--text-muted)] ml-1">来源：{{ holdingsSrc }}</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">来源：{{ holdingsSrc || '投研数据' }}</span>
         <span class="text-[10px] text-[var(--text-muted)] ml-1">报告期：2024Q4</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-4">
@@ -776,9 +776,8 @@ body {
             </tbody>
           </table>
           <div v-if="!selectedFund.topHoldings || !selectedFund.topHoldings.length" class="text-center py-3 text-[10px] text-[var(--text-muted)]">
-            <template v-if="holdingsLoading">正在经东方财富查询完整持仓数据…</template>
-            <template v-else-if="selectedFund.topHoldingStock">当前仅展示第一大重仓股，完整前十大持仓数据暂未获取</template>
-            <template v-else>暂未获取到持仓数据</template>
+            <template v-if="selectedFund.topHoldingStock">当前仅展示第一大重仓股，完整前十大持仓数据暂未收录</template>
+            <template v-else>暂未收录持仓数据</template>
           </div>
         </div>
         <div class="mt-2 px-1 flex justify-between text-[9px] text-[var(--text-muted)]">
@@ -935,21 +934,13 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261007" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261007" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
-// 详情数据按需加载：首页先加载 base.js，进入基金详情时再动态加载 detail.js
-let __detailPromise = null;
+// 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
   if (window.FUND_POOL_DETAIL) return Promise.resolve(window.FUND_POOL_DETAIL);
-  if (__detailPromise) return __detailPromise;
-  __detailPromise = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'fund-pool-detail.js';
-    s.onload = () => resolve(window.FUND_POOL_DETAIL || {});
-    s.onerror = () => reject(new Error('基金详情数据加载失败'));
-    document.body.appendChild(s);
-  });
-  return __detailPromise;
+  return Promise.resolve({});
 }
 
 const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
@@ -1994,55 +1985,20 @@ createApp({
       nextTick(() => renderMiniPies());
     }
     function goHistory() { currentPage.value = 'history'; }
-    // 详情页持仓：缺失时运行时经东方财富(F10)补全（数据同妙想MCP，浏览器端按需查询）
-    const holdingsLoading = ref(false);
+    // 详情页持仓：离线数据（fund-pool-detail.js 静态加载），无实时请求
     const holdingsSrc = ref('');
-    async function fillHoldingsFromEastmoney(fund) {
-      const code = String(fund.fundCode || '').replace(/\.OF$/, '').replace(/\.(SH|SZ)$/, '');
-      if (!code) return;
-      holdingsLoading.value = true;
-      holdingsSrc.value = '';
-      try {
-        const url = `https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=jjcc&code=${code}&topline=10`;
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const txt = await res.text();
-        const m = txt.match(/content:\s*"([\s\S]*?)"/);
-        if (!m) return;
-        const html = m[1].replace(/\\"/g, '"').replace(/\\r|\\n|\\t/g, '');
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const rows = [...doc.querySelectorAll('tr')].slice(1, 11);
-        const holdings = [];
-        rows.forEach(tr => {
-          const tds = tr.querySelectorAll('td');
-          if (tds.length >= 4) {
-            const name = tds[2].textContent.trim();
-            const w = parseFloat(tds[3].textContent.replace('%', ''));
-            const c = tds[1].textContent.trim();
-            if (name && !isNaN(w)) holdings.push({ stockName: name, stockCode: c, weight: w / 100 });
-          }
-        });
-        if (holdings.length) {
-          selectedFundDetail.value = { ...selectedFundDetail.value, topHoldings: holdings };
-          holdingsSrc.value = '东方财富';
-        }
-      } catch (e) {
-        console.warn('[东财] 持仓补全失败(CORS/网络):', e);
-      } finally {
-        holdingsLoading.value = false;
-      }
-    }
     async function goDetail(fund) {
       selectedFund.value = fund;
       selectedFundDetail.value = { valuation:{}, riskFactors:{}, topHoldings:[] };
       currentPage.value = 'detail';
-      // 按需加载详情字段（估值/风险因子/重仓股）
+      // 直接读取离线 detail 数据（页面打开时已静态加载，无需等待）
       let detail = { valuation:{}, riskFactors:{}, topHoldings:[] };
       try {
         const pool = await loadFundDetailData();
         detail = pool[fund.fundCode] || detail;
         normalizeFund(detail);
       } catch (e) {
-        console.warn('[detail] 详情数据加载失败，使用基础数据兜底:', e);
+        console.warn('[detail] 详情数据读取失败，使用基础数据兜底:', e);
       }
       selectedFundDetail.value = detail;
       holdingsSrc.value = (detail.topHoldings && detail.topHoldings.length) ? '研究所投研' : '';
@@ -2051,9 +2007,6 @@ createApp({
         renderRiskBar();
         renderIndustryPie();
       });
-      if (!detail.topHoldings || !detail.topHoldings.length) {
-        fillHoldingsFromEastmoney(fund);
-      }
     }
     function replayHistory(item) {
       searchText.value = item.query;
@@ -2438,7 +2391,7 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
-      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc, isHighRiskFund, holdingMarket,
+      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsSrc, isHighRiskFund, holdingMarket,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
