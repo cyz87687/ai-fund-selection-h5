@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用国内稳定源 bootcdn（失败则整页友好提示） -->
-<script src="https://cdn.tailwindcss.com?v=20261007"></script>
+<script src="https://cdn.tailwindcss.com?v=20261008"></script>
 <!-- Vue / ECharts 本地化，离线/弱网仍可渲染；若本地文件缺失则自动回退 CDN -->
 <script>
   (function(){
-    var V = '20261007';   // 资源版本号：升级时 +1 强制刷新 CDN 缓存
+    var V = '20261008';   // 资源版本号：升级时 +1 强制刷新 CDN 缓存
     function loadLocal(src, fallback, failedFlag){
       var s = document.createElement('script');
       s.src = src + '?v=' + V;
@@ -934,8 +934,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261007" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261007" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261008" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261008" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1571,8 +1571,9 @@ async function callArkAPI(text, riskProfile) {
   const key = proxyUrl ? '' : decodeArkKey();
   if (!proxyUrl && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
-  // 5s超时保证不无限等待：正常响应（关推理后）1-3s 足够；超时/失败快速回退本地规则，避免用户干等
-  const timer = setTimeout(() => controller.abort(), 5000);
+  // 12s 超时：方舟本身 3-4s，叠加 Cloudflare 边缘转发延迟（跨地域），5s 太激进易误判超时。
+  // 本地秒开模式下用户已先看到结果，后台增强慢一点无感知，宁可等足也不误杀。
+  const timer = setTimeout(() => controller.abort(), 12000);
   try {
     // 拼接客户三要素（PRD 7.1 要求），用于生成风险匹配约束
     const riskContext = riskProfile && riskProfile.riskPrefValue
@@ -1647,7 +1648,7 @@ async function callArkAPI(text, riskProfile) {
   } catch (e) {
     // 错误分类：CORS / 超时 / 网络 / 上游错误，转成可读原因
     let readable = String((e && e.message) || e);
-    if (e && e.name === 'AbortError') readable = '请求超时(>5s)，代理或模型响应过慢';
+    if (e && e.name === 'AbortError') readable = '请求超时(>12s)，代理或模型响应过慢，可稍后重试';
     else if (/Failed to fetch|NetworkError|Network request failed|load failed/i.test(readable)) {
       readable = '网络/跨域失败：无法连接 AI 代理(' + (proxyUrl || ARK_CHAT_URL) + ')。请检查代理是否在线或 CORS 配置';
     } else if (/Unexpected token|JSON|parse/i.test(readable)) {
