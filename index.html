@@ -4,27 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
-<!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用国内稳定源 bootcdn（失败则整页友好提示） -->
-<script src="https://cdn.tailwindcss.com?v=20261008"></script>
-<!-- Vue / ECharts 本地化，离线/弱网仍可渲染；若本地文件缺失则自动回退 CDN -->
-<script>
-  (function(){
-    var V = '20261008';   // 资源版本号：升级时 +1 强制刷新 CDN 缓存
-    function loadLocal(src, fallback, failedFlag){
-      var s = document.createElement('script');
-      s.src = src + '?v=' + V;
-      s.onerror = function(){
-        window[failedFlag] = true;
-        var f = document.createElement('script');
-        f.src = fallback;
-        document.head.appendChild(f);
-      };
-      document.head.appendChild(s);
-    }
-    loadLocal('assets/vue.global.prod.min.js', 'https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js', '__VUE_LOAD_FAILED__');
-    loadLocal('assets/echarts.min.js', 'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js', '__ECHARTS_LOAD_FAILED__');
-  })();
-</script>
+<!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
+<script src="https://cdn.tailwindcss.com?v=20261009"></script>
+<!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
+<script src="assets/vue.global.prod.min.js?v=20261009" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261009" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -934,8 +918,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261008" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261008" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261009" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261009" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1368,12 +1352,13 @@ function genericIntent(text) {
 // 模型配置：使用火山方舟的 DeepSeek V4 Flash（deepseek-v4-flash）
 const ARK_MODEL = 'deepseek-v4-flash';
 const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
-// 可选：配置后端代理地址后，前端请求走代理（同时解决 CORS 与 Key 暴露）；留空则直连（不推荐，Key 会暴露）
-// 部署在 GitHub Pages 等静态托管时，浏览器无法直连方舟（CORS + Key 暴露），必须配置代理：
-//   1. 把项目里的 ark-proxy-worker.js 部署到 Cloudflare Workers（secret ARK_API_KEY=你的方舟Key）
-//   2. 将 Worker URL 填到下方 ARK_PROXY_URL
-// 未配置代理时，静态托管页面会自动回退到本地规则，保证基础筛选可用。
-const ARK_PROXY_URL = 'https://ai-fund-ark-proxy.aifundark-29c1b4.workers.dev'; // Cloudflare Worker 代理（已部署，密钥走 ARK_API_KEY secret）
+// 代理通道说明（经实测）：
+//   - Cloudflare workers.dev 域名在国内网络 ERR_CONNECTION_TIMED_OUT（不可达），已弃用；
+//   - 方舟 API 浏览器直连会被 CORS 拦截（Failed to fetch），亦不可行；
+//   - 本地/局域网部署时走相对路径 /ark（由 local-ark-proxy.py 转发，Key 在服务端不暴露）；
+//   - 静态托管（GitHub Pages 等）未配置可用代理时，优雅回退本地规则（离线原型定位，不报错）。
+// 因此 ARK_PROXY_URL 置空，交由 callArkAPI 按环境自动选择通道。
+const ARK_PROXY_URL = ''; // 留空：本地/LAN 自动走 /ark；静态托管回退本地规则
 const ARK_KEY_SALT = 'AI_FUND_SELECT_2026';
 // 由 encodeArkKey() 生成（XOR + Base64），仅防明文扫描，不构成真正安全；提交 git 前必须替换
 const ARK_KEY_ENCODED = 'IDs0azAod2k2ICgmbmFrAlQfAnh8Z2s0fHxnfnV8fHVtPgsIU1V4K3IjbHp9Og==';
@@ -1564,15 +1549,15 @@ async function callArkAPI(text, riskProfile) {
   const proxyUrl = ARK_PROXY_URL || (isLocal ? '/ark' : '');
   const trace = [];   // AI 思考过程记录
   const ts = () => new Date().toLocaleTimeString('zh-CN', {hour12:false});
+  // 静态托管（GitHub Pages 等）无可用代理：浏览器无法直连方舟（CORS 拦截，实测 Failed to fetch），
+  // 优雅回退本地规则（离线原型定位），不报"网络/跨域失败"
   if (isStaticHost && !proxyUrl) {
-    // 静态托管（GitHub Pages 等）未配置代理时，浏览器无法直连方舟（CORS），直接回退本地规则
-    throw new Error('静态部署环境下未配置 ARK_PROXY_URL，已回退本地规则');
+    throw new Error('静态部署环境未配置可用代理，已回退本地规则（离线模式）');
   }
   const key = proxyUrl ? '' : decodeArkKey();
   if (!proxyUrl && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
-  // 12s 超时：方舟本身 3-4s，叠加 Cloudflare 边缘转发延迟（跨地域），5s 太激进易误判超时。
-  // 本地秒开模式下用户已先看到结果，后台增强慢一点无感知，宁可等足也不误杀。
+  // 12s 超时：方舟本身 3-4s，本地代理转发叠加网络延迟；宁可等足也不误杀（后台增强模式下用户已先看到结果）
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
     // 拼接客户三要素（PRD 7.1 要求），用于生成风险匹配约束
@@ -1643,7 +1628,8 @@ async function callArkAPI(text, riskProfile) {
       filterFn: buildFilterFromJSON(json.filter),
       sortBy: sortKey || 'RETURNRATE',   // 默认按收益率降序
       aiVerified: true,                    // 探针校验通过，确认是真实模型返回
-      aiTrace: trace                       // 思考过程（供前端展示）
+      aiTrace: trace,                      // 思考过程（供前端展示）
+      aiChannel: proxyUrl ? 'proxy' : 'direct'   // 实际通道：本地代理 or 直连
     };
   } catch (e) {
     // 错误分类：CORS / 超时 / 网络 / 上游错误，转成可读原因
@@ -1739,7 +1725,8 @@ createApp({
       modeLabel: '',
       aiStatus: '',          // AI 当前状态：thinking / done / failed
       aiError: '',           // AI 失败原因（供展示）
-      aiTrace: []            // AI 思考过程步骤 [{t:'时间', step:'步骤名', detail:'内容', ok:true/false}]
+      aiTrace: [],           // AI 思考过程步骤 [{t:'时间', step:'步骤名', detail:'内容', ok:true/false}]
+      aiChannel: ''          // 实际通道：proxy(本地代理) / direct(直连) / local(本地规则)
     });
     const aiTraceOpen = ref(false);   // AI 思考过程展开/收起
 
@@ -1870,6 +1857,7 @@ createApp({
       aiResult.aiStatus = opts.status || (modeLabel.startsWith('AI') ? 'done' : 'local');
       aiResult.aiError = opts.error || '';
       aiResult.aiTrace = opts.trace || result.aiTrace || [];
+      aiResult.aiChannel = result.aiChannel || 'local';
       sortBy.value = 'match';
       pageNum.value = 1;
       if (recordHistory) {
@@ -1900,7 +1888,8 @@ createApp({
               aiResult.aiTrace = ai.aiTrace || [];
               aiResult.aiStatus = 'done';
               aiResult.aiError = '';
-              aiResult.modeLabel = ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓';
+              aiResult.aiChannel = ai.aiChannel || 'direct';
+              aiResult.modeLabel = ai.aiChannel === 'proxy' ? 'AI·本地代理✓' : 'AI·直连模式✓';
               nextTick(() => { renderMiniPies(); });
             }
           }
@@ -1943,7 +1932,7 @@ createApp({
 
       const realAI = !!(aiModeUsed && result.aiVerified && !fellBack);
       const modeLabel = realAI
-        ? (ARK_PROXY_URL ? 'AI·代理模式✓' : 'AI·直连模式✓')
+        ? (aiResult.aiChannel === 'proxy' ? 'AI·本地代理✓' : 'AI·直连模式✓')
         : (aiModeUsed ? (fellBack ? '本地规则模式(已回退)' : '本地规则模式(校验未过)') : '本地规则模式');
       applyResult(result, text, modeLabel, true, {
         status: realAI ? 'done' : (fellBack ? 'failed' : 'local'),
