@@ -4,26 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
-<!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用国内稳定源 bootcdn（失败则整页友好提示） -->
-<script src="https://cdn.tailwindcss.com"></script>
-<!-- Vue / ECharts 本地化，离线/弱网仍可渲染；若本地文件缺失则自动回退 CDN -->
-<script>
-  (function(){
-    function loadLocal(src, fallback, failedFlag){
-      var s = document.createElement('script');
-      s.src = src;
-      s.onerror = function(){
-        window[failedFlag] = true;
-        var f = document.createElement('script');
-        f.src = fallback;
-        document.head.appendChild(f);
-      };
-      document.head.appendChild(s);
-    }
-    loadLocal('assets/vue.global.prod.min.js', 'https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js', '__VUE_LOAD_FAILED__');
-    loadLocal('assets/echarts.min.js', 'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js', '__ECHARTS_LOAD_FAILED__');
-  })();
-</script>
+<!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
+<script src="https://cdn.tailwindcss.com?v=20261009"></script>
+<!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
+<script src="assets/vue.global.prod.min.js?v=20261009" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261009" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -453,6 +438,35 @@ body {
       <div class="flex flex-wrap gap-1.5 mb-3">
         <span v-for="cond in aiResult.conditions" :key="cond.label" class="tag-pill">{{ cond.label }}</span>
       </div>
+      <!-- AI 思考过程（展开查看） -->
+      <div class="mb-3 border-t" style="border-color:rgba(212,168,81,.15)">
+        <div class="flex items-center gap-1.5 pt-2 cursor-pointer select-none" @click="aiTraceOpen = !aiTraceOpen">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5"
+               :style="{transform: aiTraceOpen ? 'rotate(90deg)' : 'none', transition:'transform .2s'}">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+          <span class="text-[10px] text-[var(--text-muted)]">
+            AI思考过程
+            <span v-if="aiResult.aiStatus==='enhancing'" class="text-[#5dd49a]">(后台增强中…)</span>
+            <span v-else-if="aiResult.aiStatus==='done'" class="text-[#5dd49a]">(已完成)</span>
+            <span v-else-if="aiResult.aiStatus==='failed'" class="text-[#e8554e]">(失败)</span>
+          </span>
+          <span v-if="aiResult.aiError" class="ml-auto text-[9px] text-[#e8554e] truncate max-w-[160px]">{{ aiResult.aiError }}</span>
+        </div>
+        <div v-if="aiTraceOpen" class="pt-1.5 pb-0.5 space-y-1">
+          <div v-for="(tr, ti) in aiResult.aiTrace" :key="ti" class="flex items-start gap-1.5">
+            <span class="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0" :style="{background: tr.ok===false ? '#e8554e' : '#5dd49a'}"></span>
+            <span class="text-[9px] text-[var(--text-muted)] mono shrink-0">{{ tr.t }}</span>
+            <span class="text-[10px] text-[var(--text-secondary)]">{{ tr.step }}</span>
+            <span class="text-[9px] text-[var(--text-muted)] truncate">{{ tr.detail }}</span>
+          </div>
+          <div v-if="!aiResult.aiTrace || !aiResult.aiTrace.length" class="text-[9px] text-[var(--text-muted)]">
+            <span v-if="aiResult.aiStatus==='local'">未调用大模型，使用内置规则匹配</span>
+            <span v-else-if="aiResult.aiStatus==='failed'">AI 调用失败，已回退本地规则</span>
+            <span v-else>等待 AI 响应…</span>
+          </div>
+        </div>
+      </div>
       <div class="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
         <span>您的查询：</span>
         <span class="text-[var(--gold-light)]">"{{ lastQuery }}"</span>
@@ -711,8 +725,7 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">前十大重仓股</span>
-        <span v-if="holdingsLoading" class="text-[10px] text-[var(--gold)] ml-1">东财加载中…</span>
-        <span v-else-if="holdingsSrc" class="text-[10px] text-[var(--text-muted)] ml-1">来源：{{ holdingsSrc }}</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">来源：{{ holdingsSrc || '投研数据' }}</span>
         <span class="text-[10px] text-[var(--text-muted)] ml-1">报告期：2024Q4</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-4">
@@ -747,9 +760,8 @@ body {
             </tbody>
           </table>
           <div v-if="!selectedFund.topHoldings || !selectedFund.topHoldings.length" class="text-center py-3 text-[10px] text-[var(--text-muted)]">
-            <template v-if="holdingsLoading">正在经东方财富查询完整持仓数据…</template>
-            <template v-else-if="selectedFund.topHoldingStock">当前仅展示第一大重仓股，完整前十大持仓数据暂未获取</template>
-            <template v-else>暂未获取到持仓数据</template>
+            <template v-if="selectedFund.topHoldingStock">当前仅展示第一大重仓股，完整前十大持仓数据暂未收录</template>
+            <template v-else>暂未收录持仓数据</template>
           </div>
         </div>
         <div class="mt-2 px-1 flex justify-between text-[9px] text-[var(--text-muted)]">
@@ -906,21 +918,13 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261009" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261009" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
-// 详情数据按需加载：首页先加载 base.js，进入基金详情时再动态加载 detail.js
-let __detailPromise = null;
+// 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
   if (window.FUND_POOL_DETAIL) return Promise.resolve(window.FUND_POOL_DETAIL);
-  if (__detailPromise) return __detailPromise;
-  __detailPromise = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'fund-pool-detail.js';
-    s.onload = () => resolve(window.FUND_POOL_DETAIL || {});
-    s.onerror = () => reject(new Error('基金详情数据加载失败'));
-    document.body.appendChild(s);
-  });
-  return __detailPromise;
+  return Promise.resolve({});
 }
 
 const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
@@ -1345,15 +1349,16 @@ function genericIntent(text) {
 }
 
 // ============ REAL AI MODEL (火山方舟 Ark, OpenAI 协议) ============
-// 模型配置：与 PRD 对齐，使用 deepseek-v4-flash
+// 模型配置：使用火山方舟的 DeepSeek V4 Flash（deepseek-v4-flash）
 const ARK_MODEL = 'deepseek-v4-flash';
 const ARK_CHAT_URL = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
-// 可选：配置后端代理地址后，前端请求走代理（同时解决 CORS 与 Key 暴露）；留空则直连方舟
-// 部署在 GitHub Pages 等静态托管时，浏览器无法直连方舟（CORS），必须配置代理：
-//   1. 把项目里的 ark-proxy-worker.js 部署到 Cloudflare Workers（环境变量 ARK_API_KEY=你的方舟Key）
-//   2. 将 Worker URL 填到下方 ARK_PROXY_URL
-// 未配置代理时，静态托管页面会自动回退到本地规则，保证基础筛选可用。
-const ARK_PROXY_URL = ''; // 示例: 'https://ai-fund-ark-proxy.xxx.workers.dev'
+// 代理通道说明（经实测）：
+//   - Cloudflare workers.dev 域名在国内网络 ERR_CONNECTION_TIMED_OUT（不可达），已弃用；
+//   - 方舟 API 浏览器直连会被 CORS 拦截（Failed to fetch），亦不可行；
+//   - 本地/局域网部署时走相对路径 /ark（由 local-ark-proxy.py 转发，Key 在服务端不暴露）；
+//   - 静态托管（GitHub Pages 等）未配置可用代理时，优雅回退本地规则（离线原型定位，不报错）。
+// 因此 ARK_PROXY_URL 置空，交由 callArkAPI 按环境自动选择通道。
+const ARK_PROXY_URL = ''; // 留空：本地/LAN 自动走 /ark；静态托管回退本地规则
 const ARK_KEY_SALT = 'AI_FUND_SELECT_2026';
 // 由 encodeArkKey() 生成（XOR + Base64），仅防明文扫描，不构成真正安全；提交 git 前必须替换
 const ARK_KEY_ENCODED = 'REDACTED_REVOKED_KEY';
@@ -1387,7 +1392,8 @@ const ARK_SYSTEM_PROMPT = [
   '可用的风险因子（riskFactors）：VALUE价值、GROWTH成长、SIZE规模、MOMENTUM动量。',
   '',
   '输出JSON结构（filter中不需要的字段一律为null，industry为对象或null，keyword为数组或null）：',
-  '{"intentAnalysis":"对用户需求的通俗理解说明","conditions":[{"label":"筛选条件描述","type":"fundType|metric|fee|industry|factor|risk|keyword"}],"matchReason":"一句话说明为何这些基金匹配，尽量给出具体指标原因","filter":{"fundType":null,"volMax":null,"volMin":null,"sharpeMin":null,"maxDrawdownMax":null,"retMin":null,"maxFee":null,"valueMin":null,"growthMin":null,"industry":null,"keyword":null},"sortBy":"VOL|RETURNRATE|SHARP|MAX_DRAWDOWN|MANAGEMENT_FEE|VALUE|GROWTH|CI005011|CI005018"}',
+  '{"intentAnalysis":"对用户需求的通俗理解说明","conditions":[{"label":"筛选条件描述","type":"fundType|metric|fee|industry|factor|risk|keyword"}],"matchReason":"一句话说明为何这些基金匹配，尽量给出具体指标原因","filter":{"fundType":null,"volMax":null,"volMin":null,"sharpeMin":null,"maxDrawdownMax":null,"retMin":null,"maxFee":null,"valueMin":null,"growthMin":null,"industry":null,"keyword":null},"sortBy":"VOL|RETURNRATE|SHARP|MAX_DRAWDOWN|MANAGEMENT_FEE|VALUE|GROWTH|CI005011|CI005018","ai_probe":"__PROBE__"}',
+  '重要：JSON中必须包含 ai_probe 字段，其值必须是用户消息末尾【PROBE:xxx】括号内的原样字符串，一字不差地原样返回，不要改写、不要省略。这是用于验证模型真实性的校验码，省略或篡改都会导致结果被判为无效。',
   '',
   '翻译规则：',
   '1. "短线/短期/波段"：filter设置volMin约0.035、sharpeMin约1.0，sortBy为SHARP，matchReason要提到"波动率较高、夏普比率较高"。',
@@ -1541,20 +1547,29 @@ async function callArkAPI(text, riskProfile) {
   // 保证同一局域网内其他设备通过本机 IP / 主机名访问时 AI 也能生效
   const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|[A-Za-z0-9-]+\.local)$/.test(host);
   const proxyUrl = ARK_PROXY_URL || (isLocal ? '/ark' : '');
+  const trace = [];   // AI 思考过程记录
+  const ts = () => new Date().toLocaleTimeString('zh-CN', {hour12:false});
+  // 静态托管（GitHub Pages 等）无可用代理：浏览器无法直连方舟（CORS 拦截，实测 Failed to fetch），
+  // 优雅回退本地规则（离线原型定位），不报"网络/跨域失败"
   if (isStaticHost && !proxyUrl) {
-    // 静态托管（GitHub Pages 等）未配置代理时，浏览器无法直连方舟（CORS），直接回退本地规则
-    throw new Error('静态部署环境下未配置 ARK_PROXY_URL，已回退本地规则');
+    throw new Error('静态部署环境未配置可用代理，已回退本地规则（离线模式）');
   }
   const key = proxyUrl ? '' : decodeArkKey();
   if (!proxyUrl && !key) throw new Error('API Key 解码失败');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);   // 8s超时，保证响应速度（禁用推理后通常<4s）
+  // 12s 超时：方舟本身 3-4s，本地代理转发叠加网络延迟；宁可等足也不误杀（后台增强模式下用户已先看到结果）
+  const timer = setTimeout(() => controller.abort(), 12000);
   try {
     // 拼接客户三要素（PRD 7.1 要求），用于生成风险匹配约束
     const riskContext = riskProfile && riskProfile.riskPrefValue
       ? `\n【客户画像】年龄：${riskProfile.age}；风险偏好：${riskProfile.riskPref}(${riskProfile.riskPrefValue})；投资期限：${riskProfile.duration}。请结合客户风险承受能力（可承受最高风险等级 ${riskProfile.maxRiskLabel}），在翻译条件时注意不要筛选明显超出其风险承受能力的基金。`
       : '';
-    const resp = await fetch(proxyUrl || ARK_CHAT_URL, {
+    // 真 AI 校验探针：随机串，模型必须原样回传 ai_probe，前端据此确认是真实模型返回
+    const aiProbe = 'PROBE_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    const probeUserText = text + `\n【PROBE:${aiProbe}】`;
+    const target = proxyUrl || ARK_CHAT_URL;
+    trace.push({ t: ts(), step: '发起请求', detail: `POST ${target} · 模型 ${ARK_MODEL} · 推理模式关闭`, ok: true });
+    const resp = await fetch(target, {
       method: 'POST',
       headers: proxyUrl
         ? { 'Content-Type': 'application/json' }
@@ -1564,21 +1579,36 @@ async function callArkAPI(text, riskProfile) {
         model: ARK_MODEL,
         messages: [
           { role: 'system', content: ARK_SYSTEM_PROMPT + riskContext },
-          { role: 'user', content: text }
+          { role: 'user', content: probeUserText }
         ],
         temperature: 0.2,
-        // 禁用推理模式（reasoning），直接返回结果，保证响应速度
+        // 显式关闭推理模式（deepseek-v4-flash 默认可能走推理链路，意图识别轻任务无需推理，关闭后更快更稳）
         thinking: { type: 'disabled' },
         // 约束输出为 JSON 对象，降低格式漂移
         response_format: { type: 'json_object' }
       })
     });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) {
+      // 尝试读取上游错误详情（Worker 已透传 Ark 错误体）
+      let detail = '';
+      try { detail = (await resp.text()).slice(0, 300); } catch (e) {}
+      const errMsg = detail ? `HTTP ${resp.status}: ${detail}` : 'HTTP ' + resp.status;
+      trace.push({ t: ts(), step: '收到响应', detail: errMsg.slice(0, 150), ok: false });
+      throw new Error(errMsg);
+    }
+    trace.push({ t: ts(), step: '收到响应', detail: `HTTP ${resp.status} · ${((await resp.clone().text()).length/1024).toFixed(1)}KB`, ok: true });
     const data = await resp.json();
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (!content) throw new Error('模型返回为空');
     const json = parseJSON(content);
     if (!json) throw new Error('模型返回无法解析为JSON');
+    trace.push({ t: ts(), step: '解析 JSON', detail: '模型返回已解析为结构化筛选条件', ok: true });
+    // 真 AI 校验：返回的 ai_probe 必须与请求探针一致，否则判定为未走真实模型
+    if (!json.ai_probe || String(json.ai_probe).trim() !== aiProbe) {
+      trace.push({ t: ts(), step: '探针校验', detail: '探针不匹配，判定非真实模型', ok: false });
+      throw new Error('AI 探针校验失败（未走真实模型）');
+    }
+    trace.push({ t: ts(), step: '探针校验', detail: '探针匹配，确认为真实模型返回', ok: true });
     const SORT_ALIAS = {
       'RETURNRATE':'RETURNRATE','RETURN':'RETURNRATE','ret':'RETURNRATE','RET':'RETURNRATE','收益率':'RETURNRATE','收益':'RETURNRATE','综合评分':'RETURNRATE',
       'SHARP':'SHARP','sharpe':'SHARP','夏普':'SHARP',
@@ -1590,13 +1620,30 @@ async function callArkAPI(text, riskProfile) {
     };
     const rawSort = json.sortBy;
     const sortKey = (rawSort && typeof rawSort === 'string') ? SORT_ALIAS[rawSort.trim()] : null;
+    trace.push({ t: ts(), step: '生成筛选条件', detail: `筛选 ${(json.conditions||[]).length} 项 · 排序 ${sortKey||'RETURNRATE'}`, ok: true });
     return {
       intentAnalysis: filterForbiddenText(json.intentAnalysis || '我已理解您的投资需求，以下为根据投研数据筛选的结果。'),
       conditions: (Array.isArray(json.conditions) && json.conditions.length) ? json.conditions : [{label:'风险等级匹配',type:'risk'}],
       matchReason: filterForbiddenText(json.matchReason || '根据您的描述，以下基金符合筛选条件。'),
       filterFn: buildFilterFromJSON(json.filter),
-      sortBy: sortKey || 'RETURNRATE'   // 默认按收益率降序
+      sortBy: sortKey || 'RETURNRATE',   // 默认按收益率降序
+      aiVerified: true,                    // 探针校验通过，确认是真实模型返回
+      aiTrace: trace,                      // 思考过程（供前端展示）
+      aiChannel: proxyUrl ? 'proxy' : 'direct'   // 实际通道：本地代理 or 直连
     };
+  } catch (e) {
+    // 错误分类：CORS / 超时 / 网络 / 上游错误，转成可读原因
+    let readable = String((e && e.message) || e);
+    if (e && e.name === 'AbortError') readable = '请求超时(>12s)，代理或模型响应过慢，可稍后重试';
+    else if (/Failed to fetch|NetworkError|Network request failed|load failed/i.test(readable)) {
+      readable = '网络/跨域失败：无法连接 AI 代理(' + (proxyUrl || ARK_CHAT_URL) + ')。请检查代理是否在线或 CORS 配置';
+    } else if (/Unexpected token|JSON|parse/i.test(readable)) {
+      readable = '模型返回格式异常：' + readable;
+    }
+    trace.push({ t: ts(), step: '失败', detail: readable, ok: false });
+    const err = new Error(readable);
+    err.aiTrace = trace;
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -1675,8 +1722,13 @@ createApp({
       matchReason: '',
       filterFn: null,
       sortBy: null,
-      modeLabel: ''
+      modeLabel: '',
+      aiStatus: '',          // AI 当前状态：thinking / done / failed
+      aiError: '',           // AI 失败原因（供展示）
+      aiTrace: [],           // AI 思考过程步骤 [{t:'时间', step:'步骤名', detail:'内容', ok:true/false}]
+      aiChannel: ''          // 实际通道：proxy(本地代理) / direct(直连) / local(本地规则)
     });
+    const aiTraceOpen = ref(false);   // AI 思考过程展开/收起
 
     const sortOptions = [
       {key:'match', label:'默认排序'},
@@ -1785,15 +1837,85 @@ createApp({
       return result;
     }
 
+    // 判断本地规则是否"高置信命中"（preset 精确/部分命中）：是则可秒开，AI 后台增强
+    function localHighConfidence(text) {
+      if (PRESET_RESPONSES[text]) return true;
+      for (const key of Object.keys(PRESET_RESPONSES)) {
+        if (text.includes(key) || key.includes(text)) return true;
+      }
+      return false;
+    }
+
+    function applyResult(result, text, modeLabel, recordHistory, opts) {
+      opts = opts || {};
+      aiResult.intentAnalysis = result.intentAnalysis;
+      aiResult.conditions = result.conditions;
+      aiResult.matchReason = result.matchReason;
+      aiResult.filterFn = result.filterFn;
+      aiResult.sortBy = result.sortBy;
+      aiResult.modeLabel = modeLabel;
+      aiResult.aiStatus = opts.status || (modeLabel.startsWith('AI') ? 'done' : 'local');
+      aiResult.aiError = opts.error || '';
+      aiResult.aiTrace = opts.trace || result.aiTrace || [];
+      aiResult.aiChannel = result.aiChannel || 'local';
+      sortBy.value = 'match';
+      pageNum.value = 1;
+      if (recordHistory) {
+        const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
+        historyList.value.unshift({ query: text, time: new Date().toLocaleString('zh-CN'), count: filtered.length });
+      }
+      currentPage.value = 'results';
+      nextTick(() => { renderMiniPies(); });
+    }
+
     async function processAIIntent(text) {
-      // 优先调用真实大模型，失败时回退本地规则并标注当前模式
+      // 本地高置信命中时：先用本地结果"秒开"页面，同时后台并行调 AI（探针通过再无缝替换为真AI）
+      if (localHighConfidence(text)) {
+        const local = localIntent(text);
+        // 立即出结果（本地规则模式），保证体验不等待；AI 后台增强中
+        applyResult(local, text, '本地规则模式', true, { status: 'enhancing' });
+        // 后台 AI 增强：成功且探针通过则替换；失败记录原因，保留本地结果
+        try {
+          const ai = await callArkAPI(text, riskProfile);
+          if (ai && ai.aiVerified) {
+            const cnt = ai.filterFn ? ai.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0;
+            if (cnt > 0) {
+              aiResult.intentAnalysis = ai.intentAnalysis;
+              aiResult.conditions = ai.conditions;
+              aiResult.matchReason = ai.matchReason;
+              aiResult.filterFn = ai.filterFn;
+              aiResult.sortBy = ai.sortBy;
+              aiResult.aiTrace = ai.aiTrace || [];
+              aiResult.aiStatus = 'done';
+              aiResult.aiError = '';
+              aiResult.aiChannel = ai.aiChannel || 'direct';
+              aiResult.modeLabel = ai.aiChannel === 'proxy' ? 'AI·本地代理✓' : 'AI·直连模式✓';
+              nextTick(() => { renderMiniPies(); });
+            }
+          }
+        } catch (e) {
+          console.warn('[AI] 后台增强失败，保留本地结果：', e);
+          aiResult.aiStatus = 'failed';
+          aiResult.aiError = String((e && e.message) || e);
+          aiResult.aiTrace = (e && e.aiTrace) || [];
+          // 保留本地结果，但明确标注 AI 增强失败原因
+          aiResult.modeLabel = '本地规则模式(AI增强失败)';
+        }
+        return;
+      }
+
+      // 非高置信：等 AI（探针通过即真AI），失败才回退本地
       let result = null;
       let aiModeUsed = false;
       let fellBack = false;
+      let aiErr = '';
+      let aiTraceErr = [];
       try {
         result = await callArkAPI(text, riskProfile);
         aiModeUsed = true;
       } catch (e) {
+        aiErr = String((e && e.message) || e);
+        aiTraceErr = (e && e.aiTrace) || [];
         console.warn('[AI] 模型调用失败，回退本地规则：', e);
       }
       if (!result) { result = localIntent(text); fellBack = true; }
@@ -1808,28 +1930,14 @@ createApp({
         }
       }
 
-      aiResult.intentAnalysis = result.intentAnalysis;
-      aiResult.conditions = result.conditions;
-      aiResult.matchReason = result.matchReason;
-      aiResult.filterFn = result.filterFn;
-      aiResult.sortBy = result.sortBy;
-      aiResult.modeLabel = aiModeUsed
-        ? (fellBack ? 'AI·直连模式(结果空·已用本地规则)' : (ARK_PROXY_URL ? 'AI·代理模式' : 'AI·直连模式'))
-        : '本地规则模式';
-      sortBy.value = 'match';
-      pageNum.value = 1;
-
-      // Save to history
-      const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
-      historyList.value.unshift({
-        query: text,
-        time: new Date().toLocaleString('zh-CN'),
-        count: filtered.length
-      });
-
-      currentPage.value = 'results';
-      nextTick(() => {
-        renderMiniPies();
+      const realAI = !!(aiModeUsed && result.aiVerified && !fellBack);
+      const modeLabel = realAI
+        ? (aiResult.aiChannel === 'proxy' ? 'AI·本地代理✓' : 'AI·直连模式✓')
+        : (aiModeUsed ? (fellBack ? '本地规则模式(已回退)' : '本地规则模式(校验未过)') : '本地规则模式');
+      applyResult(result, text, modeLabel, true, {
+        status: realAI ? 'done' : (fellBack ? 'failed' : 'local'),
+        error: aiErr,
+        trace: aiTraceErr
       });
     }
 
@@ -1888,55 +1996,20 @@ createApp({
       nextTick(() => renderMiniPies());
     }
     function goHistory() { currentPage.value = 'history'; }
-    // 详情页持仓：缺失时运行时经东方财富(F10)补全（数据同妙想MCP，浏览器端按需查询）
-    const holdingsLoading = ref(false);
+    // 详情页持仓：离线数据（fund-pool-detail.js 静态加载），无实时请求
     const holdingsSrc = ref('');
-    async function fillHoldingsFromEastmoney(fund) {
-      const code = String(fund.fundCode || '').replace(/\.OF$/, '').replace(/\.(SH|SZ)$/, '');
-      if (!code) return;
-      holdingsLoading.value = true;
-      holdingsSrc.value = '';
-      try {
-        const url = `https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=jjcc&code=${code}&topline=10`;
-        const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const txt = await res.text();
-        const m = txt.match(/content:\s*"([\s\S]*?)"/);
-        if (!m) return;
-        const html = m[1].replace(/\\"/g, '"').replace(/\\r|\\n|\\t/g, '');
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const rows = [...doc.querySelectorAll('tr')].slice(1, 11);
-        const holdings = [];
-        rows.forEach(tr => {
-          const tds = tr.querySelectorAll('td');
-          if (tds.length >= 4) {
-            const name = tds[2].textContent.trim();
-            const w = parseFloat(tds[3].textContent.replace('%', ''));
-            const c = tds[1].textContent.trim();
-            if (name && !isNaN(w)) holdings.push({ stockName: name, stockCode: c, weight: w / 100 });
-          }
-        });
-        if (holdings.length) {
-          selectedFundDetail.value = { ...selectedFundDetail.value, topHoldings: holdings };
-          holdingsSrc.value = '东方财富';
-        }
-      } catch (e) {
-        console.warn('[东财] 持仓补全失败(CORS/网络):', e);
-      } finally {
-        holdingsLoading.value = false;
-      }
-    }
     async function goDetail(fund) {
       selectedFund.value = fund;
       selectedFundDetail.value = { valuation:{}, riskFactors:{}, topHoldings:[] };
       currentPage.value = 'detail';
-      // 按需加载详情字段（估值/风险因子/重仓股）
+      // 直接读取离线 detail 数据（页面打开时已静态加载，无需等待）
       let detail = { valuation:{}, riskFactors:{}, topHoldings:[] };
       try {
         const pool = await loadFundDetailData();
         detail = pool[fund.fundCode] || detail;
         normalizeFund(detail);
       } catch (e) {
-        console.warn('[detail] 详情数据加载失败，使用基础数据兜底:', e);
+        console.warn('[detail] 详情数据读取失败，使用基础数据兜底:', e);
       }
       selectedFundDetail.value = detail;
       holdingsSrc.value = (detail.topHoldings && detail.topHoldings.length) ? '研究所投研' : '';
@@ -1945,9 +2018,6 @@ createApp({
         renderRiskBar();
         renderIndustryPie();
       });
-      if (!detail.topHoldings || !detail.topHoldings.length) {
-        fillHoldingsFromEastmoney(fund);
-      }
     }
     function replayHistory(item) {
       searchText.value = item.query;
@@ -2324,7 +2394,7 @@ createApp({
 
     return {
       currentPage, searchText, lastQuery, selectedFund, selectedFundDetail, pickerOpen, pickerType,
-      profileUpdated, riskProfile, quickTags, aiResult,
+      profileUpdated, riskProfile, quickTags, aiResult, aiTraceOpen,
       sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
       pagedFunds, pageSize, pageNum, totalPages, changePage,
       riskBarPercent, riskColor, pickerTitle, pickerOptions,
@@ -2332,7 +2402,7 @@ createApp({
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
-      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsLoading, holdingsSrc, isHighRiskFund, holdingMarket,
+      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsSrc, isHighRiskFund, holdingMarket,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       openKYC, selectKYCAnswer, closeKYC
     };
