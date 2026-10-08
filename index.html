@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261008b"></script>
+<script src="https://cdn.tailwindcss.com?v=20261008c"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261008b" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261008b" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261008c" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261008c" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -567,7 +567,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，展示数据为模拟脱敏数据，仅供功能演示与参考。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008b · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008c · 离线智能选基</div>
   </div>
 </div>
 
@@ -897,9 +897,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261008b" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261008b" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
-<script src="nav-cache.js?v=20261008b" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261008c" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261008c" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261008c" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1009,6 +1009,37 @@ function normalizeFund(fd) {
   MOCK_FUNDS.forEach(normalizeFund);
 })();
 
+// ============ 持仓索引（主题"成分股持有"兜底口径用） ============
+// 详情数据 window.FUND_POOL_DETAIL 形如 { "002351.OF": { topHoldings:[{stockCode,stockName,weight}] } }
+// 建立"基金 → 持有股票名集合"，供主题第三级兜底（如钢铁→持有宝钢股份）快速判定。
+const HOLDINGS_INDEX = (function buildHoldingsIndex() {
+  const idx = {};
+  const det = window.FUND_POOL_DETAIL || {};
+  for (const code in det) {
+    const hs = (det[code] && det[code].topHoldings) || [];
+    const set = new Set();
+    for (const h of hs) { if (h && h.stockName) set.add(h.stockName); }
+    idx[code] = set;
+  }
+  return idx;
+})();
+// 判定某基金是否持有给定主题的任一成分股（名称口径：前十大重仓股名精确匹配）
+function fundHoldsThemeStock(fund, themeStocks) {
+  if (!fund || !themeStocks || !themeStocks.length) return false;
+  const code = fund.fundCode;
+  const set = HOLDINGS_INDEX[code];
+  if (!set) return false;
+  for (const s of themeStocks) { if (set.has(s)) return true; }
+  return false;
+}
+// 取某基金持有的、属于该主题的全部成分股（供话术说明与标签展示）
+function themeStocksHeldBy(fund, themeStocks) {
+  if (!fund || !themeStocks || !themeStocks.length) return [];
+  const set = HOLDINGS_INDEX[fund.fundCode];
+  if (!set) return [];
+  return themeStocks.filter(s => set.has(s));
+}
+
 
 // ============ AI INTENT RECOGNITION ============
 const PRESET_RESPONSES = {
@@ -1037,14 +1068,16 @@ const PRESET_RESPONSES = {
     sortBy: 'MANAGEMENT_FEE'
   },
   '重仓新能源的基金': {
-    intentAnalysis: '您希望找重仓新能源的基金，我将为您筛选行业配置中电力设备及新能源（CI005011）占比超过10%的基金，并展示其行业集中度。',
+    intentAnalysis: '您希望找重仓新能源的基金，我将为您筛选行业配置中电力设备及新能源（CI005011）占比超过25%的权益类基金，并展示其行业集中度。',
     conditions: [
       {label:'重仓新能源',type:'industry'},
-      {label:'CI005011>10%',type:'industry'},
-      {label:'行业集中度高',type:'metric'}
+      {label:'CI005011>25%',type:'industry'},
+      {label:'权益类（已剔除债基）',type:'fundType'}
     ],
     matchReason: '您想找"重仓新能源的基金"，以下基金在电力设备及新能源行业配置比例较高，可关注行业集中度带来的风险与机会。',
-    filterFn: (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005011'] || 0) > 0.10 && f.riskLevelNum <= maxRisk),
+    // 行业权重仅在权益类标的上有效：industryConfig 按股票仓位归一化，债券基金股票仓位极小，
+    // 行业权重会被放大成"重仓新能源"，属于口径污染，必须剔除。
+    filterFn: (funds, maxRisk) => funds.filter(f => !/债券|货基|货币|短债|纯债|固收|FOF/.test(f.fundTypeTag || '') && (f.industryConfig['CI005011'] || 0) > 0.25 && f.riskLevelNum <= maxRisk),
     sortBy: 'CI005011'
   },
   '回撤小、收益还不错的基金': {
@@ -1588,11 +1621,16 @@ createApp({
       {words:['AI','人工智能','算力','大模型','机器学习','AI应用','AI+'], intent:'theme_ai'},
       {words:['新能源','光伏','风电','储能','锂电','电池','电动车','新能源车','充电桩','锂电池'], intent:'theme_ne'},
       {words:['医药','医疗','创新药','生物医药','生物科技','疫苗','mRNA','CXO','医疗器械','中药','药店','医疗服务','眼科','口腔','医美'], intent:'theme_med'},
-      {words:['半导体','芯片','集成电路','晶圆','光刻','半导体设备','半导体材料','封测','存储芯片','国产芯片'], intent:'theme_semi'},
-      {words:['光模块','光通信','光器件','光模块','CPO','硅光'], intent:'theme_optical'},
-      {words:['消费','白酒','食品饮料','酒','家电','免税','零食','饮料','啤酒','乳制品','调味品','消费电子'], intent:'theme_cons'},
+      {words:['半导体','芯片','集成电路','晶圆','光刻','半导体设备','半导体材料','封测','国产芯片','第三代半导体','碳化硅','EDA','光刻胶','PCB','线路板','印制电路','电路板','覆铜板','存储','存储芯片','闪存','DRAM','NAND','内存','先进封装','玻璃基板','TGV','载板','MLCC','被动元件','电容','电感','消费电子'], intent:'theme_semi'},
+      {words:['光模块','光通信','光器件','CPO','硅光','光芯片','800G','1.6T'], intent:'theme_optical'},
+      {words:['消费','白酒','食品饮料','酒','免税','零食','饮料','啤酒','乳制品','调味品','消费电子'], intent:'theme_cons'},
+      {words:['家电','家用电器'], intent:'theme_appliance'},
       {words:['军工','国防','航天','航空发动机','导弹','军工电子'], intent:'theme_mil'},
-      {words:['金融','银行','券商','保险','证券','互联网金融','数字货币'], intent:'theme_fin'},
+      // 金融细分：银行/券商/保险独立成主题，避免"重仓银行"与"重仓券商"返回同一批基金
+      {words:['金融','大金融','互联网金融','数字货币','金融科技'], intent:'theme_fin'},
+      {words:['银行','银行股','国有大行','城商行'], intent:'theme_bank'},
+      {words:['券商','证券','证券公司','非银','非银金融'], intent:'theme_broker'},
+      {words:['保险','保险股'], intent:'theme_insur'},
       {words:['地产','房地产','物业','保障房'], intent:'theme_re'},
       {words:['科技','电子','计算机','软件','通信','互联网','TMT','数字经济','信息技术'], intent:'theme_tech'},
       {words:['传媒','游戏','影视','内容','元宇宙','直播','短视频'], intent:'theme_media'},
@@ -1618,7 +1656,7 @@ createApp({
       {words:['智能驾驶','自动驾驶','车联网','无人驾驶','智能汽车'], intent:'theme_autopilot'},
       {words:['教育','职业教育','在线教育','K12'], intent:'theme_edu'},
       {words:['旅游','酒店','餐饮','出行','免税旅游'], intent:'theme_travel'},
-      {words:['石油','原油','油气','油服','页岩油'], intent:'theme_oil'},
+      {words:['石油','原油','油气','油服','页岩油','石化'], intent:'theme_oil'},
       // ---- 风格/市值 ----
       {words:['价值','价值投资','低估值','低估','蓝筹','白马','大盘价值'], intent:'style_value'},
       {words:['成长','成长性','高成长','成长风格','科技成长'], intent:'style_growth'},
@@ -1696,78 +1734,91 @@ createApp({
       return words.some(w => text.includes(w) && !(exclude && text.includes(exclude)));
     }
 
-    // 主题 → 行业代码映射
-    const THEME_INDUSTRY = {
-      theme_ai:['CI005025','CI005026','CI005027'],
-      theme_ne:['CI005011'],
-      theme_med:['CI005018'],
-      theme_semi:['CI005025'],
-      theme_optical:['CI005025','CI005026'],
-      theme_cons:['CI005019'],
-      theme_mil:['CI005012'],
-      theme_fin:['CI005021','CI005022'],
-      theme_re:['CI005023'],
-      theme_tech:['CI005025','CI005026','CI005027'],
-      theme_media:['CI005028'],
-      theme_res:['CI005003'],
-      theme_coal:['CI005002'],
-      theme_chem:['CI005006'],
-      theme_auto:['CI005013'],
-      theme_mach:['CI005010'],
-      theme_agri:['CI005020'],
-      theme_soe:['CI005021','CI005001','CI005004','CI005002','CI005024'],
-      theme_env:['CI005004','CI005006'],
-      theme_power:['CI005004'],
-      theme_steel:['CI005005'],
-      theme_buildm:['CI005008'],
-      theme_construct:['CI005007'],
-      theme_trans:['CI005024'],
-      theme_cloud:['CI005025','CI005026','CI005027'],
-      theme_robot:['CI005010','CI005025'],
-      theme_lowalt:['CI005012','CI005013','CI005010'],
-      theme_hydro:['CI005011','CI005004'],
-      theme_nuclear:['CI005011','CI005004'],
-      theme_autopilot:['CI005013','CI005025'],
-      theme_edu:['CI005014','CI005015'],
-      theme_travel:['CI005015','CI005014'],
-      theme_oil:['CI005001']
+    // ===== 主题权威定义表 =====
+    // 每个主题统一具备：label 中文名（用于条件标签）、ind 行业代码（兜底）、kw 名称关键词（主口径）
+    // 口径优先级：名称关键词命中 → 行业权重兜底（要求"主行业命中 + 占比≥35%"，且限定权益类标的）
+    // 设计原则：kw 只放"精准赛道词"，不放"电子/科技/信息/智能"等泛行业词——泛词会命中半个基金池，失去区分度。
+    const THEME_DEF = {
+      theme_ai:        { label:'人工智能',   kw:['人工智能','AI','算力','大模型'], ind:['CI005025','CI005026','CI005027'] },
+      theme_ne:        { label:'新能源',     kw:['新能源','光伏','风电','储能','锂电','电池','低碳','充电','电动车'], ind:['CI005011'] },
+      theme_med:       { label:'医药',       kw:['医药','医疗','创新药','生物','疫苗','中药','医美','器械','CXO'], ind:['CI005018'] },
+      theme_semi:      { label:'半导体/电子', kw:['半导体','芯片','集成电路','封测','存储','PCB','封装','光刻','晶圆','EDA'], ind:['CI005025'] },
+      theme_optical:   { label:'光模块/通信', kw:['光模块','光通信','光器件','CPO','硅光','光芯片','通信','5G'], ind:['CI005025','CI005026'] },
+      theme_cons:      { label:'消费',       kw:['消费','白酒','食品','饮料','乳业','啤酒','免税'], ind:['CI005019'] },
+      theme_appliance: { label:'家电',       kw:['家电','家用电器'], ind:['CI005016'],
+        stk:['美的集团','格力电器','海尔智家','海信家电','苏泊尔','九阳股份','老板电器','石头科技','科沃斯','三花智控','盾安环境'] },
+      theme_mil:       { label:'军工',       kw:['军工','国防','航天','航空'], ind:['CI005012'],
+        stk:['中航沈飞','中航成飞','航发动力','中航光电','中航机载','中航重机','中国船舶','中船防务','中国卫星','中国卫通','振华科技','国睿科技','国博电子','航天电器','航天电子','中航西飞','光威复材','广联航空','航宇科技','应流股份'] },
+      theme_fin:       { label:'大金融',     kw:['金融'], ind:['CI005021','CI005022'],
+        stk:['招商银行','工商银行','建设银行','中国平安','中信证券','东方财富','兴业银行','农业银行','中国银行','交通银行','宁波银行','江苏银行','成都银行','杭州银行','中国太保','新华保险','中国人寿'] },
+      theme_bank:      { label:'银行',       kw:['银行'], ind:['CI005021'],
+        stk:['招商银行','工商银行','建设银行','兴业银行','农业银行','中国银行','交通银行','宁波银行','江苏银行','成都银行','杭州银行','南京银行','上海银行','长沙银行','齐鲁银行','光大银行','民生银行','中信银行','平安银行','渝农商行','沪农商行'] },
+      theme_broker:    { label:'证券/非银',   kw:['证券','券商'], ind:['CI005022'],
+        stk:['中信证券','东方财富','华泰证券','招商证券','国泰海通','广发证券','申万宏源','中国银河','中信建投','东方证券','兴业证券','财通证券','中泰证券','中金公司','东兴证券','同花顺','国金证券','长江证券'] },
+      theme_insur:     { label:'保险',       kw:['保险'], ind:['CI005022'],
+        stk:['中国平安','中国人寿','中国太保','新华保险','中国人保','中国财险','中国人民保险集团'] },
+      theme_re:        { label:'地产',       kw:['地产','房地产'], ind:['CI005023'],
+        stk:['保利发展','万科A','招商蛇口','金地集团','新城控股','龙湖集团','华润置地','绿城中国','滨江集团','越秀地产','华发股份','中国海外发展'] },
+      theme_tech:      { label:'科技',       kw:['科技','软件','计算机','TMT','信息','数字','互联网'], ind:['CI005026','CI005027'] },
+      theme_media:     { label:'传媒',       kw:['传媒','游戏','影视','文化','娱乐'], ind:['CI005028'],
+        stk:['分众传媒','芒果超媒','三七互娱','完美世界','光线传媒','华策影视','蓝色光标','昆仑万维','世纪华通','巨人网络','吉比特','阅文集团','哔哩哔哩-W','腾讯控股','快手-W'] },
+      theme_res:       { label:'有色/贵金属', kw:['有色','黄金','贵金属','稀土','稀有'], ind:['CI005003'],
+        stk:['紫金矿业','山东黄金','中金黄金','赤峰黄金','洛阳钼业','北方稀土','中国稀土','盛和资源','云铝股份','中国铝业','天山铝业','华友钴业','湖南黄金','四川黄金','灵宝黄金','招金黄金','西部矿业','铜陵有色','中国宏桥'] },
+      theme_coal:      { label:'煤炭',       kw:['煤炭','动力煤','焦煤'], ind:['CI005002'],
+        stk:['中国神华','陕西煤业','中煤能源','兖矿能源','山西焦煤','潞安环能','淮北矿业','晋控煤业','山煤国际','平煤股份','冀中能源','广汇能源','电投能源','昊华能源','郑州煤电','兰花科创','恒源煤电','上海能源','永泰能源','新集能源','宝丰能源','盘江股份','大有能源'] },
+      theme_chem:      { label:'化工',       kw:['化工','新材料','化学'], ind:['CI005006'],
+        stk:['万华化学','华鲁恒升','恒力石化','荣盛石化','恒逸石化','桐昆股份','新和成','扬农化工','龙佰集团','巨化股份','三美股份','昊华科技','云天化','兴发集团','新宙邦','天赐材料','多氟多','三祥新材','三维化学','东方盛虹','卫星化学','金发科技','中化化肥','新乡化纤','江山股份','皇马科技','汇得科技','浙江龙盛','安迪苏','华峰化学','云图控股','湖北宜化','鲁西化工'] },
+      theme_auto:      { label:'汽车',       kw:['汽车','新能源车','整车'], ind:['CI005013'],
+        stk:['比亚迪','长城汽车','长安汽车','上汽集团','广汽集团','赛力斯','星宇股份','新泉股份','浙江荣泰','拓普集团','伯特利','继峰股份','福耀玻璃','均胜电子','潍柴动力','中国重汽','宇通客车'] },
+      theme_mach:      { label:'高端制造',   kw:['高端制造','制造','机械','装备','母机'], ind:['CI005010'],
+        stk:['三一重工','徐工机械','恒立液压','汇川技术','先导智能','迈为股份','晶盛机电','杭氧股份','杰瑞股份','豪迈科技','应流股份','绿的谐波','华中数控','科德数控','海天精工','创世纪','大族激光','锐科激光','柏楚电子','华曙高科'] },
+      theme_agri:      { label:'农业',       kw:['农业','农牧','养殖'], ind:['CI005020'],
+        stk:['牧原股份','温氏股份','海大集团','安琪酵母','双汇发展','立华股份','生物股份','隆平高科','大北农','登海种业','荃银高科','圣农发展','益生股份','民和股份','中宠股份','中牧股份','普莱柯','科前生物','巨星农牧','唐人神','新五丰','天邦食品','傲农生物','金新农','亚钾国际','云图控股','盐湖股份','藏格矿业','北大荒','苏垦农发','新希望','丰乐种业','万向德农','天马科技','粤海饲料'] },
+      theme_soe:       { label:'中特估/央企', kw:['央企','国企','国资','中字头','国新','红利低波'], ind:['CI005021','CI005001','CI005004','CI005002','CI005024'],
+        stk:['中国移动','中国神华','中国海油','中国石油','中国建筑','中国中铁','中国铁建','中国交建','中国电建','中国核电','长江电力','中国电信','中国联通','中国铝业','中远海控','中国中车','中海油服'] },
+      theme_env:       { label:'环保/碳中和', kw:['环保','碳中和','节能','低碳','绿电','ESG'], ind:['CI005004','CI005006'],
+        stk:['伟明环保','瀚蓝环境','洪城环境','汇绿生态','高能环境','盈峰环境','玉禾田','侨银股份','首创环保','上海环境','兴蓉环境','中山公用'] },
+      theme_power:     { label:'电力/公用事业', kw:['电力','公用事业','水电','火电','绿电','电网'], ind:['CI005004'],
+        stk:['长江电力','国电南瑞','中国核电','三峡能源','国投电力','华能水电','川投能源','申能股份','浙能电力','皖能电力','粤电力A','大唐发电','华电国际','思源电气','平高电气','许继电气','四方股份','金盘科技'] },
+      theme_steel:     { label:'钢铁',       kw:['钢铁','特钢'], ind:['CI005005'],
+        stk:['宝钢股份','包钢股份','华菱钢铁','南钢股份','中信特钢','久立特材','永兴材料','新兴铸管','杭钢股份','大中矿业','方大特钢','新钢股份','马钢股份','首钢股份','太钢不锈','柳钢股份','三钢闽光','鞍钢股份','山东钢铁','八一钢铁','重庆钢铁','甬金股份','抚顺特钢','贵绳股份','酒钢宏兴','玉龙股份','河钢股份','安阳钢铁','沙钢股份','韶钢松山','本钢板材','凌钢股份','西宁特钢'] },
+      theme_buildm:    { label:'建材',       kw:['建材','水泥','玻璃','基建材料'], ind:['CI005008'],
+        stk:['海螺水泥','北新建材','东方雨虹','中国巨石','中材科技','旗滨集团','信义玻璃','塔牌集团','上峰材料','国际复材','宏和科技','山东玻纤','金晶科技','南玻A','伟星新材','坚朗五金','冀东水泥','华新水泥','天山股份','宁夏建材','祁连山','兔宝宝','洛阳玻璃','福莱特','三棵树','蒙娜丽莎','东鹏控股'] },
+      theme_construct: { label:'建筑/基建',   kw:['基建','建筑','建筑工程','一带一路'], ind:['CI005007'],
+        stk:['中国建筑','中国中铁','中国铁建','中国交建','中国电建','中国能建','安徽建工','亚翔集成','深桑达A','上海建工','隧道股份','北方国际','中材国际','中国化学','中国中冶','中国核建','中国海诚','龙元建设','宏润建设','浙江交科','山东路桥','四川路桥','北新路桥'] },
+      theme_trans:     { label:'交通运输',   kw:['物流','港口','航运','机场','快递','交运','铁路'], ind:['CI005024'],
+        stk:['中远海控','招商轮船','顺丰控股','中国国航','南方航空','中国东航','春秋航空','吉祥航空','大秦铁路','招商公路','山东高速','中谷物流','中远海能','太平洋航运','海通发展','满帮','中通快递-W','广深铁路','铁龙物流','韵达股份','圆通速递','京沪高铁','招商南油','渤海租赁','中国外运','宁波港','上港集团','青岛港','唐山港','日照港','粤高速A','宁沪高速','皖通高速','四川成渝','深高速'] },
+      theme_cloud:     { label:'云计算/信创', kw:['云计算','大数据','信创','数据中心','服务器'], ind:['CI005027','CI005026'],
+        stk:['浪潮信息','中科曙光','紫光股份','深信服','金山办公','用友网络','达梦数据','太极股份','润和软件','软通动力','拓维信息','神州数码','中国软件','东方国信'] },
+      theme_robot:     { label:'机器人',     kw:['机器人','工业母机'], ind:['CI005010'],
+        stk:['汇川技术','绿的谐波','埃斯顿','华中数控','机器人','拓斯达','双环传动','三花智控','鸣志电器','禾川科技','雷赛智能','兆威机电','中大力德','国茂股份'] },
+      theme_lowalt:    { label:'低空经济',   kw:['无人机','低空','eVTOL'], ind:['CI005012','CI005013','CI005010'],
+        stk:['中信海直','万丰奥威','宗申动力','山河智能','广联航空','航天电子','莱斯信息','深城交','纳睿雷达','观典防务','铂力特','光启技术','纵横股份'] },
+      theme_hydro:     { label:'氢能',       kw:['氢能','燃料电池'], ind:['CI005011','CI005004'],
+        stk:['亿华通','美锦能源','雪人股份','雄韬股份','大洋电机','潍柴动力','东方电气','阳光电源','厚普股份','冰轮环境','京城股份','富瑞特装'] },
+      theme_nuclear:   { label:'核电',       kw:['核电','核能'], ind:['CI005011','CI005004'],
+        stk:['中国核电','中国广核','上海电气','东方电气','江苏神通','中核科技','佳电股份','兰石重装','应流股份','久立特材','纽威股份'] },
+      theme_autopilot: { label:'智能驾驶',   kw:['智能驾驶','自动驾驶','车联网','无人驾驶'], ind:['CI005013'] },
+      theme_edu:       { label:'教育',       kw:['教育','学校','职教'], ind:['CI005014','CI005015'],
+        stk:['中公教育','学大教育','豆神教育','科德教育','开元教育','昂立教育','行动教育','视源股份','科大讯飞','中教控股','天立国际控股','思考乐教育','新东方','好未来','国新文化','佳发教育','竞业达','中汇集团'] },
+      theme_travel:    { label:'旅游/消费服务', kw:['旅游','酒店','餐饮','出行'], ind:['CI005015','CI005014'],
+        stk:['中国中免','宋城演艺','锦江酒店','首旅酒店','华住集团-S','百胜中国','海底捞','同程旅行','峨眉山A','黄山旅游','丽江股份','天目湖','中青旅','众信旅游','君亭酒店','金陵饭店','西安旅游','曲江文旅','携程','九毛九','颐海国际','广州酒家'] },
+      theme_oil:       { label:'石油石化',   kw:['石油','原油','油气'], ind:['CI005001'],
+        stk:['中国石油','中国海油','中国石化','中国石油化工股份','埃克森美孚','雪佛龙','恒力石化','荣盛石化','恒逸石化','桐昆股份','东方盛虹','新奥股份','广汇能源','九丰能源','新天然气','蓝焰控股','首华燃气','中国海洋石油','中海油服','海油工程','杰瑞股份','石化机械','昆仑能源','上海石化'] }
     };
-    // 主题 → 基金名称关键词
-    const THEME_NAME_KW = {
-      theme_ai:['AI','人工智能','算力','智能','大数据','云计算'],
-      theme_ne:['新能源','光伏','风电','储能','锂电','电池','低碳','充电'],
-      theme_med:['医药','医疗','创新药','生物','疫苗','健康','中药','医美','器械'],
-      theme_semi:['半导体','芯片','集成电路','电子','信息','科创','封测'],
-      theme_optical:['光','通信','5G','信息','互联'],
-      theme_cons:['消费','白酒','食品','饮料','家电','龙头','乳业','啤酒'],
-      theme_mil:['军工','国防','航天','航空'],
-      theme_fin:['金融','银行','证券','保险','非银','券商'],
-      theme_re:['地产','房地产'],
-      theme_tech:['科技','电子','计算机','软件','通信','互联网','TMT','信息','数字'],
-      theme_media:['传媒','游戏','影视','文化','娱乐'],
-      theme_res:['有色','黄金','贵金属','资源','商品'],
-      theme_coal:['煤炭','动力煤','焦煤'],
-      theme_chem:['化工','新材料','材料','化学'],
-      theme_auto:['汽车','新能源车','智能汽车','整车'],
-      theme_mach:['高端制造','制造','机械','工业','装备'],
-      theme_agri:['农业','农牧','养殖','消费'],
-      theme_soe:['央企','国企','国资','中字头','国新','红利低波'],
-      theme_env:['环保','碳中和','节能','低碳','绿电','ESG'],
-      theme_power:['电力','公用事业','水电','火电','绿电','电网'],
-      theme_steel:['钢铁','特钢'],
-      theme_buildm:['建材','水泥','玻璃','基建材料'],
-      theme_construct:['基建','建筑','建筑工程','一带一路'],
-      theme_trans:['物流','港口','航运','航空','机场','快递','交运','铁路'],
-      theme_cloud:['云计算','大数据','数据中心','信创','国产','服务器','算力','AI'],
-      theme_robot:['机器人','智能装备','工业母机','智能制造'],
-      theme_lowalt:['无人机','低空','航空','航天'],
-      theme_hydro:['氢能','燃料电池'],
-      theme_nuclear:['核电','核能'],
-      theme_autopilot:['智能驾驶','自动驾驶','车联网','智能汽车'],
-      theme_edu:['教育','学校','职教'],
-      theme_travel:['旅游','酒店','餐饮','出行'],
-      theme_oil:['石油','原油','油气','能源','资源']
-    };
+
+    // 主题 → 基金名称关键词（派生，保持向后兼容）
+    const THEME_NAME_KW = {};
+    // 主题 → 行业代码映射（派生，保持向后兼容）
+    const THEME_INDUSTRY = {};
+    // 主题 → 成分股名称（第三级兜底口径：主题无同名基金、也无行业重仓基金时，
+    // 放宽为"持有该主题任一成分股即可"，避免"搜钢铁返回债基/无关基金"式答非所问）
+    const THEME_STOCKS = {};
+    for (const t in THEME_DEF) {
+      THEME_NAME_KW[t] = THEME_DEF[t].kw;
+      THEME_INDUSTRY[t] = THEME_DEF[t].ind;
+      THEME_STOCKS[t] = THEME_DEF[t].stk || [];
+    }
 
     // 指数名称 → 基金名称关键词
     const INDEX_NAME_KW = {
@@ -1796,15 +1847,17 @@ createApp({
     };
 
     // 兜底方案：回撤低、风险小、夏普高（安全替代）
+    // 注意：本兜底只在"完全无法从诉求中解析出可执行条件"时触发，
+    // 因此话术必须如实说明"未识别出明确条件"，绝不能谎称这些条件是从用户诉求中"拆解"出来的。
     function safeFallback() {
       return {
-        intentAnalysis: '为了给您提供合适的参考，我已为您推荐一批回撤较小、风险较低、夏普比率较高的稳健型基金。您可以尝试更具体的描述，如"波动小的债券基金""重仓新能源"或"高分红基金"。',
+        intentAnalysis: '您这次的需求我未能解析出明确的主题或量化条件。为提供参考，我先按"回撤较低、风险可控、夏普比率较高"的稳健口径，为您挑选了一批基金。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""近一年收益超20%"等。',
         conditions: [
           {label:'最大回撤<10%', type:'metric'},
           {label:'风险等级≤R3', type:'risk'},
           {label:'夏普比率较高', type:'metric'}
         ],
-        matchReason: '根据您的需求，以下基金在控制回撤和风险的同时保持较好的风险收益比，适合作为稳健参考。',
+        matchReason: '未识别出明确条件，以下按"回撤较低、风险可控、夏普较高"的稳健口径为您推荐，供参考。',
         filterFn: (funds, maxRisk) => funds
           .filter(f => f.riskLevelNum <= Math.min(3, maxRisk))
           .filter(f => Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.10)
@@ -1980,28 +2033,64 @@ createApp({
       if (matchIntent(text,'fof')) add('FOF基金', 'fundType', (funds, maxRisk) => funds.filter(f => /FOF/.test(f.fundName||'') && riskOk(f, maxRisk)));
       if (matchIntent(text,'convertible')) add('可转债基金', 'fundType', (funds, maxRisk) => funds.filter(f => /转债|可转债/.test(f.fundName||'') && riskOk(f, maxRisk)));
 
-      // ---- 主题/行业（名称关键词优先，行业配置兜底）----
+      // ---- 主题/行业（名称关键词优先，行业配置高阈值兜底）----
+      // 非权益类标的（债券/货币/FOF）的 industryConfig 按股票仓位归一化，会被放大，
+      // 必须先行排除，否则"重仓银行/重仓钢铁"等会因行业权重误命中债基。
+      const NOT_EQUITY = /债券|货基|货币|短债|纯债|固收|FOF/;
+      // 行业权重兜底阈值：0.25（股票仓位中该行业占比≥1/4，即"重仓"语义）。
+      // 低阈值（0.08）会让电子/机械等泛行业命中过半基金池，失去筛选意义。
+      const IND_FALLBACK_TH = 0.25;
+      // 主题命中：在所有主题里挑"命中词最长"的那一个（如"银行"优于"金融"），避免多主题叠加
+      let bestTheme = null, bestLen = 0, themeTier = '';
       for (const theme of Object.keys(THEME_NAME_KW)) {
         // 场景词保护："教育金"是攒钱场景，不是教育行业基金，跳过教育主题
         if (theme === 'theme_edu' && /教育金|子女教育|教育储备|孩子教育|教育规划/.test(text)) continue;
-        if (matchIntent(text, theme)) {
-          const kw = THEME_NAME_KW[theme];
-          const inds = THEME_INDUSTRY[theme] || [];
-          // 行业权重仅在"直接持有股票"的权益类标的上有效：industryConfig 按股票仓位归一化，
-          // 债券/货币/FOF 等标的一旦股票仓位很小，行业权重也会被归一化放大，
-          // 从而被误判为"重仓半导体/电子"。故按基金类型先行排除非权益标的。
-          const NOT_EQUITY = /债券|货基|货币|短债|纯债|固收|FOF/;
-          add('主题：' + theme.replace('theme_',''), 'industry', (funds2, maxRisk) => {
-            const pool = funds2.filter(f => riskOk(f, maxRisk) && !NOT_EQUITY.test(f.fundTypeTag || ''));
-            // 判定口径：名称命中 或 行业权重命中（并集），保证"每只基金是否属于该主题"与表内其它标的无关，
-            // 从而结果随风险档位单调（放宽风险只会增加、不会减少命中标的）
-            return pool.filter(f =>
-              kw.some(k => (f.fundName||'').includes(k)) ||
-              (inds.length ? inds.some(c => (f.industryConfig[c]||0) > 0.08) : false)
-            );
-          });
-          if (!sortBy) sortBy = 'RETURNRATE';
-        }
+        const entry = SYNONYM_MAP.find(e => e.intent === theme);
+        if (!entry) continue;
+        const hitLen = entry.words.filter(w => text.includes(w)).reduce((m,w) => Math.max(m, w.length), 0);
+        if (hitLen > bestLen) { bestLen = hitLen; bestTheme = theme; }
+      }
+      if (bestTheme) {
+        const def = THEME_DEF[bestTheme] || {};
+        const kw = def.kw || THEME_NAME_KW[bestTheme] || [];
+        const inds = def.ind || THEME_INDUSTRY[bestTheme] || [];
+        const stks = def.stk || THEME_STOCKS[bestTheme] || [];
+        const themeLabel = def.label || bestTheme.replace('theme_','');
+        // 【三级口径决策】按"精准度"逐级判定该主题的匹配方式（全量池、不限风险下判定，保证跨风险档单调）：
+        //   ① 名称覆盖（如半导体→14只名称含"半导体/芯片"）→ 只用名称口径，赛道最纯正；
+        //   ② 行业重仓（如银行→6只第一大行业为银行且占比≥25%）→ 用"主行业命中 + 高权重"口径；
+        //   ③ 成分股持有（如钢铁→池内无钢铁基金，但 002351 持有宝钢股份）→ 放宽为"持有该主题任一成分股"。
+        // 这样既保证赛道纯正（优先精准口径），又确保热门主题都有内容（最宽口径兜底），
+        // 同时绝不退回"低回撤+高夏普"的债基稳健兜底（那会答非所问）。
+        // 说明：①② 限定权益类标的（避免行业权重被债基小股票仓位放大而误命中）；
+        //      ③ 不限定类型——"实际持有该主题个股"是直接可核验的真实信号，
+        //        债基亦可持有少量个股（如 002351 持有宝钢股份），用户已确认这类结果可接受。
+        const eqPool = MOCK_FUNDS.filter(f => !NOT_EQUITY.test(f.fundTypeTag || ''));
+        const nameCovered = eqPool.some(f => kw.some(k => (f.fundName||'').includes(k)));
+        const indCovered = inds.length ? eqPool.some(f =>
+          inds.includes(f.topIndustryCode) && inds.some(c => (f.industryConfig[c]||0) >= IND_FALLBACK_TH)) : false;
+        const holdCovered = stks.length ? MOCK_FUNDS.some(f => fundHoldsThemeStock(f, stks)) : false;
+        themeTier = nameCovered ? 'name' : (indCovered ? 'industry' : (holdCovered ? 'holding' : 'none'));
+        add('主题：' + themeLabel, 'industry', (funds2, maxRisk) => {
+          const pool = funds2.filter(f => riskOk(f, maxRisk) && !NOT_EQUITY.test(f.fundTypeTag || ''));
+          if (themeTier === 'name')     return pool.filter(f => kw.some(k => (f.fundName||'').includes(k)));
+          if (themeTier === 'industry') return pool.filter(f =>
+            inds.includes(f.topIndustryCode) && inds.some(c => (f.industryConfig[c]||0) >= IND_FALLBACK_TH));
+          if (themeTier === 'holding') {
+            // 不限定基金类型：只要实际持有该主题成分股即命中；并按"持有只数"降序，最相关者靠前
+            const hits = funds2.filter(f => riskOk(f, maxRisk) && fundHoldsThemeStock(f, stks));
+            hits.forEach(f => {
+              const held = themeStocksHeldBy(f, stks);
+              // 清理历史注入，避免跨查询累积（仅清理本机制注入的"持有X"标签）
+              f.matchTags = (f.matchTags || []).filter(t => !String(t).startsWith('持有'));
+              held.slice(0, 2).forEach(s => f.matchTags.push('持有' + s));
+              f._themeHoldCount = held.length;
+            });
+            return hits.sort((a, b) => (b._themeHoldCount || 0) - (a._themeHoldCount || 0));
+          }
+          return [];
+        });
+        if (!sortBy) sortBy = 'RETURNRATE';
       }
 
       // ---- 波动/风险 ----
@@ -2212,6 +2301,13 @@ createApp({
         themeConstraints: themeFns,
         sortBy: sortBy || 'RETURNRATE',
         isNewHighIntent,
+        // 主题查询标记：命中主题且无其他实质约束时，绝不用"低回撤+高夏普"稳健兜底替代
+        // （否则"重仓银行/重仓钢铁"等会被替换成一堆债基，属于答非所问）
+        isThemeIntent: !!bestTheme,
+        themeLabel: bestTheme ? (THEME_DEF[bestTheme] && THEME_DEF[bestTheme].label) : '',
+        // 主题匹配层级：name(名称) / industry(行业重仓) / holding(持有成分股) / none(无覆盖)
+        themeTier: bestTheme ? themeTier : '',
+        themeStocks: bestTheme ? (THEME_DEF[bestTheme] && THEME_DEF[bestTheme].stk) || [] : [],
         isFallback: false
       };
     }
@@ -2268,7 +2364,20 @@ createApp({
           isNewHighEmpty: true
         };
       }
-      if (count === 0 && !result.isFallback && !result.isNewHighEmpty) {
+      // 【严格口径】主题查询（如"重仓银行/重仓半导体/重仓钢铁"）：若该主题在池内确实无匹配标的
+      // （即便放宽到最高风险档 R5 也无），则如实返回空态，绝不用"低回撤+高夏普"稳健兜底替换成债基，
+      // 避免"搜银行返回一堆债基"式的答非所问。
+      if (count === 0 && result.isThemeIntent && !result.isNewHighEmpty) {
+        const themeMax = result.filterFn ? result.filterFn(MOCK_FUNDS, 5).length : 0;
+        if (themeMax === 0) {
+          result = {
+            ...result,
+            isThemeEmpty: true,
+            conditions: result.conditions.length ? result.conditions : [{label:'主题：' + (result.themeLabel || ''), type:'industry'}]
+          };
+        }
+      }
+      if (count === 0 && !result.isFallback && !result.isNewHighEmpty && !result.isThemeEmpty) {
         // a0) 渐进降级①：保留核心条件（主题/类型/实质指标），剔除软约束（费率/规模）
         //     先按偏好风险，再放宽风险；命中则视为"放宽辅助条件"结果
         //     注意：约束函数（尤其主题规则）内部含"整表长度"判定（如名称命中<3只时改用行业口径），
@@ -2296,7 +2405,7 @@ createApp({
           }
         }
       }
-      if ((result.filterFn ? result.filterFn(MOCK_FUNDS, profileMaxRisk()).length : 0) === 0 && !result.isFallback && !result.isNewHighEmpty) {
+      if ((result.filterFn ? result.filterFn(MOCK_FUNDS, profileMaxRisk()).length : 0) === 0 && !result.isFallback && !result.isNewHighEmpty && !result.isThemeEmpty) {
         // a) 再尝试"放宽风险等级"：保留意图条件，仅放开风险上限，展示超出当前风险偏好的匹配结果
         //    （结果页会对超出风险偏好的基金标注"超出风险偏好"，兼顾意图与合规提示）
         const relaxedFn = result.filterFn;
@@ -2425,9 +2534,11 @@ createApp({
         mParts.push(`近一年收益率中位数 ${(medRet*100).toFixed(1)}%`);
         if (avgSharp !== null && avgSharp !== 0) mParts.push(`平均夏普比率 ${avgSharp.toFixed(2)}`);
         if (avgDd) mParts.push(`平均最大回撤 ${(avgDd*100).toFixed(1)}%`);
-        part3 = `逐条过滤后共有 ${n} 只基金通过全部条件：我按风险等级与期限门槛逐一核对，命中标的以${mainTypes}为主；这批基金的整体特征是——${mParts.join('、')}。${info.relaxed ? '需要说明的是，叠加期限门槛后无标的完全满足，为避免结果为空，我已适度放宽波动率/回撤门槛，您可重点核对各标的的风险数据。' : ''}${result.isRelaxed || result.isRelaxedCore ? '此外，部分辅助条件（费率/规模或风险等级）在严格口径下无交集，已按优先级保留核心条件展示。' : ''}`;
+        part3 = `逐条过滤后共有 ${n} 只基金通过全部条件：我按风险等级与期限门槛逐一核对，命中标的以${mainTypes}为主；这批基金的整体特征是——${mParts.join('、')}。${result.themeTier === 'holding' ? `需要说明的是：基金池中暂无名称或重仓与「${result.themeLabel || '该主题'}」直接对应的基金，因此我放宽为"持有该主题成分股即可"的口径（如持有${(result.themeStocks||[]).slice(0,3).join('、')}等）为您匹配，赛道纯度相对有限，请结合各基金的实际持仓判断。` : ''}${info.relaxed ? '需要说明的是，叠加期限门槛后无标的完全满足，为避免结果为空，我已适度放宽波动率/回撤门槛，您可重点核对各标的的风险数据。' : ''}${result.isRelaxed || result.isRelaxedCore ? '此外，部分辅助条件（费率/规模或风险等级）在严格口径下无交集，已按优先级保留核心条件展示。' : ''}`;
       } else if (result.isNewHighEmpty) {
         part3 = `我逐只核对了基金池中每只标的的近 3 个月净值轨迹，并与您的风险偏好做了交集——符合"净值创新高"口径的标的为 0 只${result.newHighInRiskCount > 0 ? `（另有 ${result.newHighInRiskCount} 只确实创出新高，但风险等级高于您当前的风险上限，暂未纳入）` : ''}。`;
+      } else if (result.isThemeEmpty) {
+        part3 = `我逐只核对了基金池中的标的，按"名称关键词 → 行业重仓 → 持有成分股"三级口径逐层放宽后，与「${result.themeLabel || '该主题'}」真正相关的基金仍为 0 只。我没有用其他赛道的基金来充数——与其展示一批答非所问的标的，不如如实告知这里暂无覆盖。`;
       } else {
         part3 = `逐条过滤后，在当前条件下没有基金通过筛选。我没有用"收益率较高""放宽口径"等近似条件来充数，以保证结果的真实性。`;
       }
@@ -2436,6 +2547,8 @@ createApp({
       let part4;
       if (result.isNewHighEmpty) {
         part4 = `最后提醒：近 3 个月暂无净值创出新高的基金，建议调整筛选条件或稍后再试。`;
+      } else if (result.isThemeEmpty) {
+        part4 = `最后提醒：当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，建议换个相近赛道（如"${result.themeLabel ? '同类主题或宽基' : '宽基指数'}"）试试，或放宽其他附加条件。`;
       } else if (result.isNewHighIntent && n > 0) {
         part4 = `最后提醒：净值创新高意味着近期走势偏强，但同时也积累了短期回调压力，建议结合您的${rule.label}期限分批布局，避免一次性追高。以下为筛选结果。`;
       } else if (n > 0) {
@@ -2454,7 +2567,9 @@ createApp({
         intentAnalysis: [part1, part2, part3, part4].join('\n\n'),
         matchReason: n > 0
           ? `共 ${n} 只基金通过"${condLabels.length ? condLabels.join(' + ') : '稳健口径'}"且满足 ${riskProfile.age} / ${rule.label} 的适配要求，按${rule.sortBy==='VOL'?'波动率由低到高':rule.sortBy==='SHARP'?'夏普比率由高到低':'近一年收益率由高到低'}排列，供您横向比较。`
-          : (result.isNewHighEmpty ? '严格口径下暂无净值创新高的基金，故不作展示。' : '在当前条件下暂无匹配标的，未以近似条件替代展示。')
+          : (result.isNewHighEmpty ? '严格口径下暂无净值创新高的基金，故不作展示。'
+            : result.isThemeEmpty ? `当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，故不作展示。`
+            : '在当前条件下暂无匹配标的，未以近似条件替代展示。')
       };
     }
     // 纯函数：给定结果与风险上限，计算"基础集 / 适配集 / 是否放宽"
