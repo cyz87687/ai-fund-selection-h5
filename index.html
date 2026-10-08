@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261014"></script>
+<script src="https://cdn.tailwindcss.com?v=20261015"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261014" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261014" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261015" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261015" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261014 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261015 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,8 +890,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261014" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261014" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261015" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261015" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1051,14 +1051,20 @@ const PRESET_RESPONSES = {
     sortBy: 'SHARP'
   },
   '偏价值风格的基金': {
-    intentAnalysis: '您希望找偏价值风格的基金，我将为您筛选风险归因因子中价值因子（VALUE）排名靠前的基金，适合偏好低估值投资的投资者。',
+    intentAnalysis: '您希望找偏价值风格的基金，我将为您筛选名称体现价值/红利/低波风格、或估值因子（VALUE）靠前的基金，适合偏好低估值投资的投资者。',
     conditions: [
-      {label:'价值因子>0.3',type:'factor'},
-      {label:'偏价值风格',type:'factor'},
+      {label:'价值/红利风格',type:'factor'},
+      {label:'估值因子靠前',type:'factor'},
       {label:'风险匹配',type:'risk'}
     ],
-    matchReason: '您想找"偏价值风格的基金"，以下基金的价值因子得分较高，持仓偏向低估值股票。',
-    filterFn: (funds, maxRisk) => funds.filter(f => f.riskFactors.VALUE > 0.3 && f.riskLevelNum <= maxRisk),
+    matchReason: '您想找"偏价值风格的基金"，以下基金在风格上偏向低估值价值投资（价值/红利/低波主题）。',
+    filterFn: (funds, maxRisk) => funds.filter(f => {
+      if (f.riskLevelNum > maxRisk) return false;
+      // 因子通道：VALUE>0.3（若数据有）
+      if ((f.riskFactors.VALUE || 0) > 0.3) return true;
+      // 名称通道：价值/红利/低波/蓝筹主题
+      return /价值|红利|低波|蓝筹|股息/.test(f.fundName || '');
+    }),
     sortBy: 'VALUE'
   },
   '偏短线的基金': {
@@ -1520,7 +1526,7 @@ createApp({
       // ---- 回撤 ----
       {words:['回撤小','低回撤','回撤低','抗跌','少亏','亏损小','下跌少'], intent:'lowdd'},
       // ---- 夏普/性价比 ----
-      {words:['夏普高','夏普比率高','性价比高','风险收益比好','划算'], intent:'highsharpe'},
+      {words:['夏普高','高夏普','夏普比率高','性价比高','风险收益比好','划算'], intent:'highsharpe'},
       // ---- 费率 ----
       {words:['低费率','费率低','便宜','低成本','低手续费','省手续费','免申购','0费率','零费率'], intent:'lowfee'},
       // ---- 规模 ----
@@ -1579,6 +1585,8 @@ createApp({
       // ---- 择时/状态语义 ----
       {words:['超跌','抄底','跌得多','跌多了','深跌','超跌反弹','底部','错杀','腰斩'], intent:'timing_oversold'},
       {words:['反弹','涨势','涨得好','最近涨','强势','领涨'], intent:'timing_momentum'},
+      // 短线/波段：高波动弹性（与 preset"偏短线"语义一致）
+      {words:['偏短线','短线','波段','快进快出','短线操作','做T','高抛低吸'], intent:'timing_short'},
       // ---- 新高/新低状态语义 ----
       // 夏普新高：夏普比率处于高位/创阶段新高
       {words:['夏普新高','夏普创新高','夏普比率新高','夏普历史新高','夏普率新高','夏普率创新高','夏普新高点','夏普创历史新高'], intent:'metric_sharpe_newhigh'},
@@ -1757,16 +1765,34 @@ createApp({
       };
     }
 
-    // 一级识别（编排）：精确匹配 → 模糊匹配 → 安全兜底，保证任何请求都有结果
+    // 一级识别（编排）：精确匹配 → 固定话术模糊命中 → 模糊匹配 → 安全兜底，保证任何请求都有结果
     function localIntent(text) {
       const t = (text || '').trim();
       // ① 精确匹配 PRESET_RESPONSES（完全相等）
       if (PRESET_RESPONSES[t]) return PRESET_RESPONSES[t];
+      // ①b 固定话术模糊命中：查询文本包含 preset 键，或 preset 键包含查询文本（最长键优先）
+      //     覆盖"我想找波动小的债券基金""想找偏短线的基金"等口语化变体
+      const presetHit = matchPresetFuzzy(t);
+      if (presetHit) {
+        // 空集降级：preset 命中但依赖字段缺失导致 0 结果 → 交给模糊引擎兜底
+        const cnt = presetHit.filterFn ? presetHit.filterFn(MOCK_FUNDS, 5).length : 0;
+        if (cnt > 0) return presetHit;
+      }
       // ② 模糊匹配（同义词 / 关键词 / 主题 / 组合条件），完全未命中返回 null
       const fuzzy = fuzzyIntent(t);
       if (fuzzy) return fuzzy;
       // ③ 安全兜底：回撤低、风险小、夏普高的稳健基金
       return safeFallback();
+    }
+
+    // 固定话术模糊命中：查询文本 ↔ preset 键 的包含关系（最长键优先，避免短键误匹配）
+    function matchPresetFuzzy(text) {
+      const keys = Object.keys(PRESET_RESPONSES).sort((a,b) => b.length - a.length);
+      for (const key of keys) {
+        if (text.includes(key)) return PRESET_RESPONSES[key];
+        if (key.includes(text) && text.length >= 2) return PRESET_RESPONSES[key];
+      }
+      return null;
     }
 
     // 二级识别：基于同义词库的模糊匹配引擎（返回 result 或 null）
@@ -1920,7 +1946,8 @@ createApp({
       if (matchIntent(text,'smallscale')) { add('规模<20亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale||999) <= 20 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 分红 ----
-      if (matchIntent(text,'dividend')) { add('高分红', 'metric', (funds, maxRisk) => funds.filter(f => (f.valuation && f.valuation.DIVIDEND || 0) > 0.01 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      // 数据无 valuation.DIVIDEND（全空），改用名称关键词"红利/分红"匹配（数据池含12只红利基金）
+      if (matchIntent(text,'dividend')) { add('高分红·红利主题', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /红利|分红|股息/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 定投 ----
       if (matchIntent(text,'dip')) { add('适合定投', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||0) >= 0.02 && (f.performance.VOL||0) <= 0.20 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
@@ -1949,6 +1976,10 @@ createApp({
       if (matchIntent(text,'timing_momentum')) {
         add('强势·动量', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) > 0.10));
         if (!sortBy) sortBy = 'RETURNRATE';
+      }
+      if (matchIntent(text,'timing_short')) {
+        add('短线·高波动', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.VOL||0) >= 0.035));
+        sortBy = 'SHARP';
       }
 
       // ---- 新高/新低状态（当前指标处于极值区）----
@@ -1987,7 +2018,50 @@ createApp({
 
       // ---- 综合判断：是否命中实质条件（非纯排序）----
       const hasRealCondition = constraints.length > 0;
-      if (!hasRealCondition) return null;   // 完全未命中 → 交由安全兜底
+      if (!hasRealCondition) {
+        // ---- 模糊匹配兜底（需求2）：精确/同义词匹配失败时，做双向包含匹配 ----
+        // 场景："新高"↔"创新高"、"分红"↔"高分红"、"短线"↔"偏短线" 等词形/包含关系
+        // 规则：① 用户输入的连续双字词 若被某词条词包含 → 命中该意图
+        //       ② 某词条词若被用户输入包含（词条是输入的组成部分）→ 命中该意图
+        // 优先级：① 双字词被词条包含 > ② 词条被输入包含（更长、更具体的优先）
+        const t = text.replace(/[，。、？?!！\s]/g, '');
+        // ① 双字词 → 词条（如"新高"⊂"创新高"）
+        let hitIntent = null, hitWord = null, hitLen = 0;
+        for (let i = 0; i + 2 <= t.length; i++) {
+          const bigram = t.slice(i, i + 2);
+          if (!/[\u4e00-\u9fa5A-Za-z]/.test(bigram)) continue;
+          for (const entry of SYNONYM_MAP) {
+            const words = entry.words;
+            const matched = words.find(w => w.length >= 2 && w.includes(bigram));
+            if (matched && matched.length > hitLen) {
+              hitIntent = entry.intent; hitWord = matched; hitLen = matched.length;
+            }
+          }
+        }
+        // ② 词条 → 输入（如词条"短线"⊂输入"短线基金"），且词条未被规则1覆盖
+        if (!hitIntent) {
+          for (const entry of SYNONYM_MAP) {
+            const words = entry.words;
+            const matched = words.find(w => w.length >= 2 && t.includes(w));
+            if (matched && matched.length > hitLen) {
+              hitIntent = entry.intent; hitWord = matched; hitLen = matched.length;
+            }
+          }
+        }
+        // 命中后复用规则1的主循环逻辑：用伪 text 重新走一遍规则匹配
+        if (hitIntent) {
+          // 用"词条词"作为查询文本，递归一次 fuzzyIntent（保证该意图的规则被触发）
+          const fakeText = hitWord;
+          const sub = fuzzyIntent(fakeText);
+          // 空集保护：模糊兜底命中的规则若筛不出结果（如"基金"误命中FOF但数据无FOF），
+          // 不采用，继续走安全兜底，避免把泛查询变成空集
+          if (sub && sub.filterFn) {
+            const subCnt = sub.filterFn(MOCK_FUNDS, 5).length;
+            if (subCnt > 0) return sub;
+          }
+        }
+        return null;   // 完全未命中 → 交由安全兜底
+      }
 
       // 统一 AND 组合
       const filterFn = (funds, maxRisk) => {
