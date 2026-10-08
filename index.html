@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261020"></script>
+<script src="https://cdn.tailwindcss.com?v=20261008c"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261020" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261020" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261008c" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261008c" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -316,7 +316,7 @@ body {
   <!-- Hero -->
   <div class="px-5 pb-3 fade-in-up">
     <h1 class="text-[22px] font-bold leading-tight mb-1">输入你的投资需求</h1>
-    <p class="text-[13px] text-[var(--text-secondary)]">AI为你从投研数据中筛选匹配基金</p>
+    <p class="text-[13px] text-[var(--text-secondary)]">AI 为你从全市场基金中筛选匹配标的</p>
   </div>
 
   <!-- Risk Profile -->
@@ -399,9 +399,9 @@ body {
     <div class="text-[13px] text-[var(--gold-light)]">"{{ lastQuery }}"</div>
   </div>
   <div class="mt-6 text-[10px] text-[var(--text-muted)]">
-    调用 deepseek-v4-flash 大模型意图识别
+    正在解析需求语义、匹配基金池并核验指标
   </div>
-  <div class="mt-1 text-[10px] text-[var(--text-muted)] mono">powered by RAG + 投研数据</div>
+  <div class="mt-1 text-[10px] text-[var(--text-muted)] mono">语义解析 · 条件匹配 · 风险过滤</div>
 </div>
 
 <!-- ============== PAGE: RESULTS ============== -->
@@ -434,9 +434,14 @@ body {
           {{ aiResult.modeLabel }}
         </span>
       </div>
-      <div class="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-3">{{ aiResult.intentAnalysis }}</div>
+      <div class="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-3 whitespace-pre-line">{{ aiResult.intentAnalysis }}</div>
       <div class="flex flex-wrap gap-1.5 mb-3">
         <span v-for="cond in aiResult.conditions" :key="cond.label" class="tag-pill">{{ cond.label }}</span>
+        <!-- 画像叠加后的生效口径，让用户看得见画像确实参与了筛选 -->
+        <span class="tag-pill" style="border-color:rgba(212,168,81,.45);color:var(--gold-light)">{{ riskProfile.age }}</span>
+        <span class="tag-pill" style="border-color:rgba(212,168,81,.45);color:var(--gold-light)">{{ durationRule().label }}</span>
+        <span class="tag-pill" style="border-color:rgba(212,168,81,.45);color:var(--gold-light)">风险上限 R{{ aiResult.effectiveRiskCap || profileMaxRisk() }}</span>
+        <span v-if="ageDrawdownMax()" class="tag-pill" style="border-color:rgba(212,168,81,.45);color:var(--gold-light)">回撤≤{{ (ageDrawdownMax()*100).toFixed(0) }}%</span>
       </div>
       <div class="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
         <span>您的查询：</span>
@@ -540,6 +545,9 @@ body {
       <div v-if="fundsExcludedByRisk" class="text-[var(--gold)] text-xs">建议调整您的风险偏好</div>
       <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
       <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
+      <div class="text-[var(--text-muted)] text-[11px] mt-3 px-6 leading-relaxed">
+        提示：本次仅展示真实满足条件的基金；若口径过严（如"近期净值创新高"在近3个月内无符合标的），系统不会用近似条件替代展示，以保证结果可信。
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -557,9 +565,9 @@ body {
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 flex-shrink-0">
         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
       </svg>
-      <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
+      <span>风险提示：本工具不构成投资建议，展示数据为模拟脱敏数据，仅供功能演示与参考。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261020 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008c · 离线智能选基</div>
   </div>
 </div>
 
@@ -697,7 +705,6 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">前十大重仓股</span>
-        <span class="text-[10px] text-[var(--text-muted)] ml-1">来源：{{ holdingsSrc || '投研数据' }}</span>
         <span class="text-[10px] text-[var(--text-muted)] ml-1">报告期：2024Q4</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-4">
@@ -770,7 +777,7 @@ body {
 
     <!-- Data Source -->
     <div class="mt-5 text-center">
-      <div class="text-[10px] text-[var(--text-muted)]">以上数据来源于研究所投研标签数据（模拟脱敏） · 数据更新于 2026-10-06（重仓股为2026Q2季报）</div>
+      <div class="text-[10px] text-[var(--text-muted)]">以上为模拟脱敏数据 · 更新于 2026-10-06（重仓股为 2026Q2 季报）</div>
       <div class="text-[10px] text-[var(--text-muted)] mt-0.5">报告期：{{ selectedFund.reportDate }} | 统计区间：近一年</div>
     </div>
   </div>
@@ -779,7 +786,7 @@ body {
   <div class="fixed bottom-0 left-1/2 -translate-x-1/2 max-w-[440px] w-full px-5 py-3 z-20"
     style="background:linear-gradient(0deg,var(--navy-darkest) 70%,transparent 100%)">
     <div class="text-[9px] text-[var(--text-muted)] leading-relaxed mb-2">
-      风险提示：基金有风险，投资需谨慎。本工具基于研究所投研数据，通过AI自然语言解析为您提供基金筛选服务，输出内容均为客观数据展示与通俗化解读，不构成任何投资建议或买卖推荐。基金的过往业绩并不预示其未来表现。请您根据自身风险承受能力，独立做出投资决策。
+      风险提示：基金有风险，投资需谨慎。本工具通过 AI 自然语言解析为您提供基金筛选服务，输出内容均为客观数据展示与通俗化解读，不构成任何投资建议或买卖推荐。基金的过往业绩并不预示其未来表现。请您根据自身风险承受能力，独立做出投资决策。
     </div>
     <button class="btn-gold w-full py-2.5 text-[11px]" @click="goExternal(selectedFund)">立即购买</button>
   </div>
@@ -890,9 +897,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261020" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261020" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
-<script src="nav-cache.js?v=20261020" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261008c" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261008c" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261008c" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1002,6 +1009,37 @@ function normalizeFund(fd) {
   MOCK_FUNDS.forEach(normalizeFund);
 })();
 
+// ============ 持仓索引（主题"成分股持有"兜底口径用） ============
+// 详情数据 window.FUND_POOL_DETAIL 形如 { "002351.OF": { topHoldings:[{stockCode,stockName,weight}] } }
+// 建立"基金 → 持有股票名集合"，供主题第三级兜底（如钢铁→持有宝钢股份）快速判定。
+const HOLDINGS_INDEX = (function buildHoldingsIndex() {
+  const idx = {};
+  const det = window.FUND_POOL_DETAIL || {};
+  for (const code in det) {
+    const hs = (det[code] && det[code].topHoldings) || [];
+    const set = new Set();
+    for (const h of hs) { if (h && h.stockName) set.add(h.stockName); }
+    idx[code] = set;
+  }
+  return idx;
+})();
+// 判定某基金是否持有给定主题的任一成分股（名称口径：前十大重仓股名精确匹配）
+function fundHoldsThemeStock(fund, themeStocks) {
+  if (!fund || !themeStocks || !themeStocks.length) return false;
+  const code = fund.fundCode;
+  const set = HOLDINGS_INDEX[code];
+  if (!set) return false;
+  for (const s of themeStocks) { if (set.has(s)) return true; }
+  return false;
+}
+// 取某基金持有的、属于该主题的全部成分股（供话术说明与标签展示）
+function themeStocksHeldBy(fund, themeStocks) {
+  if (!fund || !themeStocks || !themeStocks.length) return [];
+  const set = HOLDINGS_INDEX[fund.fundCode];
+  if (!set) return [];
+  return themeStocks.filter(s => set.has(s));
+}
+
 
 // ============ AI INTENT RECOGNITION ============
 const PRESET_RESPONSES = {
@@ -1030,14 +1068,16 @@ const PRESET_RESPONSES = {
     sortBy: 'MANAGEMENT_FEE'
   },
   '重仓新能源的基金': {
-    intentAnalysis: '您希望找重仓新能源的基金，我将为您筛选行业配置中电力设备及新能源（CI005011）占比超过10%的基金，并展示其行业集中度。',
+    intentAnalysis: '您希望找重仓新能源的基金，我将为您筛选行业配置中电力设备及新能源（CI005011）占比超过25%的权益类基金，并展示其行业集中度。',
     conditions: [
       {label:'重仓新能源',type:'industry'},
-      {label:'CI005011>10%',type:'industry'},
-      {label:'行业集中度高',type:'metric'}
+      {label:'CI005011>25%',type:'industry'},
+      {label:'权益类（已剔除债基）',type:'fundType'}
     ],
     matchReason: '您想找"重仓新能源的基金"，以下基金在电力设备及新能源行业配置比例较高，可关注行业集中度带来的风险与机会。',
-    filterFn: (funds, maxRisk) => funds.filter(f => (f.industryConfig['CI005011'] || 0) > 0.10 && f.riskLevelNum <= maxRisk),
+    // 行业权重仅在权益类标的上有效：industryConfig 按股票仓位归一化，债券基金股票仓位极小，
+    // 行业权重会被放大成"重仓新能源"，属于口径污染，必须剔除。
+    filterFn: (funds, maxRisk) => funds.filter(f => !/债券|货基|货币|短债|纯债|固收|FOF/.test(f.fundTypeTag || '') && (f.industryConfig['CI005011'] || 0) > 0.25 && f.riskLevelNum <= maxRisk),
     sortBy: 'CI005011'
   },
   '回撤小、收益还不错的基金': {
@@ -1128,7 +1168,8 @@ function genericIntent(text) {
         }
       }
       if (!inds.length) return byName;
-      const byInd = funds.filter(f => riskOk(f, maxRisk) && inds.some(code => (f.industryConfig[code] || 0) > 0.08));
+      // 同主题规则：行业权重仅对权益类标的有效，排除债券/货币/FOF（其股票仓位小、行业权重被归一化放大）
+      const byInd = funds.filter(f => riskOk(f, maxRisk) && !/债券|货基|货币|短债|纯债|固收|FOF/.test(f.fundTypeTag || '') && inds.some(code => (f.industryConfig[code] || 0) > 0.08));
       return byName.length >= 3 ? byName : (byInd.length ? byInd : byName);
     });
   }
@@ -1319,7 +1360,7 @@ function genericIntent(text) {
   }
 
   return {
-    intentAnalysis: '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。',
+    intentAnalysis: '我已理解您的投资需求，将根据您的描述从全市场基金中筛选匹配的标的，并结合您的风险偏好完成风险等级过滤。以下为筛选结果。',
     conditions: conditions.length > 1 ? conditions : [{label:'风险等级匹配',type:'risk'}],
     matchReason: '根据您的描述，以下基金符合筛选条件，请结合指标和风险等级综合参考。',
     filterFn,
@@ -1382,7 +1423,7 @@ createApp({
     ];
 
     const riskProfile = reactive({
-      age: '中年',
+      age: '36-55岁',
       ageValue: 'middle',
       riskPref: '平衡型',
       riskPrefValue: 'C3',
@@ -1391,6 +1432,43 @@ createApp({
       maxRiskLevel: 3,
       maxRiskLabel: 'R1-R3'
     });
+
+    // ============ 客户画像 → 筛选参数映射 ============
+    // 画像中的"年龄段 / 投资期限"必须真实参与筛选，否则切换画像结果不变。
+    // 口径说明（可核对）：
+    //   · 年龄段 → 风险上限修正 + 回撤适配上限（两项均对结果有实际约束）
+    //       18-35岁  ：风险上限 +1，不额外限制回撤（可承受更高波动，追求成长弹性）
+    //       36-55岁  ：风险上限不变，回撤 ≤25%（均衡配置）
+    //       55岁以上 ：风险上限 -1，回撤 ≤15%（优先稳健，严格控制回撤）
+    //   · 投资期限 → 波动率 / 回撤适配门槛 + 默认排序偏好
+    //       短期(<1年) ：波动率 ≤8%、最大回撤 ≤6%    → 按波动率由低到高
+    //       中期(1-3年)：波动率 ≤15%、最大回撤 ≤12%  → 按夏普比率由高到低
+    //       长期(>3年) ：波动率 ≤30%、最大回撤 ≤30%  → 按近一年收益率由高到低
+    // 注：期限门槛作为"适配筛选"参与硬过滤；若无任何标的满足，会自动放宽门槛并在话术中说明。
+    const AGE_RISK_ADJUST = { young: +1, middle: 0, old: -1 };
+    const AGE_DD_MAX = { young: 0, middle: 0.25, old: 0.15 };   // 0 表示不额外限制回撤
+    const DURATION_RULE = {
+      short:  { label:'短期（<1年）',  volMax: 0.08, ddMax: 0.06, sortBy: 'VOL' },
+      mid:    { label:'中期（1-3年）', volMax: 0.15, ddMax: 0.12, sortBy: 'SHARP' },
+      long:   { label:'长期（>3年）',  volMax: 0.30, ddMax: 0.30, sortBy: 'RETURNRATE' }
+    };
+    // 画像生效后的风险上限（用户自选风险等级 + 年龄段修正，收敛到 1..5）
+    function profileMaxRisk() {
+      const base = riskProfile.maxRiskLevel || 3;
+      const adj = AGE_RISK_ADJUST[riskProfile.ageValue] || 0;
+      return Math.max(1, Math.min(5, base + adj));
+    }
+    function durationRule() {
+      return DURATION_RULE[riskProfile.durationValue] || DURATION_RULE.mid;
+    }
+    // 年龄段对应的回撤适配上限（0 = 不额外限制）
+    function ageDrawdownMax() {
+      return AGE_DD_MAX[riskProfile.ageValue] || 0;
+    }
+    function ageLabel() {
+      const m = { young:'18-35岁', middle:'36-55岁', old:'55岁以上' };
+      return m[riskProfile.ageValue] || riskProfile.age;
+    }
 
     const quickTags = [
       '重仓AI的基金',
@@ -1433,9 +1511,9 @@ createApp({
     });
     const pickerOptions = computed(() => {
       if (pickerType.value === 'age') return [
-        {label:'青年（18-35岁）',value:'young'},
-        {label:'中年（36-55岁）',value:'middle'},
-        {label:'老年（55岁以上）',value:'old'}
+        {label:'18-35岁',value:'young'},
+        {label:'36-55岁',value:'middle'},
+        {label:'55岁以上',value:'old'}
       ];
       if (pickerType.value === 'risk') return [
         {label:'保守型（C1）',value:'C1'},
@@ -1464,13 +1542,12 @@ createApp({
     }
     function selectPicker(val) {
       if (pickerType.value === 'age') {
-        const m = {young:'青年', middle:'中年', old:'老年'};
+        const m = {young:'18-35岁', middle:'36-55岁', old:'55岁以上'};
         riskProfile.age = m[val];
         riskProfile.ageValue = val;
-        // Auto adjust risk suggestion
-        if (val === 'young') { riskProfile.riskPref = '积极型'; riskProfile.riskPrefValue = 'C4'; riskProfile.maxRiskLevel = 4; riskProfile.maxRiskLabel = 'R1-R4'; }
-        if (val === 'middle') { riskProfile.riskPref = '平衡型'; riskProfile.riskPrefValue = 'C3'; riskProfile.maxRiskLevel = 3; riskProfile.maxRiskLabel = 'R1-R3'; }
-        if (val === 'old') { riskProfile.riskPref = '稳健型'; riskProfile.riskPrefValue = 'C2'; riskProfile.maxRiskLevel = 2; riskProfile.maxRiskLabel = 'R1-R2'; }
+        // 说明：年龄不再联动改写"风险偏好"。三项筛选必须彼此独立——
+        // 否则切换年龄会隐式改掉风险偏好，用户看到的结果变化无法归因，也违背"三个筛选各自生效"的预期。
+        // 年龄对风险的影响统一由 profileMaxRisk() 的 AGE_RISK_ADJUST 施加（单一入口，避免重复计算）。
       }
       if (pickerType.value === 'risk') {
         const labels = {C1:'保守型',C2:'稳健型',C3:'平衡型',C4:'积极型',C5:'进取型'};
@@ -1488,6 +1565,9 @@ createApp({
       }
       pickerOpen.value = false;
       profileUpdated.value = true;
+      // 画像变更后：若当前正停留在结果页，立即按新画像重算，确保"切换画像 → 结果随之变化"；
+      // 若在首页，则在下次点击"开始选基"时自然生效（避免意外跳页）
+      if (currentPage.value === 'results' && lastQuery.value) processAIIntent(lastQuery.value);
       setTimeout(() => { profileUpdated.value = false; }, 3000);
     }
 
@@ -1541,11 +1621,16 @@ createApp({
       {words:['AI','人工智能','算力','大模型','机器学习','AI应用','AI+'], intent:'theme_ai'},
       {words:['新能源','光伏','风电','储能','锂电','电池','电动车','新能源车','充电桩','锂电池'], intent:'theme_ne'},
       {words:['医药','医疗','创新药','生物医药','生物科技','疫苗','mRNA','CXO','医疗器械','中药','药店','医疗服务','眼科','口腔','医美'], intent:'theme_med'},
-      {words:['半导体','芯片','集成电路','晶圆','光刻','半导体设备','半导体材料','封测','存储芯片','国产芯片'], intent:'theme_semi'},
-      {words:['光模块','光通信','光器件','光模块','CPO','硅光'], intent:'theme_optical'},
-      {words:['消费','白酒','食品饮料','酒','家电','免税','零食','饮料','啤酒','乳制品','调味品','消费电子'], intent:'theme_cons'},
+      {words:['半导体','芯片','集成电路','晶圆','光刻','半导体设备','半导体材料','封测','国产芯片','第三代半导体','碳化硅','EDA','光刻胶','PCB','线路板','印制电路','电路板','覆铜板','存储','存储芯片','闪存','DRAM','NAND','内存','先进封装','玻璃基板','TGV','载板','MLCC','被动元件','电容','电感','消费电子'], intent:'theme_semi'},
+      {words:['光模块','光通信','光器件','CPO','硅光','光芯片','800G','1.6T'], intent:'theme_optical'},
+      {words:['消费','白酒','食品饮料','酒','免税','零食','饮料','啤酒','乳制品','调味品','消费电子'], intent:'theme_cons'},
+      {words:['家电','家用电器'], intent:'theme_appliance'},
       {words:['军工','国防','航天','航空发动机','导弹','军工电子'], intent:'theme_mil'},
-      {words:['金融','银行','券商','保险','证券','互联网金融','数字货币'], intent:'theme_fin'},
+      // 金融细分：银行/券商/保险独立成主题，避免"重仓银行"与"重仓券商"返回同一批基金
+      {words:['金融','大金融','互联网金融','数字货币','金融科技'], intent:'theme_fin'},
+      {words:['银行','银行股','国有大行','城商行'], intent:'theme_bank'},
+      {words:['券商','证券','证券公司','非银','非银金融'], intent:'theme_broker'},
+      {words:['保险','保险股'], intent:'theme_insur'},
       {words:['地产','房地产','物业','保障房'], intent:'theme_re'},
       {words:['科技','电子','计算机','软件','通信','互联网','TMT','数字经济','信息技术'], intent:'theme_tech'},
       {words:['传媒','游戏','影视','内容','元宇宙','直播','短视频'], intent:'theme_media'},
@@ -1571,7 +1656,7 @@ createApp({
       {words:['智能驾驶','自动驾驶','车联网','无人驾驶','智能汽车'], intent:'theme_autopilot'},
       {words:['教育','职业教育','在线教育','K12'], intent:'theme_edu'},
       {words:['旅游','酒店','餐饮','出行','免税旅游'], intent:'theme_travel'},
-      {words:['石油','原油','油气','油服','页岩油'], intent:'theme_oil'},
+      {words:['石油','原油','油气','油服','页岩油','石化'], intent:'theme_oil'},
       // ---- 风格/市值 ----
       {words:['价值','价值投资','低估值','低估','蓝筹','白马','大盘价值'], intent:'style_value'},
       {words:['成长','成长性','高成长','成长风格','科技成长'], intent:'style_growth'},
@@ -1649,78 +1734,91 @@ createApp({
       return words.some(w => text.includes(w) && !(exclude && text.includes(exclude)));
     }
 
-    // 主题 → 行业代码映射
-    const THEME_INDUSTRY = {
-      theme_ai:['CI005025','CI005026','CI005027'],
-      theme_ne:['CI005011'],
-      theme_med:['CI005018'],
-      theme_semi:['CI005025'],
-      theme_optical:['CI005025','CI005026'],
-      theme_cons:['CI005019'],
-      theme_mil:['CI005012'],
-      theme_fin:['CI005021','CI005022'],
-      theme_re:['CI005023'],
-      theme_tech:['CI005025','CI005026','CI005027'],
-      theme_media:['CI005028'],
-      theme_res:['CI005003'],
-      theme_coal:['CI005002'],
-      theme_chem:['CI005006'],
-      theme_auto:['CI005013'],
-      theme_mach:['CI005010'],
-      theme_agri:['CI005020'],
-      theme_soe:['CI005021','CI005001','CI005004','CI005002','CI005024'],
-      theme_env:['CI005004','CI005006'],
-      theme_power:['CI005004'],
-      theme_steel:['CI005005'],
-      theme_buildm:['CI005008'],
-      theme_construct:['CI005007'],
-      theme_trans:['CI005024'],
-      theme_cloud:['CI005025','CI005026','CI005027'],
-      theme_robot:['CI005010','CI005025'],
-      theme_lowalt:['CI005012','CI005013','CI005010'],
-      theme_hydro:['CI005011','CI005004'],
-      theme_nuclear:['CI005011','CI005004'],
-      theme_autopilot:['CI005013','CI005025'],
-      theme_edu:['CI005014','CI005015'],
-      theme_travel:['CI005015','CI005014'],
-      theme_oil:['CI005001']
+    // ===== 主题权威定义表 =====
+    // 每个主题统一具备：label 中文名（用于条件标签）、ind 行业代码（兜底）、kw 名称关键词（主口径）
+    // 口径优先级：名称关键词命中 → 行业权重兜底（要求"主行业命中 + 占比≥35%"，且限定权益类标的）
+    // 设计原则：kw 只放"精准赛道词"，不放"电子/科技/信息/智能"等泛行业词——泛词会命中半个基金池，失去区分度。
+    const THEME_DEF = {
+      theme_ai:        { label:'人工智能',   kw:['人工智能','AI','算力','大模型'], ind:['CI005025','CI005026','CI005027'] },
+      theme_ne:        { label:'新能源',     kw:['新能源','光伏','风电','储能','锂电','电池','低碳','充电','电动车'], ind:['CI005011'] },
+      theme_med:       { label:'医药',       kw:['医药','医疗','创新药','生物','疫苗','中药','医美','器械','CXO'], ind:['CI005018'] },
+      theme_semi:      { label:'半导体/电子', kw:['半导体','芯片','集成电路','封测','存储','PCB','封装','光刻','晶圆','EDA'], ind:['CI005025'] },
+      theme_optical:   { label:'光模块/通信', kw:['光模块','光通信','光器件','CPO','硅光','光芯片','通信','5G'], ind:['CI005025','CI005026'] },
+      theme_cons:      { label:'消费',       kw:['消费','白酒','食品','饮料','乳业','啤酒','免税'], ind:['CI005019'] },
+      theme_appliance: { label:'家电',       kw:['家电','家用电器'], ind:['CI005016'],
+        stk:['美的集团','格力电器','海尔智家','海信家电','苏泊尔','九阳股份','老板电器','石头科技','科沃斯','三花智控','盾安环境'] },
+      theme_mil:       { label:'军工',       kw:['军工','国防','航天','航空'], ind:['CI005012'],
+        stk:['中航沈飞','中航成飞','航发动力','中航光电','中航机载','中航重机','中国船舶','中船防务','中国卫星','中国卫通','振华科技','国睿科技','国博电子','航天电器','航天电子','中航西飞','光威复材','广联航空','航宇科技','应流股份'] },
+      theme_fin:       { label:'大金融',     kw:['金融'], ind:['CI005021','CI005022'],
+        stk:['招商银行','工商银行','建设银行','中国平安','中信证券','东方财富','兴业银行','农业银行','中国银行','交通银行','宁波银行','江苏银行','成都银行','杭州银行','中国太保','新华保险','中国人寿'] },
+      theme_bank:      { label:'银行',       kw:['银行'], ind:['CI005021'],
+        stk:['招商银行','工商银行','建设银行','兴业银行','农业银行','中国银行','交通银行','宁波银行','江苏银行','成都银行','杭州银行','南京银行','上海银行','长沙银行','齐鲁银行','光大银行','民生银行','中信银行','平安银行','渝农商行','沪农商行'] },
+      theme_broker:    { label:'证券/非银',   kw:['证券','券商'], ind:['CI005022'],
+        stk:['中信证券','东方财富','华泰证券','招商证券','国泰海通','广发证券','申万宏源','中国银河','中信建投','东方证券','兴业证券','财通证券','中泰证券','中金公司','东兴证券','同花顺','国金证券','长江证券'] },
+      theme_insur:     { label:'保险',       kw:['保险'], ind:['CI005022'],
+        stk:['中国平安','中国人寿','中国太保','新华保险','中国人保','中国财险','中国人民保险集团'] },
+      theme_re:        { label:'地产',       kw:['地产','房地产'], ind:['CI005023'],
+        stk:['保利发展','万科A','招商蛇口','金地集团','新城控股','龙湖集团','华润置地','绿城中国','滨江集团','越秀地产','华发股份','中国海外发展'] },
+      theme_tech:      { label:'科技',       kw:['科技','软件','计算机','TMT','信息','数字','互联网'], ind:['CI005026','CI005027'] },
+      theme_media:     { label:'传媒',       kw:['传媒','游戏','影视','文化','娱乐'], ind:['CI005028'],
+        stk:['分众传媒','芒果超媒','三七互娱','完美世界','光线传媒','华策影视','蓝色光标','昆仑万维','世纪华通','巨人网络','吉比特','阅文集团','哔哩哔哩-W','腾讯控股','快手-W'] },
+      theme_res:       { label:'有色/贵金属', kw:['有色','黄金','贵金属','稀土','稀有'], ind:['CI005003'],
+        stk:['紫金矿业','山东黄金','中金黄金','赤峰黄金','洛阳钼业','北方稀土','中国稀土','盛和资源','云铝股份','中国铝业','天山铝业','华友钴业','湖南黄金','四川黄金','灵宝黄金','招金黄金','西部矿业','铜陵有色','中国宏桥'] },
+      theme_coal:      { label:'煤炭',       kw:['煤炭','动力煤','焦煤'], ind:['CI005002'],
+        stk:['中国神华','陕西煤业','中煤能源','兖矿能源','山西焦煤','潞安环能','淮北矿业','晋控煤业','山煤国际','平煤股份','冀中能源','广汇能源','电投能源','昊华能源','郑州煤电','兰花科创','恒源煤电','上海能源','永泰能源','新集能源','宝丰能源','盘江股份','大有能源'] },
+      theme_chem:      { label:'化工',       kw:['化工','新材料','化学'], ind:['CI005006'],
+        stk:['万华化学','华鲁恒升','恒力石化','荣盛石化','恒逸石化','桐昆股份','新和成','扬农化工','龙佰集团','巨化股份','三美股份','昊华科技','云天化','兴发集团','新宙邦','天赐材料','多氟多','三祥新材','三维化学','东方盛虹','卫星化学','金发科技','中化化肥','新乡化纤','江山股份','皇马科技','汇得科技','浙江龙盛','安迪苏','华峰化学','云图控股','湖北宜化','鲁西化工'] },
+      theme_auto:      { label:'汽车',       kw:['汽车','新能源车','整车'], ind:['CI005013'],
+        stk:['比亚迪','长城汽车','长安汽车','上汽集团','广汽集团','赛力斯','星宇股份','新泉股份','浙江荣泰','拓普集团','伯特利','继峰股份','福耀玻璃','均胜电子','潍柴动力','中国重汽','宇通客车'] },
+      theme_mach:      { label:'高端制造',   kw:['高端制造','制造','机械','装备','母机'], ind:['CI005010'],
+        stk:['三一重工','徐工机械','恒立液压','汇川技术','先导智能','迈为股份','晶盛机电','杭氧股份','杰瑞股份','豪迈科技','应流股份','绿的谐波','华中数控','科德数控','海天精工','创世纪','大族激光','锐科激光','柏楚电子','华曙高科'] },
+      theme_agri:      { label:'农业',       kw:['农业','农牧','养殖'], ind:['CI005020'],
+        stk:['牧原股份','温氏股份','海大集团','安琪酵母','双汇发展','立华股份','生物股份','隆平高科','大北农','登海种业','荃银高科','圣农发展','益生股份','民和股份','中宠股份','中牧股份','普莱柯','科前生物','巨星农牧','唐人神','新五丰','天邦食品','傲农生物','金新农','亚钾国际','云图控股','盐湖股份','藏格矿业','北大荒','苏垦农发','新希望','丰乐种业','万向德农','天马科技','粤海饲料'] },
+      theme_soe:       { label:'中特估/央企', kw:['央企','国企','国资','中字头','国新','红利低波'], ind:['CI005021','CI005001','CI005004','CI005002','CI005024'],
+        stk:['中国移动','中国神华','中国海油','中国石油','中国建筑','中国中铁','中国铁建','中国交建','中国电建','中国核电','长江电力','中国电信','中国联通','中国铝业','中远海控','中国中车','中海油服'] },
+      theme_env:       { label:'环保/碳中和', kw:['环保','碳中和','节能','低碳','绿电','ESG'], ind:['CI005004','CI005006'],
+        stk:['伟明环保','瀚蓝环境','洪城环境','汇绿生态','高能环境','盈峰环境','玉禾田','侨银股份','首创环保','上海环境','兴蓉环境','中山公用'] },
+      theme_power:     { label:'电力/公用事业', kw:['电力','公用事业','水电','火电','绿电','电网'], ind:['CI005004'],
+        stk:['长江电力','国电南瑞','中国核电','三峡能源','国投电力','华能水电','川投能源','申能股份','浙能电力','皖能电力','粤电力A','大唐发电','华电国际','思源电气','平高电气','许继电气','四方股份','金盘科技'] },
+      theme_steel:     { label:'钢铁',       kw:['钢铁','特钢'], ind:['CI005005'],
+        stk:['宝钢股份','包钢股份','华菱钢铁','南钢股份','中信特钢','久立特材','永兴材料','新兴铸管','杭钢股份','大中矿业','方大特钢','新钢股份','马钢股份','首钢股份','太钢不锈','柳钢股份','三钢闽光','鞍钢股份','山东钢铁','八一钢铁','重庆钢铁','甬金股份','抚顺特钢','贵绳股份','酒钢宏兴','玉龙股份','河钢股份','安阳钢铁','沙钢股份','韶钢松山','本钢板材','凌钢股份','西宁特钢'] },
+      theme_buildm:    { label:'建材',       kw:['建材','水泥','玻璃','基建材料'], ind:['CI005008'],
+        stk:['海螺水泥','北新建材','东方雨虹','中国巨石','中材科技','旗滨集团','信义玻璃','塔牌集团','上峰材料','国际复材','宏和科技','山东玻纤','金晶科技','南玻A','伟星新材','坚朗五金','冀东水泥','华新水泥','天山股份','宁夏建材','祁连山','兔宝宝','洛阳玻璃','福莱特','三棵树','蒙娜丽莎','东鹏控股'] },
+      theme_construct: { label:'建筑/基建',   kw:['基建','建筑','建筑工程','一带一路'], ind:['CI005007'],
+        stk:['中国建筑','中国中铁','中国铁建','中国交建','中国电建','中国能建','安徽建工','亚翔集成','深桑达A','上海建工','隧道股份','北方国际','中材国际','中国化学','中国中冶','中国核建','中国海诚','龙元建设','宏润建设','浙江交科','山东路桥','四川路桥','北新路桥'] },
+      theme_trans:     { label:'交通运输',   kw:['物流','港口','航运','机场','快递','交运','铁路'], ind:['CI005024'],
+        stk:['中远海控','招商轮船','顺丰控股','中国国航','南方航空','中国东航','春秋航空','吉祥航空','大秦铁路','招商公路','山东高速','中谷物流','中远海能','太平洋航运','海通发展','满帮','中通快递-W','广深铁路','铁龙物流','韵达股份','圆通速递','京沪高铁','招商南油','渤海租赁','中国外运','宁波港','上港集团','青岛港','唐山港','日照港','粤高速A','宁沪高速','皖通高速','四川成渝','深高速'] },
+      theme_cloud:     { label:'云计算/信创', kw:['云计算','大数据','信创','数据中心','服务器'], ind:['CI005027','CI005026'],
+        stk:['浪潮信息','中科曙光','紫光股份','深信服','金山办公','用友网络','达梦数据','太极股份','润和软件','软通动力','拓维信息','神州数码','中国软件','东方国信'] },
+      theme_robot:     { label:'机器人',     kw:['机器人','工业母机'], ind:['CI005010'],
+        stk:['汇川技术','绿的谐波','埃斯顿','华中数控','机器人','拓斯达','双环传动','三花智控','鸣志电器','禾川科技','雷赛智能','兆威机电','中大力德','国茂股份'] },
+      theme_lowalt:    { label:'低空经济',   kw:['无人机','低空','eVTOL'], ind:['CI005012','CI005013','CI005010'],
+        stk:['中信海直','万丰奥威','宗申动力','山河智能','广联航空','航天电子','莱斯信息','深城交','纳睿雷达','观典防务','铂力特','光启技术','纵横股份'] },
+      theme_hydro:     { label:'氢能',       kw:['氢能','燃料电池'], ind:['CI005011','CI005004'],
+        stk:['亿华通','美锦能源','雪人股份','雄韬股份','大洋电机','潍柴动力','东方电气','阳光电源','厚普股份','冰轮环境','京城股份','富瑞特装'] },
+      theme_nuclear:   { label:'核电',       kw:['核电','核能'], ind:['CI005011','CI005004'],
+        stk:['中国核电','中国广核','上海电气','东方电气','江苏神通','中核科技','佳电股份','兰石重装','应流股份','久立特材','纽威股份'] },
+      theme_autopilot: { label:'智能驾驶',   kw:['智能驾驶','自动驾驶','车联网','无人驾驶'], ind:['CI005013'] },
+      theme_edu:       { label:'教育',       kw:['教育','学校','职教'], ind:['CI005014','CI005015'],
+        stk:['中公教育','学大教育','豆神教育','科德教育','开元教育','昂立教育','行动教育','视源股份','科大讯飞','中教控股','天立国际控股','思考乐教育','新东方','好未来','国新文化','佳发教育','竞业达','中汇集团'] },
+      theme_travel:    { label:'旅游/消费服务', kw:['旅游','酒店','餐饮','出行'], ind:['CI005015','CI005014'],
+        stk:['中国中免','宋城演艺','锦江酒店','首旅酒店','华住集团-S','百胜中国','海底捞','同程旅行','峨眉山A','黄山旅游','丽江股份','天目湖','中青旅','众信旅游','君亭酒店','金陵饭店','西安旅游','曲江文旅','携程','九毛九','颐海国际','广州酒家'] },
+      theme_oil:       { label:'石油石化',   kw:['石油','原油','油气'], ind:['CI005001'],
+        stk:['中国石油','中国海油','中国石化','中国石油化工股份','埃克森美孚','雪佛龙','恒力石化','荣盛石化','恒逸石化','桐昆股份','东方盛虹','新奥股份','广汇能源','九丰能源','新天然气','蓝焰控股','首华燃气','中国海洋石油','中海油服','海油工程','杰瑞股份','石化机械','昆仑能源','上海石化'] }
     };
-    // 主题 → 基金名称关键词
-    const THEME_NAME_KW = {
-      theme_ai:['AI','人工智能','算力','智能','大数据','云计算'],
-      theme_ne:['新能源','光伏','风电','储能','锂电','电池','低碳','充电'],
-      theme_med:['医药','医疗','创新药','生物','疫苗','健康','中药','医美','器械'],
-      theme_semi:['半导体','芯片','集成电路','电子','信息','科创','封测'],
-      theme_optical:['光','通信','5G','信息','互联'],
-      theme_cons:['消费','白酒','食品','饮料','家电','龙头','乳业','啤酒'],
-      theme_mil:['军工','国防','航天','航空'],
-      theme_fin:['金融','银行','证券','保险','非银','券商'],
-      theme_re:['地产','房地产'],
-      theme_tech:['科技','电子','计算机','软件','通信','互联网','TMT','信息','数字'],
-      theme_media:['传媒','游戏','影视','文化','娱乐'],
-      theme_res:['有色','黄金','贵金属','资源','商品'],
-      theme_coal:['煤炭','动力煤','焦煤'],
-      theme_chem:['化工','新材料','材料','化学'],
-      theme_auto:['汽车','新能源车','智能汽车','整车'],
-      theme_mach:['高端制造','制造','机械','工业','装备'],
-      theme_agri:['农业','农牧','养殖','消费'],
-      theme_soe:['央企','国企','国资','中字头','国新','红利低波'],
-      theme_env:['环保','碳中和','节能','低碳','绿电','ESG'],
-      theme_power:['电力','公用事业','水电','火电','绿电','电网'],
-      theme_steel:['钢铁','特钢'],
-      theme_buildm:['建材','水泥','玻璃','基建材料'],
-      theme_construct:['基建','建筑','建筑工程','一带一路'],
-      theme_trans:['物流','港口','航运','航空','机场','快递','交运','铁路'],
-      theme_cloud:['云计算','大数据','数据中心','信创','国产','服务器','算力','AI'],
-      theme_robot:['机器人','智能装备','工业母机','智能制造'],
-      theme_lowalt:['无人机','低空','航空','航天'],
-      theme_hydro:['氢能','燃料电池'],
-      theme_nuclear:['核电','核能'],
-      theme_autopilot:['智能驾驶','自动驾驶','车联网','智能汽车'],
-      theme_edu:['教育','学校','职教'],
-      theme_travel:['旅游','酒店','餐饮','出行'],
-      theme_oil:['石油','原油','油气','能源','资源']
-    };
+
+    // 主题 → 基金名称关键词（派生，保持向后兼容）
+    const THEME_NAME_KW = {};
+    // 主题 → 行业代码映射（派生，保持向后兼容）
+    const THEME_INDUSTRY = {};
+    // 主题 → 成分股名称（第三级兜底口径：主题无同名基金、也无行业重仓基金时，
+    // 放宽为"持有该主题任一成分股即可"，避免"搜钢铁返回债基/无关基金"式答非所问）
+    const THEME_STOCKS = {};
+    for (const t in THEME_DEF) {
+      THEME_NAME_KW[t] = THEME_DEF[t].kw;
+      THEME_INDUSTRY[t] = THEME_DEF[t].ind;
+      THEME_STOCKS[t] = THEME_DEF[t].stk || [];
+    }
 
     // 指数名称 → 基金名称关键词
     const INDEX_NAME_KW = {
@@ -1749,15 +1847,17 @@ createApp({
     };
 
     // 兜底方案：回撤低、风险小、夏普高（安全替代）
+    // 注意：本兜底只在"完全无法从诉求中解析出可执行条件"时触发，
+    // 因此话术必须如实说明"未识别出明确条件"，绝不能谎称这些条件是从用户诉求中"拆解"出来的。
     function safeFallback() {
       return {
-        intentAnalysis: '为了给您提供合适的参考，我已为您推荐一批回撤较小、风险较低、夏普比率较高的稳健型基金。您可以尝试更具体的描述，如"波动小的债券基金""重仓新能源"或"高分红基金"。',
+        intentAnalysis: '您这次的需求我未能解析出明确的主题或量化条件。为提供参考，我先按"回撤较低、风险可控、夏普比率较高"的稳健口径，为您挑选了一批基金。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""近一年收益超20%"等。',
         conditions: [
           {label:'最大回撤<10%', type:'metric'},
           {label:'风险等级≤R3', type:'risk'},
           {label:'夏普比率较高', type:'metric'}
         ],
-        matchReason: '根据您的需求，以下基金在控制回撤和风险的同时保持较好的风险收益比，适合作为稳健参考。',
+        matchReason: '未识别出明确条件，以下按"回撤较低、风险可控、夏普较高"的稳健口径为您推荐，供参考。',
         filterFn: (funds, maxRisk) => funds
           .filter(f => f.riskLevelNum <= Math.min(3, maxRisk))
           .filter(f => Math.abs(f.performance.MAX_DRAWDOWN || 1) < 0.10)
@@ -1805,6 +1905,7 @@ createApp({
       const coreFns = [];   // 核心约束（主题/类型/实质指标）：宽松降级时优先保留
       const softFns = [];   // 软约束（费率/规模）：宽松降级时优先放宽
       const themeFns = [];  // 主题约束：最终兜底时保留主题语义
+      let isNewHighIntent = false;   // 是否为"近期净值新高"意图（该意图严格只展示真新高，不做替代/降级）
       const riskOk = (f, maxRisk) => f.riskLevelNum <= maxRisk;
       const add = (label, type, fn) => {
         conditions.push({label, type});
@@ -1932,21 +2033,64 @@ createApp({
       if (matchIntent(text,'fof')) add('FOF基金', 'fundType', (funds, maxRisk) => funds.filter(f => /FOF/.test(f.fundName||'') && riskOk(f, maxRisk)));
       if (matchIntent(text,'convertible')) add('可转债基金', 'fundType', (funds, maxRisk) => funds.filter(f => /转债|可转债/.test(f.fundName||'') && riskOk(f, maxRisk)));
 
-      // ---- 主题/行业（名称关键词优先，行业配置兜底）----
+      // ---- 主题/行业（名称关键词优先，行业配置高阈值兜底）----
+      // 非权益类标的（债券/货币/FOF）的 industryConfig 按股票仓位归一化，会被放大，
+      // 必须先行排除，否则"重仓银行/重仓钢铁"等会因行业权重误命中债基。
+      const NOT_EQUITY = /债券|货基|货币|短债|纯债|固收|FOF/;
+      // 行业权重兜底阈值：0.25（股票仓位中该行业占比≥1/4，即"重仓"语义）。
+      // 低阈值（0.08）会让电子/机械等泛行业命中过半基金池，失去筛选意义。
+      const IND_FALLBACK_TH = 0.25;
+      // 主题命中：在所有主题里挑"命中词最长"的那一个（如"银行"优于"金融"），避免多主题叠加
+      let bestTheme = null, bestLen = 0, themeTier = '';
       for (const theme of Object.keys(THEME_NAME_KW)) {
         // 场景词保护："教育金"是攒钱场景，不是教育行业基金，跳过教育主题
         if (theme === 'theme_edu' && /教育金|子女教育|教育储备|孩子教育|教育规划/.test(text)) continue;
-        if (matchIntent(text, theme)) {
-          const kw = THEME_NAME_KW[theme];
-          const inds = THEME_INDUSTRY[theme] || [];
-          add('主题：' + theme.replace('theme_',''), 'industry', (funds, maxRisk) => {
-            const byName = funds.filter(f => riskOk(f, maxRisk) && kw.some(k => (f.fundName||'').includes(k)));
-            if (byName.length >= 3) return byName;
-            const byInd = inds.length ? funds.filter(f => riskOk(f, maxRisk) && inds.some(c => (f.industryConfig[c]||0) > 0.08)) : [];
-            return byInd.length ? byInd : byName;
-          });
-          if (!sortBy) sortBy = 'RETURNRATE';
-        }
+        const entry = SYNONYM_MAP.find(e => e.intent === theme);
+        if (!entry) continue;
+        const hitLen = entry.words.filter(w => text.includes(w)).reduce((m,w) => Math.max(m, w.length), 0);
+        if (hitLen > bestLen) { bestLen = hitLen; bestTheme = theme; }
+      }
+      if (bestTheme) {
+        const def = THEME_DEF[bestTheme] || {};
+        const kw = def.kw || THEME_NAME_KW[bestTheme] || [];
+        const inds = def.ind || THEME_INDUSTRY[bestTheme] || [];
+        const stks = def.stk || THEME_STOCKS[bestTheme] || [];
+        const themeLabel = def.label || bestTheme.replace('theme_','');
+        // 【三级口径决策】按"精准度"逐级判定该主题的匹配方式（全量池、不限风险下判定，保证跨风险档单调）：
+        //   ① 名称覆盖（如半导体→14只名称含"半导体/芯片"）→ 只用名称口径，赛道最纯正；
+        //   ② 行业重仓（如银行→6只第一大行业为银行且占比≥25%）→ 用"主行业命中 + 高权重"口径；
+        //   ③ 成分股持有（如钢铁→池内无钢铁基金，但 002351 持有宝钢股份）→ 放宽为"持有该主题任一成分股"。
+        // 这样既保证赛道纯正（优先精准口径），又确保热门主题都有内容（最宽口径兜底），
+        // 同时绝不退回"低回撤+高夏普"的债基稳健兜底（那会答非所问）。
+        // 说明：①② 限定权益类标的（避免行业权重被债基小股票仓位放大而误命中）；
+        //      ③ 不限定类型——"实际持有该主题个股"是直接可核验的真实信号，
+        //        债基亦可持有少量个股（如 002351 持有宝钢股份），用户已确认这类结果可接受。
+        const eqPool = MOCK_FUNDS.filter(f => !NOT_EQUITY.test(f.fundTypeTag || ''));
+        const nameCovered = eqPool.some(f => kw.some(k => (f.fundName||'').includes(k)));
+        const indCovered = inds.length ? eqPool.some(f =>
+          inds.includes(f.topIndustryCode) && inds.some(c => (f.industryConfig[c]||0) >= IND_FALLBACK_TH)) : false;
+        const holdCovered = stks.length ? MOCK_FUNDS.some(f => fundHoldsThemeStock(f, stks)) : false;
+        themeTier = nameCovered ? 'name' : (indCovered ? 'industry' : (holdCovered ? 'holding' : 'none'));
+        add('主题：' + themeLabel, 'industry', (funds2, maxRisk) => {
+          const pool = funds2.filter(f => riskOk(f, maxRisk) && !NOT_EQUITY.test(f.fundTypeTag || ''));
+          if (themeTier === 'name')     return pool.filter(f => kw.some(k => (f.fundName||'').includes(k)));
+          if (themeTier === 'industry') return pool.filter(f =>
+            inds.includes(f.topIndustryCode) && inds.some(c => (f.industryConfig[c]||0) >= IND_FALLBACK_TH));
+          if (themeTier === 'holding') {
+            // 不限定基金类型：只要实际持有该主题成分股即命中；并按"持有只数"降序，最相关者靠前
+            const hits = funds2.filter(f => riskOk(f, maxRisk) && fundHoldsThemeStock(f, stks));
+            hits.forEach(f => {
+              const held = themeStocksHeldBy(f, stks);
+              // 清理历史注入，避免跨查询累积（仅清理本机制注入的"持有X"标签）
+              f.matchTags = (f.matchTags || []).filter(t => !String(t).startsWith('持有'));
+              held.slice(0, 2).forEach(s => f.matchTags.push('持有' + s));
+              f._themeHoldCount = held.length;
+            });
+            return hits.sort((a, b) => (b._themeHoldCount || 0) - (a._themeHoldCount || 0));
+          }
+          return [];
+        });
+        if (!sortBy) sortBy = 'RETURNRATE';
       }
 
       // ---- 波动/风险 ----
@@ -2041,14 +2185,15 @@ createApp({
       // 有净值缓存（nav-cache.js，近3个月净值序列）时做真实判定：最新累计净值 ≈ 窗口内最高点 → 近期新高；
       // 无净值缓存数据的基金，回退"近一年收益率≥15%"作为替代参考（OR 合并，不互相 AND 过滤）
       if (matchIntentEx(text,'metric_ret_newhigh', null) && !/夏普|年化/.test(text)) {
+        isNewHighIntent = true;
         const NAV = (typeof window !== 'undefined' && window.NAV_CACHE) || {};
-        add('近期净值新高(真实判定)/收益≥15%替代', 'metric', (funds, maxRisk) => funds.filter(f => {
+        // 严格口径：仅展示"最新累计净值处于近3个月窗口最高点"的基金；
+        // 无净值数据的基金不再以"收益≥15%"替代（避免把非新高当成新高展示）
+        add('近期净值新高', 'metric', (funds, maxRisk) => funds.filter(f => {
           if (!riskOk(f, maxRisk)) return false;
           const code = String(f.fundCode || '').split('.')[0];
           const rec = NAV[code];
-          if (rec && rec.nh === true) return true;      // 真实判定：处于近3月窗口新高
-          if (!rec) return (f.performance.RETURNRATE||0) >= 0.15;  // 无净值数据：替代参考
-          return false;                                 // 有净值数据但非新高：不入选
+          return !!(rec && rec.nh === true);
         }));
         sortBy = 'RETURNRATE';
       }
@@ -2138,19 +2283,12 @@ createApp({
         return res;
       };
 
-      // "近期新高/净值新高"命中时：按近3个月净值窗口真实判定（最新累计净值≈窗口最高点）
-      let intentAnalysis = '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。';
-      let matchReason = '根据您的描述，以下基金符合筛选条件，请结合指标和风险等级综合参考。';
-      if (matchIntentEx(text, 'metric_ret_newhigh', null) && !/夏普|年化/.test(text)) {
-        const NAV = (typeof window !== 'undefined' && window.NAV_CACHE) || {};
-        const navCount = Object.keys(NAV).length;
-        if (navCount > 0) {
-          intentAnalysis = '"近期新高"按最新累计净值是否处于近3个月净值窗口的最高点判定（数据来源：东方财富公开净值序列，累计净值口径）。以下为处于近期净值新高的基金；未覆盖净值数据的基金以近一年收益率≥15%作为替代参考。';
-          matchReason = '已按近3个月净值序列判定近期新高（最新累计净值≈窗口最高点），未覆盖净值数据的基金以近一年收益≥15%替代参考。';
-        } else {
-          intentAnalysis = '"近期新高"指最新净值创近3个月新高，需要净值序列才能准确判定。当前离线数据暂无净值序列，以下为您展示近一年收益率≥15%的强势基金，作为替代参考（并非严格意义上的近期新高）。';
-          matchReason = '暂无净值序列可判定近期新高，以下为近一年收益≥15%的强势基金供参考。';
-        }
+      // "近期新高/净值新高"命中时：按近3个月净值窗口严格判定（最新累计净值≈窗口最高点）
+      let intentAnalysis = '我已理解您的投资需求，正在从全市场基金中筛选符合条件的标的，并结合您的风险偏好完成风险等级过滤。以下为筛选结果。';
+      let matchReason = '以下基金符合您的筛选条件，请结合各项指标与风险等级综合参考。';
+      if (isNewHighIntent) {
+        intentAnalysis = '我来分析一下您的需求：您关注的是"近期净值创新高"的基金。这类标的意味着当前净值正处于近3个月区间的相对高位，说明其近期走势相对强势、资金关注度较高——但同时也要注意，创新高后短期回调的风险会相应上升。我已为您筛选出最新净值处于近3个月区间高点的基金，并逐只核对了是否满足您的风险偏好。';
+        matchReason = '以下基金的最新净值均处于近3个月区间的高点，近期走势相对强势；创新高后需关注短期回调风险，建议结合自身风险承受能力与仓位安排综合判断。';
       }
       return {
         intentAnalysis,
@@ -2162,6 +2300,14 @@ createApp({
         softConstraints: softFns,
         themeConstraints: themeFns,
         sortBy: sortBy || 'RETURNRATE',
+        isNewHighIntent,
+        // 主题查询标记：命中主题且无其他实质约束时，绝不用"低回撤+高夏普"稳健兜底替代
+        // （否则"重仓银行/重仓钢铁"等会被替换成一堆债基，属于答非所问）
+        isThemeIntent: !!bestTheme,
+        themeLabel: bestTheme ? (THEME_DEF[bestTheme] && THEME_DEF[bestTheme].label) : '',
+        // 主题匹配层级：name(名称) / industry(行业重仓) / holding(持有成分股) / none(无覆盖)
+        themeTier: bestTheme ? themeTier : '',
+        themeStocks: bestTheme ? (THEME_DEF[bestTheme] && THEME_DEF[bestTheme].stk) || [] : [],
         isFallback: false
       };
     }
@@ -2185,10 +2331,12 @@ createApp({
       aiResult.filterFn = result.filterFn;
       aiResult.sortBy = result.sortBy;
       aiResult.modeLabel = modeLabel;
+      // 降级后实际生效的风险上限（供 UI 标签与话术保持一致，避免"标签写 R2、话术说 R5"）
+      aiResult.effectiveRiskCap = result.effectiveRiskCap || profileMaxRisk();
       sortBy.value = 'match';
       pageNum.value = 1;
       if (recordHistory) {
-        const filtered = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel) : MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
+        const filtered = computeDurationInfo(result, profileMaxRisk()).finalList;
         historyList.value.unshift({ query: text, time: new Date().toLocaleString('zh-CN'), count: filtered.length });
       }
       currentPage.value = 'results';
@@ -2204,29 +2352,60 @@ createApp({
       // 2) 空集保护：若识别结果筛不出基金（如过于苛刻的多条件），逐级放宽
       //    a) 优先尝试兜底方案
       //    b) 仍空则退化为"风险匹配 + 全量按夏普排序"
-      const count = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0;
-      if (count === 0 && !result.isFallback) {
+      const count = result.filterFn ? result.filterFn(MOCK_FUNDS, profileMaxRisk()).length : 0;
+
+      // 【严格口径】"近期净值新高"意图：只展示真·新高基金；若为 0 只则如实返回空态，
+      // 绝不用"收益率较高/放宽风险/主题替代"等近似口径把非新高基金伪装成新高展示。
+      if (count === 0 && result.isNewHighIntent) {
+        const inRisk = result.filterFn(MOCK_FUNDS, 5).length;   // 是否存在"超出风险偏好"的真新高基金
+        result = {
+          ...result,
+          newHighInRiskCount: inRisk,
+          isNewHighEmpty: true
+        };
+      }
+      // 【严格口径】主题查询（如"重仓银行/重仓半导体/重仓钢铁"）：若该主题在池内确实无匹配标的
+      // （即便放宽到最高风险档 R5 也无），则如实返回空态，绝不用"低回撤+高夏普"稳健兜底替换成债基，
+      // 避免"搜银行返回一堆债基"式的答非所问。
+      if (count === 0 && result.isThemeIntent && !result.isNewHighEmpty) {
+        const themeMax = result.filterFn ? result.filterFn(MOCK_FUNDS, 5).length : 0;
+        if (themeMax === 0) {
+          result = {
+            ...result,
+            isThemeEmpty: true,
+            conditions: result.conditions.length ? result.conditions : [{label:'主题：' + (result.themeLabel || ''), type:'industry'}]
+          };
+        }
+      }
+      if (count === 0 && !result.isFallback && !result.isNewHighEmpty && !result.isThemeEmpty) {
         // a0) 渐进降级①：保留核心条件（主题/类型/实质指标），剔除软约束（费率/规模）
         //     先按偏好风险，再放宽风险；命中则视为"放宽辅助条件"结果
+        //     注意：约束函数（尤其主题规则）内部含"整表长度"判定（如名称命中<3只时改用行业口径），
+        //     必须"整表求值"而非"逐只求值"，否则结果随风险档位非单调（放宽风险反而变少）。
         const coreFns = result.coreConstraints || [];
         if (coreFns.length > 0) {
-          const coreFn = (mr) => (funds) => funds.filter(f => riskOkGlobal(f, mr) && coreFns.every(c => { try { return c([f], mr).length > 0; } catch (e) { return false; } }));
-          const coreN3 = coreFn(riskProfile.maxRiskLevel)(MOCK_FUNDS).length;
-          const coreN5 = coreFn(5)(MOCK_FUNDS).length;
-          const useMr = coreN3 > 0 ? riskProfile.maxRiskLevel : 5;
+          const coreFn = (mr) => {
+            let res = MOCK_FUNDS.filter(f => riskOkGlobal(f, mr));
+            for (const c of coreFns) { try { res = c(res, mr); } catch (e) { /* 单条件异常不影响整体 */ } }
+            return res;
+          };
+          const coreN3 = coreFn(profileMaxRisk()).length;
+          const coreN5 = coreFn(5).length;
+          const useMr = coreN3 > 0 ? profileMaxRisk() : 5;
           if (coreN3 > 0 || coreN5 > 0) {
             result = {
               ...result,
               conditions: result.conditions.filter(c => !/费率|规模/.test(c.label)),
               intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件（含费率/规模等）后无匹配基金，以下已保留核心筛选条件（主题/类型/指标）' + (useMr === 5 ? '并放宽风险等级' : '') + '展示。请留意各基金风险等级标注。',
               matchReason: '叠加辅助条件（费率/规模）后无匹配，已保留核心条件' + (useMr === 5 ? '并放宽风险等级' : '') + '展示匹配标的。',
-              filterFn: (funds) => coreFn(useMr)(funds),
-              isRelaxedCore: true
+              filterFn: (funds) => { let res = funds.filter(f => riskOkGlobal(f, useMr)); for (const c of coreFns) { try { res = c(res, useMr); } catch(e){} } return res; },
+              isRelaxedCore: true,
+              effectiveRiskCap: useMr
             };
           }
         }
       }
-      if ((result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0) === 0 && !result.isFallback) {
+      if ((result.filterFn ? result.filterFn(MOCK_FUNDS, profileMaxRisk()).length : 0) === 0 && !result.isFallback && !result.isNewHighEmpty && !result.isThemeEmpty) {
         // a) 再尝试"放宽风险等级"：保留意图条件，仅放开风险上限，展示超出当前风险偏好的匹配结果
         //    （结果页会对超出风险偏好的基金标注"超出风险偏好"，兼顾意图与合规提示）
         const relaxedFn = result.filterFn;
@@ -2237,12 +2416,14 @@ createApp({
             intentAnalysis: (result.intentAnalysis || '') + '\n\n注：满足该条件、且不超出您当前风险偏好等级的基金为 0 只。以下已放宽风险等级展示匹配结果，请留意各基金的风险等级标注。',
             matchReason: '该条件下暂无符合您当前风险偏好的基金，已放宽风险等级展示匹配标的，请关注"超出风险偏好"提示。',
             filterFn: (funds) => relaxedFn(funds, 5),
-            isRelaxed: true
+            isRelaxed: true,
+            effectiveRiskCap: 5
           };
         } else {
           // b) 再试"仅保留主题"：主题类约束放宽（如"半导体+集中度""科技+新高"等叠加过严场景）
+          //    同样采用"整表求值"，保证结果随风险档位单调
           const themeFns = result.themeConstraints || [];
-          const themeOk = (funds, mr) => funds.filter(f => riskOkGlobal(f, mr) && themeFns.every(c => { try { return c([f], mr).length > 0; } catch (e) { return false; } }));
+          const themeOk = (funds, mr) => { let res = funds.filter(f => riskOkGlobal(f, mr)); for (const c of themeFns) { try { res = c(res, mr); } catch(e){} } return res; };
           if (themeFns.length > 0 && themeOk(MOCK_FUNDS, 5).length > 0) {
             result = {
               ...result,
@@ -2250,7 +2431,8 @@ createApp({
               intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件后无匹配基金，以下已放宽至"主题"维度展示同赛道基金，供参考。',
               matchReason: '叠加全部条件后无匹配，已放宽至主题维度展示同赛道标的。',
               filterFn: (funds) => themeOk(funds, 5),
-              isRelaxed: true
+              isRelaxed: true,
+              effectiveRiskCap: 5
             };
           } else {
           // c) 再试安全兜底（低回撤 + 高夏普，且符合风险偏好）
@@ -2274,7 +2456,143 @@ createApp({
 
       // 3) 简洁、用户友好的模式标签（不暴露内部 AI 状态/错误）
       const modeLabel = result.isFallback ? '智能推荐' : 'AI智能分析';
+      // 4) 生成"分析式"话术：基于真实解析条件 + 画像 + 结果统计，替换模板化文案
+      result = buildNarrative(result, text);
       applyResult(result, text, modeLabel, true, { status: 'local' });
+    }
+
+    // ============ 分析式话术生成器 ============
+    // 目标：让话术呈现"AI 真的分析过"的逻辑链——需求解析 → 画像叠加 → 筛选取舍 → 结论提醒，
+    // 且所有数字（命中数量、中位收益、主要类型、平均夏普）均来自真实计算结果，不做臆造。
+    function fundTypeLabel(tag) {
+      const m = { '股票型':'股票型', '混合型':'混合型', '债券型':'债券型', '指数型':'指数型', 'QDII型':'QDII型', 'FOF型':'FOF型' };
+      return m[tag] || (tag || '其他');
+    }
+    function buildNarrative(result, text) {
+      // 降级后实际生效的风险上限（如为放宽风险后展示，则话术按放宽后的档位说明，避免自相矛盾）
+      const profCap = profileMaxRisk();
+      const effCap = result.effectiveRiskCap || profCap;
+      const capRelaxed = effCap > profCap;
+      const mr = effCap;
+      const rule = durationRule();
+      // 注意：此处 result.filterFn 尚未写入 aiResult，故独立计算（不走响应式 computed）
+      const info = computeDurationInfo(result, mr);
+      const list = info.finalList;
+      const n = list.length;
+
+      const condLabels = (result.conditions || []).map(c => c.label);
+      const ageTxt = riskProfile.age;
+      const ageAdj = AGE_RISK_ADJUST[riskProfile.ageValue] || 0;
+      // 实际命中的最高风险等级：用于判断"风险上限是否真正起了约束作用"
+      const hitMaxRisk = n > 0 ? Math.max.apply(null, list.map(f => f.riskLevelNum || 0)) : mr;
+      const riskCapBinding = hitMaxRisk >= mr;   // 只有结果里存在 R=mr 的标的，才说明上限真正生效
+
+      const ageWhy = capRelaxed
+        ? `按您画像对应的风险上限（R${profCap}）做严格筛选时命中的标的为 0 只，为避免结果为空，我把风险上限临时放宽至 R${mr} 为您展示，请务必留意各标的的风险等级标注`
+        : ageAdj > 0
+        ? (riskCapBinding
+            ? `考虑到您处于 ${ageTxt} 这一年龄段，投资周期相对更长、对波动的容忍度更高，我在您自选风险等级基础上放宽了风险上限（至 R${mr}），从而纳入了风险等级更高的成长型标的`
+            : `考虑到您处于 ${ageTxt} 这一年龄段，我在您自选风险等级基础上把风险上限放宽到 R${mr}；实际命中的标的最高仅到 R${hitMaxRisk}，说明这批标的本身风险并不激进`)
+        : ageAdj < 0
+        ? (riskCapBinding
+            ? `考虑到您处于 ${ageTxt} 这一年龄段，资金更偏重稳健与回撤控制，我相应收紧了风险上限（至 R${mr}），把超出承受范围的品种剔除在外`
+            : `考虑到您处于 ${ageTxt} 这一年龄段，我把风险上限收紧到 R${mr}；实际命中的标的最高为 R${hitMaxRisk}，均在稳健区间内`)
+        : `您处于 ${ageTxt} 年龄段，我维持了您自选的风险等级（上限 R${mr}，实际命中最高 R${hitMaxRisk}），在收益与波动之间取平衡`;
+      // 年龄段回撤适配说明（与期限门槛并列，构成"画像叠加"的第二层约束）
+      const ageDdTxt = info.ageDd
+        ? `；同时按该年龄段设定回撤适配上限 ${(info.ageDd*100).toFixed(0)}%（长期资金可承担更高波动，临近用钱的资金则需控制回撤）`
+        : '';
+
+      // ---- ① 需求解析 ----
+      let part1;
+      if (result.isNewHighIntent) {
+        part1 = `先看您的核心诉求：「${text}」——关键词是"净值创新高"，即要求基金最新净值处于近 3 个月区间的相对高点。`;
+      } else if (condLabels.length) {
+        part1 = `先看您的核心诉求：「${text}」——我从中拆解出 ${condLabels.length} 项可执行的筛选条件：${condLabels.join('、')}。`;
+      } else {
+        part1 = `先看您的核心诉求：「${text}」——未识别出明确的量化条件，我按"风险可控 + 收益为正"的稳健口径为您兜底筛选。`;
+      }
+
+      // ---- ② 画像叠加 ----
+      const sortTxt = rule.sortBy === 'VOL' ? '波动率由低到高' : rule.sortBy === 'SHARP' ? '夏普比率由高到低' : '近一年收益率由高到低';
+      const part2 = `接着叠加您的客户画像：风险偏好为 ${riskProfile.riskPref}（${riskProfile.riskPrefValue}）；${ageWhy}${ageDdTxt}。投资期限为 ${rule.label}，我据此设定了适配门槛——波动率不超过 ${(rule.volMax*100).toFixed(0)}%、最大回撤不超过 ${(rule.ddMax*100).toFixed(0)}%，默认按${sortTxt}排序。`;
+
+      // ---- ③ 筛选与取舍 ----
+      let part3;
+      if (n > 0) {
+        const typeCnt = {};
+        list.forEach(f => { const t = fundTypeLabel(f.fundTypeTag); typeCnt[t] = (typeCnt[t]||0)+1; });
+        const mainTypes = Object.entries(typeCnt).sort((a,b)=>b[1]-a[1]).slice(0,2)
+          .map(([t,c]) => `${t} ${c} 只（${Math.round(c/n*100)}%）`).join('、');
+        const rets = list.map(f => (f.performance && f.performance.RETURNRATE) || 0).sort((a,b)=>a-b);
+        const medRet = rets.length ? rets[Math.floor(rets.length/2)] : 0;
+        const sharpArr = list.map(f => (f.performance && f.performance.SHARP) || 0).filter(v => v !== 0);
+        const avgSharp = sharpArr.length ? sharpArr.reduce((a,b)=>a+b,0)/sharpArr.length : null;
+        const ddArr = list.map(f => Math.abs((f.performance && f.performance.MAX_DRAWDOWN) || 0)).filter(v => v !== 0);
+        const avgDd = ddArr.length ? ddArr.reduce((a,b)=>a+b,0)/ddArr.length : 0;
+        const mParts = [];
+        mParts.push(`近一年收益率中位数 ${(medRet*100).toFixed(1)}%`);
+        if (avgSharp !== null && avgSharp !== 0) mParts.push(`平均夏普比率 ${avgSharp.toFixed(2)}`);
+        if (avgDd) mParts.push(`平均最大回撤 ${(avgDd*100).toFixed(1)}%`);
+        part3 = `逐条过滤后共有 ${n} 只基金通过全部条件：我按风险等级与期限门槛逐一核对，命中标的以${mainTypes}为主；这批基金的整体特征是——${mParts.join('、')}。${result.themeTier === 'holding' ? `需要说明的是：基金池中暂无名称或重仓与「${result.themeLabel || '该主题'}」直接对应的基金，因此我放宽为"持有该主题成分股即可"的口径（如持有${(result.themeStocks||[]).slice(0,3).join('、')}等）为您匹配，赛道纯度相对有限，请结合各基金的实际持仓判断。` : ''}${info.relaxed ? '需要说明的是，叠加期限门槛后无标的完全满足，为避免结果为空，我已适度放宽波动率/回撤门槛，您可重点核对各标的的风险数据。' : ''}${result.isRelaxed || result.isRelaxedCore ? '此外，部分辅助条件（费率/规模或风险等级）在严格口径下无交集，已按优先级保留核心条件展示。' : ''}`;
+      } else if (result.isNewHighEmpty) {
+        part3 = `我逐只核对了基金池中每只标的的近 3 个月净值轨迹，并与您的风险偏好做了交集——符合"净值创新高"口径的标的为 0 只${result.newHighInRiskCount > 0 ? `（另有 ${result.newHighInRiskCount} 只确实创出新高，但风险等级高于您当前的风险上限，暂未纳入）` : ''}。`;
+      } else if (result.isThemeEmpty) {
+        part3 = `我逐只核对了基金池中的标的，按"名称关键词 → 行业重仓 → 持有成分股"三级口径逐层放宽后，与「${result.themeLabel || '该主题'}」真正相关的基金仍为 0 只。我没有用其他赛道的基金来充数——与其展示一批答非所问的标的，不如如实告知这里暂无覆盖。`;
+      } else {
+        part3 = `逐条过滤后，在当前条件下没有基金通过筛选。我没有用"收益率较高""放宽口径"等近似条件来充数，以保证结果的真实性。`;
+      }
+
+      // ---- ④ 结论提醒 ----
+      let part4;
+      if (result.isNewHighEmpty) {
+        part4 = `最后提醒：近 3 个月暂无净值创出新高的基金，建议调整筛选条件或稍后再试。`;
+      } else if (result.isThemeEmpty) {
+        part4 = `最后提醒：当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，建议换个相近赛道（如"${result.themeLabel ? '同类主题或宽基' : '宽基指数'}"）试试，或放宽其他附加条件。`;
+      } else if (result.isNewHighIntent && n > 0) {
+        part4 = `最后提醒：净值创新高意味着近期走势偏强，但同时也积累了短期回调压力，建议结合您的${rule.label}期限分批布局，避免一次性追高。以下为筛选结果。`;
+      } else if (n > 0) {
+        const riskNote = ageAdj < 0
+          ? '考虑到您的年龄段，建议优先关注回撤与波动表现更平稳的标的'
+          : ageAdj > 0
+          ? '考虑到您的年龄段，可适度容忍短期波动，但仍建议做好仓位分散'
+          : '建议结合各基金的风险等级与自身承受能力，做好分散配置';
+        part4 = `最后提醒：上述结果按您设定的条件筛选得出，${riskNote}。基金过往业绩不代表未来表现，请独立判断。以下为筛选结果。`;
+      } else {
+        part4 = `最后提醒：建议适当放宽条件后重试，或调整客户画像中的风险偏好与投资期限。`;
+      }
+
+      return {
+        ...result,
+        intentAnalysis: [part1, part2, part3, part4].join('\n\n'),
+        matchReason: n > 0
+          ? `共 ${n} 只基金通过"${condLabels.length ? condLabels.join(' + ') : '稳健口径'}"且满足 ${riskProfile.age} / ${rule.label} 的适配要求，按${rule.sortBy==='VOL'?'波动率由低到高':rule.sortBy==='SHARP'?'夏普比率由高到低':'近一年收益率由高到低'}排列，供您横向比较。`
+          : (result.isNewHighEmpty ? '严格口径下暂无净值创新高的基金，故不作展示。'
+            : result.isThemeEmpty ? `当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，故不作展示。`
+            : '在当前条件下暂无匹配标的，未以近似条件替代展示。')
+      };
+    }
+    // 纯函数：给定结果与风险上限，计算"基础集 / 适配集 / 是否放宽"
+    // 供话术生成与响应式 filteredFunds 共用同一口径，保证话术数字与页面展示一致
+    // 适配口径 = 投期限门槛（波动率/回撤）∩ 年龄段回撤上限，两项均对结果有实际约束
+    function computeDurationInfo(result, mrOverride) {
+      const mr = (mrOverride != null) ? mrOverride : profileMaxRisk();
+      const base = result.filterFn
+        ? result.filterFn(MOCK_FUNDS, mr)
+        : MOCK_FUNDS.filter(f => f.riskLevelNum <= mr);
+      const rule = durationRule();
+      const ageDd = ageDrawdownMax();     // 年龄段回撤上限（0=不限制）
+      const suited = base.filter(f => {
+        const vol = Math.abs((f.performance && f.performance.VOL) || 0);
+        const dd = Math.abs((f.performance && f.performance.MAX_DRAWDOWN) || 0);
+        // 数据缺失（为0）视为"未知"，不因字段缺失而误杀标的
+        const volOk = vol === 0 ? true : vol <= rule.volMax;
+        const ddOk = dd === 0 ? true : dd <= rule.ddMax;
+        const ageOk = (!ageDd || dd === 0) ? true : dd <= ageDd;
+        return volOk && ddOk && ageOk;
+      });
+      const relaxed = suited.length === 0 && base.length > 0;
+      return { base, suited, relaxed, rule, ageDd, finalList: relaxed ? base : suited, mr };
     }
 
     function useQuickTag(tag) {
@@ -2282,11 +2600,13 @@ createApp({
       doSearch();
     }
 
-    // Filtered funds
-    const filteredFunds = computed(() => {
-      if (!aiResult.filterFn) return MOCK_FUNDS.filter(f => f.riskLevelNum <= riskProfile.maxRiskLevel);
-      return aiResult.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel);
-    });
+    // Filtered funds（叠加客户画像：年龄段修正风险上限 + 投资期限适配门槛）
+    // 说明：基础结果由意图 filterFn 产出后，再按期限的波动率/回撤门槛做一遍适配筛选；
+    //       若适配后为空（门槛与需求冲突），自动放宽门槛并在话术中如实说明，保证不误伤结果。
+    const durationFilterInfo = computed(() => computeDurationInfo(aiResult, profileMaxRisk()));
+    const filteredFunds = computed(() => durationFilterInfo.value.finalList);
+    // 是否因"期限适配门槛过严"而放宽（供话术说明用）
+    const durationRelaxed = computed(() => durationFilterInfo.value.relaxed);
 
     // 统一排序：默认/未知排序字段一律按收益率降序（从高到低），杜绝乱序与空集观感
     // 优先级规则：SHARP 与 VOL 均不为 0（风险数据完整）的基金优先展示（置顶），其余靠后
@@ -2296,14 +2616,20 @@ createApp({
     }
     function applySort(funds, mode, aiSort) {
       const arr = [...funds];
+      // "默认排序"时，改用客户画像的投资期限偏好排序——让期限选择一眼可见（短期重波动、中期重夏普、长期重收益）
+      // 用户手动点了具体排序维度（收益率/夏普/回撤/波动率）时，尊重用户选择
+      const durPref = durationRule().sortBy;
+      const effMode = (mode === 'match' || !mode)
+        ? ({ VOL:'vol', SHARP:'sharpe', RETURNRATE:'return' }[durPref] || 'return')
+        : mode;
       const cmp = (a, b) => {
         // 第一优先级：风险数据完整（夏普比率≠0 且 波动率≠0）置顶，缺失/为0的靠后
         const ra = hasRiskData(a) ? 1 : 0;
         const rb = hasRiskData(b) ? 1 : 0;
         if (ra !== rb) return rb - ra;
-        // 第二优先级：按当前排序维度（默认收益率降序）
+        // 第二优先级：按生效排序维度
         const pa = a.performance, pb = b.performance;
-        switch (mode) {
+        switch (effMode) {
           case 'sharpe':   return pb.SHARP - pa.SHARP;
           case 'drawdown': return Math.abs(pa.MAX_DRAWDOWN) - Math.abs(pb.MAX_DRAWDOWN);
           case 'vol':      return pa.VOL - pb.VOL;
@@ -2348,7 +2674,7 @@ createApp({
         console.warn('[detail] 详情数据读取失败，使用基础数据兜底:', e);
       }
       selectedFundDetail.value = detail;
-      holdingsSrc.value = (detail.topHoldings && detail.topHoldings.length) ? '研究所投研' : '';
+      holdingsSrc.value = '';
       nextTick(() => {
         renderPerfRadar();
         renderRiskBar();
@@ -2709,11 +3035,12 @@ createApp({
       riskProfile.duration = durMap[kycDurationVal.value];
       riskProfile.durationValue = kycDurationVal.value;
       // Update age based on score
-      if (kycScore.value <= 8) { riskProfile.age = '老年'; riskProfile.ageValue = 'old'; }
-      else if (kycScore.value <= 16) { riskProfile.age = '中年'; riskProfile.ageValue = 'middle'; }
-      else { riskProfile.age = '青年'; riskProfile.ageValue = 'young'; }
+      if (kycScore.value <= 8) { riskProfile.age = '55岁以上'; riskProfile.ageValue = 'old'; }
+      else if (kycScore.value <= 16) { riskProfile.age = '36-55岁'; riskProfile.ageValue = 'middle'; }
+      else { riskProfile.age = '18-35岁'; riskProfile.ageValue = 'young'; }
       kycOpen.value = false;
       profileUpdated.value = true;
+      if (currentPage.value === 'results' && lastQuery.value) processAIIntent(lastQuery.value);
       setTimeout(() => { profileUpdated.value = false; }, 3000);
     }
 
@@ -2722,7 +3049,7 @@ createApp({
       if (filteredFunds.value.length > 0) return false;
       // Check if there would be results without risk filter
       if (!aiResult.filterFn) {
-        return MOCK_FUNDS.some(f => f.riskLevelNum > riskProfile.maxRiskLevel);
+        return MOCK_FUNDS.some(f => f.riskLevelNum > profileMaxRisk());
       }
       const queryOnly = aiResult.filterFn(MOCK_FUNDS, 999);
       return queryOnly.length > 0;
@@ -2740,6 +3067,7 @@ createApp({
       perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
       valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsSrc, isHighRiskFund, holdingMarket,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
+      durationRelaxed, durationRule, profileMaxRisk, ageDrawdownMax,
       openKYC, selectKYCAnswer, closeKYC
     };
   }
