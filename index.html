@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261012"></script>
+<script src="https://cdn.tailwindcss.com?v=20261013"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261012" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261012" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261013" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261013" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261012 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261013 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,8 +890,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261012" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261012" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261013" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261013" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1531,26 +1531,62 @@ createApp({
       // ---- 定投 ----
       {words:['定投','定期投资','每月投','长期投'], intent:'dip'},
       // ---- 主题/行业 ----
-      {words:['AI','人工智能','算力','大模型','机器学习'], intent:'theme_ai'},
-      {words:['新能源','光伏','风电','储能','锂电','电池','电动车','新能源车'], intent:'theme_ne'},
-      {words:['医药','医疗','创新药','生物医药','生物科技','疫苗','mRNA','CXO'], intent:'theme_med'},
-      {words:['半导体','芯片','集成电路','晶圆','光刻'], intent:'theme_semi'},
-      {words:['光模块','光通信','光器件'], intent:'theme_optical'},
-      {words:['消费','白酒','食品饮料','酒','家电','免税'], intent:'theme_cons'},
-      {words:['军工','国防','航天'], intent:'theme_mil'},
-      {words:['金融','银行','券商','保险','证券'], intent:'theme_fin'},
-      {words:['地产','房地产','物业'], intent:'theme_re'},
-      {words:['科技','电子','计算机','软件','通信','互联网','TMT'], intent:'theme_tech'},
-      {words:['传媒','游戏','影视','内容'], intent:'theme_media'},
-      {words:['有色','黄金','贵金属','铜','铝','稀土'], intent:'theme_res'},
-      {words:['煤炭','能源'], intent:'theme_coal'},
-      {words:['化工','新材料','锂矿'], intent:'theme_chem'},
-      {words:['汽车','整车','零部件'], intent:'theme_auto'},
-      {words:['机械','高端制造','制造'], intent:'theme_mach'},
-      {words:['农业','农林牧渔','养殖','猪'], intent:'theme_agri'},
+      {words:['AI','人工智能','算力','大模型','机器学习','AI应用','AI+'], intent:'theme_ai'},
+      {words:['新能源','光伏','风电','储能','锂电','电池','电动车','新能源车','充电桩','锂电池'], intent:'theme_ne'},
+      {words:['医药','医疗','创新药','生物医药','生物科技','疫苗','mRNA','CXO','医疗器械','中药','药店','医疗服务','眼科','口腔','医美'], intent:'theme_med'},
+      {words:['半导体','芯片','集成电路','晶圆','光刻','半导体设备','半导体材料','封测','存储芯片','国产芯片'], intent:'theme_semi'},
+      {words:['光模块','光通信','光器件','光模块','CPO','硅光'], intent:'theme_optical'},
+      {words:['消费','白酒','食品饮料','酒','家电','免税','零食','饮料','啤酒','乳制品','调味品','消费电子'], intent:'theme_cons'},
+      {words:['军工','国防','航天','航空发动机','导弹','军工电子'], intent:'theme_mil'},
+      {words:['金融','银行','券商','保险','证券','互联网金融','数字货币'], intent:'theme_fin'},
+      {words:['地产','房地产','物业','保障房'], intent:'theme_re'},
+      {words:['科技','电子','计算机','软件','通信','互联网','TMT','数字经济','信息技术'], intent:'theme_tech'},
+      {words:['传媒','游戏','影视','内容','元宇宙','直播','短视频'], intent:'theme_media'},
+      {words:['有色','黄金','贵金属','铜','铝','稀土','锂矿','钴','镍','小金属'], intent:'theme_res'},
+      {words:['煤炭','动力煤','焦煤','焦炭'], intent:'theme_coal'},
+      {words:['化工','新材料','锂矿','氟化工','磷化工','农药','化纤'], intent:'theme_chem'},
+      {words:['汽车','整车','零部件','汽车零部件','商用车'], intent:'theme_auto'},
+      {words:['机械','高端制造','制造','工业','工业母机','工程机械'], intent:'theme_mach'},
+      {words:['农业','农林牧渔','养殖','猪','种业','饲料','粮食'], intent:'theme_agri'},
+      // ---- 新增主题 ----
+      {words:['中特估','央企','国企','国资','中字头','国央企','红利国企'], intent:'theme_soe'},
+      {words:['环保','碳中和','碳交易','节能','污水处理','垃圾发电','新能源环保'], intent:'theme_env'},
+      {words:['电力','公用事业','水电','火电','绿电','电网','特高压'], intent:'theme_power'},
+      {words:['钢铁','特钢','不锈钢'], intent:'theme_steel'},
+      {words:['建材','水泥','玻璃','装修建材'], intent:'theme_buildm'},
+      {words:['建筑','基建','建筑工程','一带一路'], intent:'theme_construct'},
+      {words:['交运','物流','港口','航运','航空','机场','快递','铁路','公路'], intent:'theme_trans'},
+      {words:['云计算','大数据','数据中心','信创','国产替代','服务器','IDC','算力中心'], intent:'theme_cloud'},
+      {words:['机器人','人形机器人','工业机器人','机器视觉','减速器'], intent:'theme_robot'},
+      {words:['低空经济','无人机','eVTOL','飞行汽车','通航'], intent:'theme_lowalt'},
+      {words:['氢能','燃料电池','氢能源'], intent:'theme_hydro'},
+      {words:['核电','核能','核工业'], intent:'theme_nuclear'},
+      {words:['智能驾驶','自动驾驶','车联网','无人驾驶','智能汽车'], intent:'theme_autopilot'},
+      {words:['教育','职业教育','在线教育','K12'], intent:'theme_edu'},
+      {words:['旅游','酒店','餐饮','出行','免税旅游'], intent:'theme_travel'},
+      {words:['石油','原油','油气','油服','页岩油'], intent:'theme_oil'},
+      // ---- 风格/市值 ----
+      {words:['价值','价值投资','低估值','低估','蓝筹','白马','大盘价值'], intent:'style_value'},
+      {words:['成长','成长性','高成长','成长风格','科技成长'], intent:'style_growth'},
+      {words:['大盘','大盘股','大盘蓝筹'], intent:'style_large'},
+      {words:['小盘','小盘股','微盘','微盘股'], intent:'style_small'},
+      {words:['中盘','中盘股'], intent:'style_mid'},
+      {words:['量化','量化对冲','指数增强','增强指数','Smart Beta','smart beta'], intent:'style_quant'},
+      // ---- 债券细分 ----
+      {words:['纯债','纯债基金'], intent:'bond_pure'},
+      {words:['短债','短期债券','中短债','短融'], intent:'bond_short'},
+      {words:['长债','长久期','中长期纯债'], intent:'bond_long'},
+      // ---- 择时/状态语义 ----
+      {words:['超跌','抄底','跌得多','跌多了','深跌','超跌反弹','底部','错杀','腰斩'], intent:'timing_oversold'},
+      {words:['反弹','涨势','涨得好','最近涨','强势','领涨'], intent:'timing_momentum'},
+      // ---- 理财场景 ----
+      {words:['教育金','子女教育','孩子教育','孩子上学','教育储备'], intent:'scenario_edu'},
+      {words:['备用金','应急','闲钱','短期闲置','随时用','活钱'], intent:'scenario_emergency'},
+      {words:['抗通胀','保值','跑赢通胀','通胀'], intent:'scenario_inflation'},
+      {words:['退休','养老金','养老','老年'], intent:'conservative'},
       // ---- 风险偏好/投资者画像 ----
-      {words:['小白','新手','入门','第一次','不懂'], intent:'novice'},
-      {words:['有经验','老手','专业'], intent:'expert'},
+      {words:['小白','新手','入门','第一次','不懂','零基础','初学者'], intent:'novice'},
+      {words:['有经验','老手','专业','资深'], intent:'expert'},
       // ---- 指数名称 ----
       {words:['沪深300','300指数'], intent:'idx_hs300'},
       {words:['中证500','500指数'], intent:'idx_zz500'},
@@ -1560,7 +1596,19 @@ createApp({
       {words:['科创板','科创50','科创100'], intent:'idx_kcb'},
       {words:['中证A500','A500'], intent:'idx_a500'},
       {words:['红利','股息'], intent:'idx_dividend'},
-      {words:['低波','低波动率指数'], intent:'idx_lowvol'}
+      {words:['低波','低波动率指数'], intent:'idx_lowvol'},
+      {words:['中证800','800指数'], intent:'idx_zz800'},
+      {words:['国证2000','2000指数'], intent:'idx_gz2000'},
+      {words:['中证2000'], intent:'idx_zz2000'},
+      {words:['恒生科技','恒生互联网','港股科技'], intent:'idx_hstech'},
+      {words:['恒生指数','恒指','港股'], intent:'idx_hs'},
+      {words:['标普500','标普'], intent:'idx_sp500'},
+      {words:['纳斯达克','纳指'], intent:'idx_nasdaq'},
+      {words:['双创50','双创','科创创业'], intent:'idx_double50'},
+      {words:['北证50','北交所','北证'], intent:'idx_bse50'},
+      {words:['上证180','180指数'], intent:'idx_zz180'},
+      {words:['红利低波','红利低波动'], intent:'idx_csi_div_lowvol'},
+      {words:['微盘','微盘股'], intent:'idx_weipan'}
     ];
 
     // 通用工具：判断文本是否命中某组同义词（word 优先更长优先，避免"低波"误匹配"低波动"）
@@ -1597,27 +1645,59 @@ createApp({
       theme_chem:['CI005006'],
       theme_auto:['CI005013'],
       theme_mach:['CI005010'],
-      theme_agri:['CI005020']
+      theme_agri:['CI005020'],
+      theme_soe:['CI005021','CI005001','CI005004','CI005002','CI005024'],
+      theme_env:['CI005004','CI005006'],
+      theme_power:['CI005004'],
+      theme_steel:['CI005005'],
+      theme_buildm:['CI005008'],
+      theme_construct:['CI005007'],
+      theme_trans:['CI005024'],
+      theme_cloud:['CI005025','CI005026','CI005027'],
+      theme_robot:['CI005010','CI005025'],
+      theme_lowalt:['CI005012','CI005013','CI005010'],
+      theme_hydro:['CI005011','CI005004'],
+      theme_nuclear:['CI005011','CI005004'],
+      theme_autopilot:['CI005013','CI005025'],
+      theme_edu:['CI005014','CI005015'],
+      theme_travel:['CI005015','CI005014'],
+      theme_oil:['CI005001']
     };
     // 主题 → 基金名称关键词
     const THEME_NAME_KW = {
-      theme_ai:['AI','人工智能','算力','智能'],
-      theme_ne:['新能源','光伏','风电','储能','锂电','电池','低碳'],
-      theme_med:['医药','医疗','创新药','生物','疫苗','健康'],
-      theme_semi:['半导体','芯片','集成电路','电子','信息'],
-      theme_optical:['光','通信','5G','信息'],
-      theme_cons:['消费','白酒','食品','饮料','家电','龙头'],
-      theme_mil:['军工','国防','航天'],
-      theme_fin:['金融','银行','证券','保险','非银'],
+      theme_ai:['AI','人工智能','算力','智能','大数据','云计算'],
+      theme_ne:['新能源','光伏','风电','储能','锂电','电池','低碳','充电'],
+      theme_med:['医药','医疗','创新药','生物','疫苗','健康','中药','医美','器械'],
+      theme_semi:['半导体','芯片','集成电路','电子','信息','科创','封测'],
+      theme_optical:['光','通信','5G','信息','互联'],
+      theme_cons:['消费','白酒','食品','饮料','家电','龙头','乳业','啤酒'],
+      theme_mil:['军工','国防','航天','航空'],
+      theme_fin:['金融','银行','证券','保险','非银','券商'],
       theme_re:['地产','房地产'],
-      theme_tech:['科技','电子','计算机','软件','通信','互联网','TMT','信息'],
-      theme_media:['传媒','游戏','影视','文化'],
-      theme_res:['有色','黄金','贵金属','资源'],
-      theme_coal:['煤炭','能源'],
-      theme_chem:['化工','新材料'],
-      theme_auto:['汽车','新能源车','智能汽车'],
-      theme_mach:['高端制造','制造','机械','工业'],
-      theme_agri:['农业','农牧','养殖','消费']
+      theme_tech:['科技','电子','计算机','软件','通信','互联网','TMT','信息','数字'],
+      theme_media:['传媒','游戏','影视','文化','娱乐'],
+      theme_res:['有色','黄金','贵金属','资源','商品'],
+      theme_coal:['煤炭','动力煤','焦煤'],
+      theme_chem:['化工','新材料','材料','化学'],
+      theme_auto:['汽车','新能源车','智能汽车','整车'],
+      theme_mach:['高端制造','制造','机械','工业','装备'],
+      theme_agri:['农业','农牧','养殖','消费'],
+      theme_soe:['央企','国企','国资','中字头','国新','红利低波'],
+      theme_env:['环保','碳中和','节能','低碳','绿电','ESG'],
+      theme_power:['电力','公用事业','水电','火电','绿电','电网'],
+      theme_steel:['钢铁','特钢'],
+      theme_buildm:['建材','水泥','玻璃','基建材料'],
+      theme_construct:['基建','建筑','建筑工程','一带一路'],
+      theme_trans:['物流','港口','航运','航空','机场','快递','交运','铁路'],
+      theme_cloud:['云计算','大数据','数据中心','信创','国产','服务器','算力','AI'],
+      theme_robot:['机器人','智能装备','工业母机','智能制造'],
+      theme_lowalt:['无人机','低空','航空','航天'],
+      theme_hydro:['氢能','燃料电池'],
+      theme_nuclear:['核电','核能'],
+      theme_autopilot:['智能驾驶','自动驾驶','车联网','智能汽车'],
+      theme_edu:['教育','学校','职教'],
+      theme_travel:['旅游','酒店','餐饮','出行'],
+      theme_oil:['石油','原油','油气','能源','资源']
     };
 
     // 指数名称 → 基金名称关键词
@@ -1630,7 +1710,20 @@ createApp({
       idx_kcb:['科创50','科创100','科创板'],
       idx_a500:['中证A500','A500'],
       idx_dividend:['红利'],
-      idx_lowvol:['低波']
+      idx_lowvol:['低波'],
+      idx_zz800:['中证800','800'],
+      idx_gz2000:['国证2000','2000'],
+      idx_zz2000:['中证2000'],
+      idx_hstech:['恒生科技','恒生互联网','港股科技'],
+      idx_hs:['恒生','恒指','港股'],
+      idx_sp500:['标普500','标普'],
+      idx_nasdaq:['纳斯达克','纳指'],
+      idx_double50:['双创50','双创','科创创业'],
+      idx_bse50:['北证50','北交所','北证'],
+      idx_zz180:['上证180','180'],
+      idx_csi_div_lowvol:['红利低波','红利低波动'],
+      idx_weipan:['微盘','微盘股'],
+      idx_csi_smes:['中证2000','微盘']
     };
 
     // 兜底方案：回撤低、风险小、夏普高（安全替代）
@@ -1761,7 +1854,10 @@ createApp({
         {int:'index', label:'指数/ETF', tag:['指数型','ETF']},
         {int:'money', label:'货币基金', tag:['货币型']}
       ];
+      const isQdiiQ = matchIntent(text,'qdii');
       for (const t of typeIntents) {
+        // QDII/海外语境下跳过"股票型"硬约束（QDII 本身就是海外股票/指数基金，避免 AND 空集）
+        if (isQdiiQ && t.int === 'stock') continue;
         if (matchIntent(text, t.int)) {
           add(t.label, 'fundType', (funds, maxRisk) => funds.filter(f => t.tag.includes(f.fundTypeTag) && riskOk(f, maxRisk)));
           if (!sortBy) sortBy = 'RETURNRATE';
@@ -1773,6 +1869,8 @@ createApp({
 
       // ---- 主题/行业（名称关键词优先，行业配置兜底）----
       for (const theme of Object.keys(THEME_NAME_KW)) {
+        // 场景词保护："教育金"是攒钱场景，不是教育行业基金，跳过教育主题
+        if (theme === 'theme_edu' && /教育金|子女教育|教育储备|孩子教育|教育规划/.test(text)) continue;
         if (matchIntent(text, theme)) {
           const kw = THEME_NAME_KW[theme];
           const inds = THEME_INDUSTRY[theme] || [];
@@ -1818,6 +1916,35 @@ createApp({
 
       // ---- 新手画像（低风险）----
       if (matchIntent(text,'novice')) { add('新手友好·低风险', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(2, maxRisk) && riskOk(f, maxRisk))); sortBy = 'VOL'; }
+
+      // ---- 风格/市值 ----
+      if (matchIntent(text,'style_value')) { add('价值风格', 'style', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /价值|蓝筹|红利|低波/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'style_growth')) { add('成长风格', 'style', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /成长|创新|新兴/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'style_large')) { add('大盘风格', 'style', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /大盘|蓝筹|龙头|300/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'style_small')) { add('小盘风格', 'style', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /小盘|微盘|1000|2000/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'style_mid')) { add('中盘风格', 'style', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /中盘/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'style_quant')) { add('量化/增强', 'style', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /量化|增强|Smart/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+
+      // ---- 债券细分 ----
+      if (matchIntent(text,'bond_pure')) { add('纯债基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /纯债|中长期纯债/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'bond_short')) { add('短债基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /短债|中短债|短融/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'bond_long')) { add('长债基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /长债|长久期/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+
+      // ---- 择时/状态语义 ----
+      if (matchIntent(text,'timing_oversold')) {
+        add('超跌·弹性', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) < -0.10 && (f.performance.VOL||0) >= 0.03));
+        sortBy = 'RETURNRATE';
+      }
+      if (matchIntent(text,'timing_momentum')) {
+        add('强势·动量', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) > 0.10));
+        if (!sortBy) sortBy = 'RETURNRATE';
+      }
+
+      // ---- 理财场景 ----
+      // 教育金：场景词，不是教育行业基金 → 理解为"稳健攒钱"，R≤3 收益为正，按夏普排序
+      if (matchIntent(text,'scenario_edu')) { add('教育金·稳健攒钱', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(3, maxRisk) && riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) > 0)); sortBy = 'SHARP'; }
+      if (matchIntent(text,'scenario_emergency')) { add('备用金/闲钱', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(2, maxRisk) && riskOk(f, maxRisk) && (f.performance.VOL||1) < 0.08)); sortBy = 'VOL'; }
+      if (matchIntent(text,'scenario_inflation')) { add('抗通胀', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) > 0.03)); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 综合判断：是否命中实质条件（非纯排序）----
       const hasRealCondition = constraints.length > 0;
