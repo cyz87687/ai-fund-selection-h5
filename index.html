@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261017"></script>
+<script src="https://cdn.tailwindcss.com?v=20261018"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261017" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261017" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261018" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261018" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261017 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261018 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,8 +890,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261017" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261017" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261018" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261018" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261018" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1990,13 +1991,19 @@ createApp({
         add('夏普新高·夏普≥1.2', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.SHARP||-10) >= 1.2));
         sortBy = 'SHARP';
       }
-      // 收益/净值新高：语义为"最新净值创历史新高"，需净值历史序列才能判定；
-      // 当前离线数据无净值点位（仅有截面指标），无法确认真实的历史新高状态。
-      // 处理策略：识别命中后，先给出"暂无确认处于历史新高的基金"提示，
-      // 再以"近一年收益率≥15%"作为替代参考结果（fuzzy 的 filterFn 为 AND 组合，
-      // 故只用替代参考作筛选约束，"暂无新高"提示放在 intentAnalysis 文案层）。
+      // 收益/净值新高：语义为"最新净值创近期新高"。
+      // 有净值缓存（nav-cache.js，近3个月净值序列）时做真实判定：最新累计净值 ≈ 窗口内最高点 → 近期新高；
+      // 无净值缓存数据的基金，回退"近一年收益率≥15%"作为替代参考（OR 合并，不互相 AND 过滤）
       if (matchIntentEx(text,'metric_ret_newhigh', null) && !/夏普|年化/.test(text)) {
-        add('替代参考·近一年收益≥15%', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) >= 0.15));
+        const NAV = (typeof window !== 'undefined' && window.NAV_CACHE) || {};
+        add('近期净值新高(真实判定)/收益≥15%替代', 'metric', (funds, maxRisk) => funds.filter(f => {
+          if (!riskOk(f, maxRisk)) return false;
+          const code = String(f.fundCode || '').split('.')[0];
+          const rec = NAV[code];
+          if (rec && rec.nh === true) return true;      // 真实判定：处于近3月窗口新高
+          if (!rec) return (f.performance.RETURNRATE||0) >= 0.15;  // 无净值数据：替代参考
+          return false;                                 // 有净值数据但非新高：不入选
+        }));
         sortBy = 'RETURNRATE';
       }
       // 年化收益新高：年化收益率处于高分组（≥10%）
@@ -2085,12 +2092,19 @@ createApp({
         return res;
       };
 
-      // "历史新高/净值新高"命中时：如实说明数据口径，先提示暂无确认的新高，再给替代参考
+      // "历史新高/净值新高"命中时：有净值缓存则按近3月窗口真实判定；无缓存则说明口径并给替代参考
       let intentAnalysis = '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。';
       let matchReason = '根据您的描述，以下基金符合筛选条件，请结合指标和风险等级综合参考。';
       if (matchIntentEx(text, 'metric_ret_newhigh', null) && !/夏普|年化/.test(text)) {
-        intentAnalysis = '"历史新高"指最新净值创历史新高，需要基金的净值历史序列才能准确判定。当前离线数据仅包含截面指标（近一年收益/夏普/波动等），暂无确认处于历史新高的基金。以下为您展示近一年收益率≥15%的强势基金，作为替代参考（并非严格意义上的历史新高）。';
-        matchReason = '未发现可确认处于历史新高的基金（离线数据无净值序列），以下为近一年收益≥15%的强势基金供参考。';
+        const NAV = (typeof window !== 'undefined' && window.NAV_CACHE) || {};
+        const navCount = Object.keys(NAV).length;
+        if (navCount > 0) {
+          intentAnalysis = '"历史新高"按最新累计净值是否处于近3个月净值窗口的最高点判定（数据来源：天天基金近3个月净值序列）。以下为处于近期净值新高的基金；其余未覆盖净值数据的基金以近一年收益率≥15%作为替代参考。';
+          matchReason = '已按近3个月净值序列判定近期新高（最新净值≈窗口最高点），未覆盖的基金以收益≥15%替代参考。';
+        } else {
+          intentAnalysis = '"历史新高"指最新净值创近期新高，需要净值历史序列才能准确判定。当前离线数据暂无净值序列，以下为您展示近一年收益率≥15%的强势基金，作为替代参考（并非严格意义上的历史新高）。';
+          matchReason = '暂无净值序列可判定历史新高，以下为近一年收益≥15%的强势基金供参考。';
+        }
       }
       return {
         intentAnalysis,
