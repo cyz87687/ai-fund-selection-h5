@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261008d"></script>
+<script src="https://cdn.tailwindcss.com?v=20261008e"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261008d" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261008d" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261008e" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261008e" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -98,8 +98,9 @@ body {
   color:var(--gold-light);
   white-space:nowrap;
 }
-.tag-risk-r1{background:rgba(46,196,126,.12);color:#5dd49a;border-color:rgba(46,196,126,.3)}
-.tag-risk-r2{background:rgba(72,187,120,.12);color:#6dc496;border-color:rgba(72,187,120,.3)}
+/* 折叠态摘要：最多两行（含无 -webkit-line-clamp 环境的兜底） */
+.line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-height:2.9em}
+.tag-risk-r1{background:rgba(46,196,126,.12);color:#5dd49a;border-color:rgba(46,196,126,.3)}.tag-risk-r2{background:rgba(72,187,120,.12);color:#6dc496;border-color:rgba(72,187,120,.3)}
 .tag-risk-r3{background:rgba(212,168,81,.12);color:var(--gold);border-color:rgba(212,168,81,.3)}
 .tag-risk-r4{background:rgba(232,138,61,.12);color:#e8a23d;border-color:rgba(232,138,61,.3)}
 .tag-risk-r5{background:rgba(232,85,78,.12);color:#e8554e;border-color:rgba(232,85,78,.3)}
@@ -422,20 +423,32 @@ body {
   <!-- AI Analysis Card -->
   <div class="px-5 pt-3">
     <div class="glass-card-gold p-4 card-enter stagger-1">
-      <div class="flex items-center gap-2 mb-2">
+      <div class="flex items-center gap-2" :class="narrativeLong ? 'cursor-pointer select-none' : ''"
+           @click="narrativeLong && (narrativeOpen = !narrativeOpen)">
         <div class="w-5 h-5 rounded-full flex items-center justify-center" style="background:rgba(212,168,81,.15)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5">
             <path d="M3 17L9 11L13 15L21 7"/><path d="M15 7H21V13"/>
           </svg>
         </div>
         <span class="text-[12px] font-medium gradient-gold-text">AI分析逻辑</span>
+        <span v-if="narrativeLong" class="text-[10px] text-[var(--text-muted)] flex items-center gap-0.5">
+          {{ narrativeOpen ? '收起' : '展开' }}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+               class="transition-transform duration-200" :style="{ transform: narrativeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }">
+            <path d="M6 9L12 15L18 9"/>
+          </svg>
+        </span>
         <span v-if="aiResult.modeLabel" class="ml-auto text-[10px] px-2 py-0.5 rounded-full"
               style="background:rgba(90,212,154,.15); color:#0a9e6d; border:1px solid rgba(90,212,154,.4)">
           {{ aiResult.modeLabel }}
         </span>
       </div>
-      <div class="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mb-3 whitespace-pre-line">{{ aiResult.intentAnalysis }}</div>
-      <div class="flex flex-wrap gap-1.5 mb-3">
+      <!-- 折叠态：仅展示首段摘要，不占首屏 -->
+      <div v-if="narrativeLong && !narrativeOpen"
+           class="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-2 line-clamp-2">{{ narrativeSummary }}</div>
+      <!-- 展开态（或话术本身较短）：完整四段式逻辑 -->
+      <div v-else class="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mt-2 mb-1 whitespace-pre-line">{{ aiResult.intentAnalysis }}</div>
+      <div class="flex flex-wrap gap-1.5 mt-3 mb-3">
         <span v-for="cond in aiResult.conditions" :key="cond.label" class="tag-pill">{{ cond.label }}</span>
         <!-- 画像叠加后的生效口径，让用户看得见画像确实参与了筛选 -->
         <span class="tag-pill" style="border-color:rgba(212,168,81,.45);color:var(--gold-light)">{{ riskProfile.age }}</span>
@@ -567,7 +580,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，展示数据为模拟脱敏数据，仅供功能演示与参考。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008d · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008e · 离线智能选基</div>
   </div>
 </div>
 
@@ -897,9 +910,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261008d" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261008d" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
-<script src="nav-cache.js?v=20261008d" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261008e" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261008e" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261008e" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1386,6 +1399,20 @@ createApp({
     const profileUpdated = ref(false);
     const sortBy = ref('match');
     const historyList = ref([]);
+    // 「AI分析逻辑」默认折叠，避免长文话术占满首屏；点击可展开/收起
+    const narrativeOpen = ref(false);
+    const narrativeLong = computed(() => {
+      const t = aiResult.intentAnalysis || '';
+      return t.length > 90 || t.includes('\n\n');
+    });
+    // 折叠态摘要：取话术首段（核心诉求解析），过长再截断，保证一行可读
+    const narrativeSummary = computed(() => {
+      const t = (aiResult.intentAnalysis || '').trim();
+      const first = t.split('\n\n')[0].replace(/\s+/g, ' ').trim();
+      return first.length > 78 ? first.slice(0, 78) + '…' : first;
+    });
+    // 新查询时回到折叠态（尊重默认，避免每次都要手动收）
+    function resetNarrative() { narrativeOpen.value = false; }
     // 分页状态
     const pageSize = 20;
     const pageNum = ref(1);
@@ -2330,6 +2357,7 @@ createApp({
       aiResult.matchReason = result.matchReason;
       aiResult.filterFn = result.filterFn;
       aiResult.sortBy = result.sortBy;
+      resetNarrative();   // 新结果默认收起「AI分析逻辑」，保证首屏留给结果
       aiResult.modeLabel = modeLabel;
       // 降级后实际生效的风险上限（供 UI 标签与话术保持一致，避免"标签写 R2、话术说 R5"）
       aiResult.effectiveRiskCap = result.effectiveRiskCap || profileMaxRisk();
@@ -2520,8 +2548,12 @@ createApp({
         : '';
 
       // ---- ① 需求解析 ----
+      // 注意：兜底（isFallback）时的条件来自引擎默认稳健口径，并非从用户诉求中解析而来，
+      // 话术必须如实说明，绝不能谎称"从您的诉求中拆解出 N 项条件"（逻辑不自洽）。
       let part1;
-      if (result.isNewHighIntent) {
+      if (result.isFallback) {
+        part1 = `先看您的核心诉求：「${text}」——我未能从中解析出明确的主题或量化条件。为给您提供参考，我改用一套稳健口径先行筛选：${condLabels.length ? condLabels.join('、') : '回撤较低、风险可控、夏普比率较高'}（这是我设定的默认口径，并非从您的描述中得出）。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""近一年收益超20%"。`;
+      } else if (result.isNewHighIntent) {
         part1 = `先看您的核心诉求：「${text}」——关键词是"净值创新高"，即要求基金最新净值处于近 3 个月区间的相对高点。`;
       } else if (condLabels.length) {
         part1 = `先看您的核心诉求：「${text}」——我从中拆解出 ${condLabels.length} 项可执行的筛选条件：${condLabels.join('、')}。`;
@@ -3074,6 +3106,7 @@ createApp({
     return {
       currentPage, searchText, lastQuery, selectedFund, selectedFundDetail, pickerOpen, pickerType,
       profileUpdated, riskProfile, quickTags, aiResult,
+      narrativeOpen, narrativeLong, narrativeSummary,
       sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
       pagedFunds, pageSize, pageNum, totalPages, changePage,
       riskBarPercent, riskColor, pickerTitle, pickerOptions,
