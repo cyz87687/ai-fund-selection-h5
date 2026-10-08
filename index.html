@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261016"></script>
+<script src="https://cdn.tailwindcss.com?v=20261017"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261016" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261016" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261017" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261017" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261016 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261017 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,8 +890,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261016" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261016" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261017" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261017" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1521,7 +1521,7 @@ createApp({
       {words:['稳健','保守','稳健型','长期','养老','躺平','安稳','安心','省心'], intent:'conservative'},
       {words:['进取','积极','激进','成长','进攻'], intent:'aggressive'},
       // ---- 收益 ----
-      {words:['高收益','收益高','收益好','赚钱多','涨得多','回报高','收益不错','表现好','业绩好'], intent:'highreturn'},
+      {words:['高收益','收益高','收益好','赚钱多','涨得多','回报高','收益不错','收益还行','收益还好','收益可以','表现好','业绩好','收益好的','收益还不错的'], intent:'highreturn'},
       {words:['收益稳定','稳定收益','正收益','不亏','不亏损'], intent:'stablereturn'},
       // ---- 回撤 ----
       {words:['回撤小','低回撤','回撤低','抗跌','少亏','亏损小','下跌少'], intent:'lowdd'},
@@ -1823,11 +1823,13 @@ createApp({
           f.regex.lastIndex = 0;
           if (f.regex.test(t)) { field = f.field; label = f.label; break; }
         }
-        // 2) 数字 + 方向：支持 "大于5%" "5%以上" "超过8%" "小于5%" "5%以下" "不低于3%" 等
-        const m = t.match(/(?:大于|超过|高于|不低于|不少于|至少|≥|>=|>)\s*(\d+(?:\.\d+)?)\s*(%|％)?/) ||
-                  t.match(/(?:小于|低于|不超过|不高于|少于|不大于|≤|<=|<)\s*(\d+(?:\.\d+)?)\s*(%|％)?/) ||
-                  t.match(/(\d+(?:\.\d+)?)\s*(%|％)\s*(?:以上|之上|向上|以上|多|起)/) ||
-                  t.match(/(\d+(?:\.\d+)?)\s*(%|％)\s*(?:以下|之下|以内|之内|少|往下)/);
+        // 2) 数字 + 方向：支持 "大于5%" "5%以上" "超过8%" "小于5%" "5%以下" "不低于3%" "5个点" "5个点以上" 等
+        //    口语"X个点" = X%（如"年化5个点" = 年化5%），需在正则中识别"个点/个点以上/个点出头"
+        const m = t.match(/(?:大于|超过|高于|不低于|不少于|至少|≥|>=|>)\s*(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/) ||
+                  t.match(/(?:小于|低于|不超过|不高于|少于|不大于|≤|<=|<)\s*(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/) ||
+                  t.match(/(\d+(?:\.\d+)?)\s*(?:%|％|个点)\s*(?:以上|之上|向上|多|起|出头)/) ||
+                  t.match(/(\d+(?:\.\d+)?)\s*(?:%|％|个点)\s*(?:以下|之下|以内|之内|少|往下)/) ||
+                  t.match(/(\d+(?:\.\d+)?)\s*个点\s*(?:以上|多|起)?/);
         if (!m) return null;
         let op = 'gte', val = parseFloat(m[1]);
         const ahead = t.slice(m.index, m.index + m[0].length);
@@ -2066,10 +2068,20 @@ createApp({
         return null;   // 完全未命中 → 交由安全兜底
       }
 
-      // 统一 AND 组合
+      // 统一 AND 组合：全部约束依次过滤；null 约束（纯排序语义）跳过
+      // 并列/对比意图检测："A和B哪个好""A与B""A或B""A跟B对比"等 → 关键词类约束应 OR 合并而非 AND
+      // 场景示例："纳指和标普哪个基金好" → 应匹配 纳指基金 OR 标普基金，而非"同时含纳指和标普"
+      const effC = constraints.filter(c => typeof c === 'function');
+      const isParallel = /(和|与|或|跟|还有|以及|哪个好|哪个|对比|比较|都行|都可以)\s*/.test(text) && effC.length >= 2;
       const filterFn = (funds, maxRisk) => {
+        if (isParallel) {
+          // 并列模式：任一约束满足即可（OR），但保留风险等级过滤
+          return funds.filter(f => riskOk(f, maxRisk) && effC.some(c => {
+            try { return c([f], maxRisk).length > 0; } catch(e) { return false; }
+          }));
+        }
         let res = funds.filter(f => riskOk(f, maxRisk));
-        for (const c of constraints) res = c(res, maxRisk);
+        for (const c of effC) res = c(res, maxRisk);
         return res;
       };
 
