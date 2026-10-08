@@ -430,7 +430,7 @@ body {
         </div>
         <span class="text-[12px] font-medium gradient-gold-text">AI分析逻辑</span>
         <span v-if="aiResult.modeLabel" class="ml-auto text-[10px] px-2 py-0.5 rounded-full"
-              :style="{background: aiResult.modeLabel==='本地规则模式' ? '#fef3c7' : 'rgba(90,212,154,.15)', color: aiResult.modeLabel==='本地规则模式' ? '#b45309' : '#0a9e6d', border: aiResult.modeLabel==='本地规则模式' ? '1px solid #fcd34d' : '1px solid rgba(90,212,154,.4)'}">
+              style="background:rgba(90,212,154,.15); color:#0a9e6d; border:1px solid rgba(90,212,154,.4)">
           {{ aiResult.modeLabel }}
         </span>
       </div>
