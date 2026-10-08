@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261008c"></script>
+<script src="https://cdn.tailwindcss.com?v=20261008d"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261008c" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261008c" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261008d" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261008d" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -567,7 +567,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，展示数据为模拟脱敏数据，仅供功能演示与参考。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008c · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008d · 离线智能选基</div>
   </div>
 </div>
 
@@ -897,9 +897,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261008c" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261008c" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
-<script src="nav-cache.js?v=20261008c" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261008d" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261008d" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261008d" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -2389,9 +2389,17 @@ createApp({
             for (const c of coreFns) { try { res = c(res, mr); } catch (e) { /* 单条件异常不影响整体 */ } }
             return res;
           };
-          const coreN3 = coreFn(profileMaxRisk()).length;
+          const profMr = profileMaxRisk();
+          const coreN3 = coreFn(profMr).length;
           const coreN5 = coreFn(5).length;
-          const useMr = coreN3 > 0 ? profileMaxRisk() : 5;
+          // 增量放宽：从用户风险档向上逐级提升，取"刚好非空"的最小档，而不是一步跳到 R5。
+          // 若直接跳到 R5，会出现"风险档越高、结果反而越少"的非单调现象
+          // （如 R1 因放宽展示 18 只、R2 严格口径仅 1 只）——这与用户直觉相悖，必须避免。
+          let useMr = profMr;
+          if (coreN3 === 0 && coreN5 > 0) {
+            useMr = 5;
+            for (let r = profMr + 1; r <= 5; r++) { if (coreFn(r).length > 0) { useMr = r; break; } }
+          }
           if (coreN3 > 0 || coreN5 > 0) {
             result = {
               ...result,
@@ -2411,13 +2419,17 @@ createApp({
         const relaxedFn = result.filterFn;
         const relaxedCount = relaxedFn ? relaxedFn(MOCK_FUNDS, 5).length : 0;
         if (relaxedCount > 0) {
+          // 同样取"刚好非空的最小风险档"，避免一步跳到 R5 造成跨档非单调
+          const profMr2 = profileMaxRisk();
+          let relaxMr = 5;
+          for (let r = profMr2 + 1; r <= 5; r++) { if (relaxedFn(MOCK_FUNDS, r).length > 0) { relaxMr = r; break; } }
           result = {
             ...result,
             intentAnalysis: (result.intentAnalysis || '') + '\n\n注：满足该条件、且不超出您当前风险偏好等级的基金为 0 只。以下已放宽风险等级展示匹配结果，请留意各基金的风险等级标注。',
             matchReason: '该条件下暂无符合您当前风险偏好的基金，已放宽风险等级展示匹配标的，请关注"超出风险偏好"提示。',
-            filterFn: (funds) => relaxedFn(funds, 5),
+            filterFn: (funds) => relaxedFn(funds, relaxMr),
             isRelaxed: true,
-            effectiveRiskCap: 5
+            effectiveRiskCap: relaxMr
           };
         } else {
           // b) 再试"仅保留主题"：主题类约束放宽（如"半导体+集中度""科技+新高"等叠加过严场景）
@@ -2425,14 +2437,18 @@ createApp({
           const themeFns = result.themeConstraints || [];
           const themeOk = (funds, mr) => { let res = funds.filter(f => riskOkGlobal(f, mr)); for (const c of themeFns) { try { res = c(res, mr); } catch(e){} } return res; };
           if (themeFns.length > 0 && themeOk(MOCK_FUNDS, 5).length > 0) {
+            // 取"刚好非空的最小风险档"，避免一步跳到 R5 造成跨档非单调
+            const profMr3 = profileMaxRisk();
+            let themeMr = 5;
+            for (let r = profMr3 + 1; r <= 5; r++) { if (themeOk(MOCK_FUNDS, r).length > 0) { themeMr = r; break; } }
             result = {
               ...result,
               conditions: result.conditions.filter(c => c.type === 'industry'),
               intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件后无匹配基金，以下已放宽至"主题"维度展示同赛道基金，供参考。',
               matchReason: '叠加全部条件后无匹配，已放宽至主题维度展示同赛道标的。',
-              filterFn: (funds) => themeOk(funds, 5),
+              filterFn: (funds) => themeOk(funds, themeMr),
               isRelaxed: true,
-              effectiveRiskCap: 5
+              effectiveRiskCap: themeMr
             };
           } else {
           // c) 再试安全兜底（低回撤 + 高夏普，且符合风险偏好）
