@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261018"></script>
+<script src="https://cdn.tailwindcss.com?v=20261020"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261018" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261018" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261020" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261020" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261018 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261020 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,9 +890,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261018" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261018" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
-<script src="nav-cache.js?v=20261018" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261020" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261020" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261020" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1628,7 +1628,9 @@ createApp({
       {words:['北证50','北交所','北证'], intent:'idx_bse50'},
       {words:['上证180','180指数'], intent:'idx_zz180'},
       {words:['红利低波','红利低波动'], intent:'idx_csi_div_lowvol'},
-      {words:['微盘','微盘股'], intent:'idx_weipan'}
+      {words:['微盘','微盘股'], intent:'idx_weipan'},
+      // ---- 组合构建场景 ----
+      {words:['组合','搭配','资产配置','核心+卫星','核心卫星','核心加卫星','配置方案','一揽子'], intent:'portfolio'}
     ];
 
     // 通用工具：判断文本是否命中某组同义词（word 优先更长优先，避免"低波"误匹配"低波动"）
@@ -1800,8 +1802,20 @@ createApp({
     function fuzzyIntent(text) {
       const conditions = [];
       const constraints = [];
+      const coreFns = [];   // 核心约束（主题/类型/实质指标）：宽松降级时优先保留
+      const softFns = [];   // 软约束（费率/规模）：宽松降级时优先放宽
+      const themeFns = [];  // 主题约束：最终兜底时保留主题语义
       const riskOk = (f, maxRisk) => f.riskLevelNum <= maxRisk;
-      const add = (label, type, fn) => { conditions.push({label, type}); if (fn) constraints.push(fn); };
+      const add = (label, type, fn) => {
+        conditions.push({label, type});
+        if (fn) {
+          constraints.push(fn);
+          // 软约束判定：类型为 fee/scale，或标签含"费率/规模"（含数值阈值解析出的同类条件）
+          const isSoft = type === 'fee' || type === 'scale' || /费率|规模/.test(label);
+          if (isSoft) softFns.push(fn); else coreFns.push(fn);
+          if (type === 'industry') themeFns.push(fn);
+        }
+      };
       let sortBy = null;
 
       // ===== 通用数字阈值解析：识别"年化大于5%""5%以上""低于3%""回撤不超过8%"等 =====
@@ -1818,12 +1832,18 @@ createApp({
         {regex:/收益(?:率)?/g, field:'RETURNRATE', label:'近一年收益'}
       ];
       function parseNumericThreshold(t) {
-        // 1) 指标词定位
-        let field = null, label = null;
-        for (const f of NUM_THRESHOLD_FIELDS) {
-          f.regex.lastIndex = 0;
-          if (f.regex.test(t)) { field = f.field; label = f.label; break; }
+        // 1) 指标词定位（含非 performance 指标：行业集中度、规模）
+        let field = null, label = null, isScale = false;
+        if (/集中度|集中/.test(t)) { field = 'CONCENTRATION'; label = '行业集中度'; }
+        else if (/规模/.test(t)) { field = 'SCALE'; label = '规模'; isScale = true; }
+        else {
+          for (const f of NUM_THRESHOLD_FIELDS) {
+            f.regex.lastIndex = 0;
+            if (f.regex.test(t)) { field = f.field; label = f.label; break; }
+          }
         }
+        // 无法定位任何指标词时，不做数值解析（避免生成 "null≥40%" 之类的恒假条件）
+        if (!field) return null;
         // 2) 数字 + 方向：支持 "大于5%" "5%以上" "超过8%" "小于5%" "5%以下" "不低于3%" "5个点" "5个点以上" 等
         //    口语"X个点" = X%（如"年化5个点" = 年化5%），需在正则中识别"个点/个点以上/个点出头"
         const m = t.match(/(?:大于|超过|高于|不低于|不少于|至少|≥|>=|>)\s*(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/) ||
@@ -1836,29 +1856,34 @@ createApp({
         const ahead = t.slice(m.index, m.index + m[0].length);
         if (/以上|大于|超过|高于|不低于|不少于|至少|≥|>=|>/.test(ahead)) op = 'gte';
         else if (/以下|小于|低于|不超过|不高于|少于|不大于|≤|<=|<|以内|之内/.test(ahead)) op = 'lte';
-        // 单位换算：回撤/收益/波动/费率 是百分比（5%→0.05），夏普是无量纲（2 保持 2）
-        const unitPct = field !== 'SHARP';
+        // 单位换算：百分比类（收益/回撤/波动/费率/集中度）÷100；夏普无量纲、规模(亿)为绝对值，不换算
+        const unitPct = field !== 'SHARP' && field !== 'SCALE';
         if (unitPct) val = val / 100;
         // 回撤存负数："回撤小于5%" → |dd| ≤ 0.05
         const abs = field === 'MAX_DRAWDOWN';
-        return { field, op, value: val, label, abs, unitPct };
+        return { field, op, value: val, label, abs, unitPct, isScale };
       }
       const th = parseNumericThreshold(text);
       if (th) {
-        // 统一取值：收益率/回撤/波动从 performance 取；费率从 managementFee 取（单位%→小数）
-        const getVal = (f) => th.field === 'MANAGEMENT_FEE'
-          ? ((f.managementFee != null ? f.managementFee : 1) / 100)
-          : (f.performance[th.field] ?? 0);
+        // 统一取值：收益率/回撤/波动从 performance 取；费率从 managementFee 取（单位%→小数）；
+        // 行业集中度取 industryConfig 最大值；规模取 fundScale（单位：亿）
+        const getVal = (f) => {
+          if (th.field === 'MANAGEMENT_FEE') return (f.managementFee != null ? f.managementFee : 1) / 100;
+          if (th.field === 'SCALE') return f.fundScale || 0;
+          if (th.field === 'CONCENTRATION') { const ic = f.industryConfig || {}; const vs = Object.values(ic); return vs.length ? Math.max(...vs) : 0; }
+          return f.performance[th.field] ?? 0;
+        };
         // 方向：gte=大于/以上（"≥"），lte=小于/以下（"≤"）
         // 回撤取绝对值："回撤小于5%"→|dd|≤0.05；"回撤大于8%"→|dd|≥0.08
         const opF = th.abs
           ? (th.op === 'gte' ? (v) => Math.abs(v) >= th.value : (v) => Math.abs(v) <= th.value)
           : (th.op === 'gte' ? (v) => v >= th.value : (v) => v <= th.value);
-        // 标签：夏普是无量纲（不显示%），其余显示百分比（保留1位小数，避免0.5→1%的浮点取整错误）
-        const disp = th.unitPct ? (Math.round(th.value * 1000) / 10) + '%' : String(Math.round(th.value * 10) / 10);
+        // 标签：夏普/规模不显示%，其余显示百分比（保留1位小数，避免0.5→1%的浮点取整错误）
+        const disp = th.isScale ? (String(Math.round(th.value * 10) / 10) + '亿')
+          : (th.unitPct ? (Math.round(th.value * 1000) / 10) + '%' : String(Math.round(th.value * 10) / 10));
         // 方向文案：≥/≤
         const cmpLabel = th.op === 'gte' ? '≥' : '≤';
-        add(`${th.label}${cmpLabel}${disp}`, 'metric', (funds, maxRisk) =>
+        add(`${th.label}${cmpLabel}${disp}`, th.isScale ? 'scale' : 'metric', (funds, maxRisk) =>
           funds.filter(f => riskOk(f, maxRisk) && opF(getVal(f))));
         if (th.field === 'ANNUALRETURN_RATE') { if (!sortBy) sortBy = 'ANNUALRETURN_RATE'; }
         else if (th.field === 'MAX_DRAWDOWN') { if (!sortBy) sortBy = 'MAX_DRAWDOWN'; }
@@ -1926,7 +1951,8 @@ createApp({
 
       // ---- 波动/风险 ----
       // 数字阈值已显式给出波动阈值时，跳过固定 lowvol 规则（避免 AND 叠加过严）
-      if (matchIntent(text,'lowvol') && !(th && th.field === 'VOL')) { add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'VOL'; }
+      // 排除场景：当文本已命中"分红/红利/股息"时，"稳定分红"里的"稳定"不应触发低波动约束
+      if (matchIntent(text,'lowvol') && !(th && th.field === 'VOL') && !matchIntent(text,'dividend')) { add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'VOL'; }
       if (matchIntent(text,'highvol')) { add('波动率≥3.5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||0) >= 0.035 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
       if (matchIntent(text,'conservative')) { add('稳健低风险', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(2, maxRisk) && riskOk(f, maxRisk))); sortBy = 'VOL'; }
       if (matchIntent(text,'aggressive')) { add('进取型', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum >= Math.min(4, maxRisk) && riskOk(f, maxRisk))); sortBy = 'RETURNRATE'; }
@@ -1945,8 +1971,11 @@ createApp({
       if (matchIntent(text,'lowfee') && !(th && th.field === 'MANAGEMENT_FEE')) { add('管理费率<0.6%', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee||1) < 0.6 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 规模 ----
-      if (matchIntent(text,'bigscale')) { add('规模>100亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale||0) >= 100 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
-      if (matchIntent(text,'smallscale')) { add('规模<20亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale||999) <= 20 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      // 成对阈值保护：文本已显式给出规模数值阈值（如"规模大于50亿"）或"行业集中度"类数值时，
+      // 不再叠加固定的 size 规则，避免双重过严导致空集
+      const hasExplicitScaleOrConc = /(规模|集中度|占比|仓位)/.test(text) && /\d/.test(text);
+      if (matchIntent(text,'bigscale') && !hasExplicitScaleOrConc) { add('规模>100亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale||0) >= 100 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'smallscale') && !hasExplicitScaleOrConc) { add('规模<20亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale||999) <= 20 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 分红 ----
       // 数据无 valuation.DIVIDEND（全空），改用名称关键词"红利/分红"匹配（数据池含12只红利基金）
@@ -1968,6 +1997,23 @@ createApp({
 
       // ---- 债券细分 ----
       if (matchIntent(text,'bond_pure')) { add('纯债基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /纯债|中长期纯债/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
+
+      // ---- 组合构建场景（核心+卫星/资产配置）----
+      // 无组合字段：解析为"稳健核心(宽基指数/债券) + 弹性卫星(高波动主题)"的候选池，
+      // 合并去重后按夏普排序，作为组合搭建的参考清单
+      if (matchIntent(text,'portfolio')) {
+        add('组合候选·核心+卫星', 'metric', (funds, maxRisk) => {
+          const ok = funds.filter(f => riskOk(f, maxRisk));
+          const core = ok.filter(f => /沪深300|中证500|中证A500|上证50|债券|纯债|短债|红利/.test(f.fundName||''));
+          const sat = ok.filter(f => (f.performance.VOL||0) >= 0.15);
+          const seen = new Set(); const out = [];
+          for (const f of [...core.slice(0, 30), ...sat.slice(0, 30)]) {
+            if (!seen.has(f.fundCode)) { seen.add(f.fundCode); out.push(f); }
+          }
+          return out.length ? out : ok;
+        });
+        sortBy = 'SHARP';
+      }
       if (matchIntent(text,'bond_short')) { add('短债基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /短债|中短债|短融/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
       if (matchIntent(text,'bond_long')) { add('长债基金', 'fundType', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && /长债|长久期/.test(f.fundName||''))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
@@ -2092,18 +2138,18 @@ createApp({
         return res;
       };
 
-      // "历史新高/净值新高"命中时：有净值缓存则按近3月窗口真实判定；无缓存则说明口径并给替代参考
+      // "近期新高/净值新高"命中时：按近3个月净值窗口真实判定（最新累计净值≈窗口最高点）
       let intentAnalysis = '我已理解您的投资需求，将根据您的描述从投研数据中筛选匹配的基金，同时根据您的风险偏好进行风险等级过滤。以下为筛选结果，数据来源于研究所投研标签数据。';
       let matchReason = '根据您的描述，以下基金符合筛选条件，请结合指标和风险等级综合参考。';
       if (matchIntentEx(text, 'metric_ret_newhigh', null) && !/夏普|年化/.test(text)) {
         const NAV = (typeof window !== 'undefined' && window.NAV_CACHE) || {};
         const navCount = Object.keys(NAV).length;
         if (navCount > 0) {
-          intentAnalysis = '"历史新高"按最新累计净值是否处于近3个月净值窗口的最高点判定（数据来源：天天基金近3个月净值序列）。以下为处于近期净值新高的基金；其余未覆盖净值数据的基金以近一年收益率≥15%作为替代参考。';
-          matchReason = '已按近3个月净值序列判定近期新高（最新净值≈窗口最高点），未覆盖的基金以收益≥15%替代参考。';
+          intentAnalysis = '"近期新高"按最新累计净值是否处于近3个月净值窗口的最高点判定（数据来源：东方财富公开净值序列，累计净值口径）。以下为处于近期净值新高的基金；未覆盖净值数据的基金以近一年收益率≥15%作为替代参考。';
+          matchReason = '已按近3个月净值序列判定近期新高（最新累计净值≈窗口最高点），未覆盖净值数据的基金以近一年收益≥15%替代参考。';
         } else {
-          intentAnalysis = '"历史新高"指最新净值创近期新高，需要净值历史序列才能准确判定。当前离线数据暂无净值序列，以下为您展示近一年收益率≥15%的强势基金，作为替代参考（并非严格意义上的历史新高）。';
-          matchReason = '暂无净值序列可判定历史新高，以下为近一年收益≥15%的强势基金供参考。';
+          intentAnalysis = '"近期新高"指最新净值创近3个月新高，需要净值序列才能准确判定。当前离线数据暂无净值序列，以下为您展示近一年收益率≥15%的强势基金，作为替代参考（并非严格意义上的近期新高）。';
+          matchReason = '暂无净值序列可判定近期新高，以下为近一年收益≥15%的强势基金供参考。';
         }
       }
       return {
@@ -2111,6 +2157,10 @@ createApp({
         conditions: conditions.length ? conditions : [{label:'风险等级匹配',type:'risk'}],
         matchReason,
         filterFn,
+        // 渐进式降级用：核心约束（主题/类型/指标）、软约束（费率/规模）、主题约束分组暴露
+        coreConstraints: coreFns,
+        softConstraints: softFns,
+        themeConstraints: themeFns,
         sortBy: sortBy || 'RETURNRATE',
         isFallback: false
       };
@@ -2149,19 +2199,66 @@ createApp({
       // ============ 纯离线本地识别（不发起任何网络请求）============
       // 1) 本地意图识别引擎（精确 → 模糊 → 安全兜底）
       let result = localIntent(text);
+      const riskOkGlobal = (f, mr) => (f.riskLevelNum || 0) <= mr;
 
       // 2) 空集保护：若识别结果筛不出基金（如过于苛刻的多条件），逐级放宽
       //    a) 优先尝试兜底方案
       //    b) 仍空则退化为"风险匹配 + 全量按夏普排序"
       const count = result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0;
-      if (count === 0) {
-        if (!result.isFallback) {
-          // 先试安全兜底
+      if (count === 0 && !result.isFallback) {
+        // a0) 渐进降级①：保留核心条件（主题/类型/实质指标），剔除软约束（费率/规模）
+        //     先按偏好风险，再放宽风险；命中则视为"放宽辅助条件"结果
+        const coreFns = result.coreConstraints || [];
+        if (coreFns.length > 0) {
+          const coreFn = (mr) => (funds) => funds.filter(f => riskOkGlobal(f, mr) && coreFns.every(c => { try { return c([f], mr).length > 0; } catch (e) { return false; } }));
+          const coreN3 = coreFn(riskProfile.maxRiskLevel)(MOCK_FUNDS).length;
+          const coreN5 = coreFn(5)(MOCK_FUNDS).length;
+          const useMr = coreN3 > 0 ? riskProfile.maxRiskLevel : 5;
+          if (coreN3 > 0 || coreN5 > 0) {
+            result = {
+              ...result,
+              conditions: result.conditions.filter(c => !/费率|规模/.test(c.label)),
+              intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件（含费率/规模等）后无匹配基金，以下已保留核心筛选条件（主题/类型/指标）' + (useMr === 5 ? '并放宽风险等级' : '') + '展示。请留意各基金风险等级标注。',
+              matchReason: '叠加辅助条件（费率/规模）后无匹配，已保留核心条件' + (useMr === 5 ? '并放宽风险等级' : '') + '展示匹配标的。',
+              filterFn: (funds) => coreFn(useMr)(funds),
+              isRelaxedCore: true
+            };
+          }
+        }
+      }
+      if ((result.filterFn ? result.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length : 0) === 0 && !result.isFallback) {
+        // a) 再尝试"放宽风险等级"：保留意图条件，仅放开风险上限，展示超出当前风险偏好的匹配结果
+        //    （结果页会对超出风险偏好的基金标注"超出风险偏好"，兼顾意图与合规提示）
+        const relaxedFn = result.filterFn;
+        const relaxedCount = relaxedFn ? relaxedFn(MOCK_FUNDS, 5).length : 0;
+        if (relaxedCount > 0) {
+          result = {
+            ...result,
+            intentAnalysis: (result.intentAnalysis || '') + '\n\n注：满足该条件、且不超出您当前风险偏好等级的基金为 0 只。以下已放宽风险等级展示匹配结果，请留意各基金的风险等级标注。',
+            matchReason: '该条件下暂无符合您当前风险偏好的基金，已放宽风险等级展示匹配标的，请关注"超出风险偏好"提示。',
+            filterFn: (funds) => relaxedFn(funds, 5),
+            isRelaxed: true
+          };
+        } else {
+          // b) 再试"仅保留主题"：主题类约束放宽（如"半导体+集中度""科技+新高"等叠加过严场景）
+          const themeFns = result.themeConstraints || [];
+          const themeOk = (funds, mr) => funds.filter(f => riskOkGlobal(f, mr) && themeFns.every(c => { try { return c([f], mr).length > 0; } catch (e) { return false; } }));
+          if (themeFns.length > 0 && themeOk(MOCK_FUNDS, 5).length > 0) {
+            result = {
+              ...result,
+              conditions: result.conditions.filter(c => c.type === 'industry'),
+              intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件后无匹配基金，以下已放宽至"主题"维度展示同赛道基金，供参考。',
+              matchReason: '叠加全部条件后无匹配，已放宽至主题维度展示同赛道标的。',
+              filterFn: (funds) => themeOk(funds, 5),
+              isRelaxed: true
+            };
+          } else {
+          // c) 再试安全兜底（低回撤 + 高夏普，且符合风险偏好）
           const fb = safeFallback();
           if (fb.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length > 0) {
             result = fb;
           } else {
-            // 兜底仍空：退化为全量风险匹配
+            // d) 兜底仍空：退化为全量风险匹配
             result = {
               intentAnalysis: '已为您展示所有符合您风险承受能力的基金，并按夏普比率（风险收益比）从高到低排列，供您参考。',
               conditions: [{label:'风险等级匹配', type:'risk'}, {label:'夏普比率排序', type:'metric'}],
@@ -2170,6 +2267,7 @@ createApp({
               sortBy: 'SHARP',
               isFallback: true
             };
+          }
           }
         }
       }
