@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261011"></script>
+<script src="https://cdn.tailwindcss.com?v=20261012"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261011" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261011" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261012" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261012" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261011 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261012 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,8 +890,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261011" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261011" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261012" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261012" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1571,6 +1571,14 @@ createApp({
       return words.some(w => text.includes(w));
     }
 
+    // 增强匹配：命中某组同义词，但可排除特定子串（避免"低波"误命中"低波动"形容词场景）
+    function matchIntentEx(text, intent, exclude) {
+      const entry = SYNONYM_MAP.find(e => e.intent === intent);
+      if (!entry) return false;
+      const words = [...entry.words].sort((a,b) => b.length - a.length);
+      return words.some(w => text.includes(w) && !(exclude && text.includes(exclude)));
+    }
+
     // 主题 → 行业代码映射
     const THEME_INDUSTRY = {
       theme_ai:['CI005025','CI005026','CI005027'],
@@ -1665,9 +1673,80 @@ createApp({
       const add = (label, type, fn) => { conditions.push({label, type}); if (fn) constraints.push(fn); };
       let sortBy = null;
 
+      // ===== 通用数字阈值解析：识别"年化大于5%""5%以上""低于3%""回撤不超过8%"等 =====
+      // 返回 { field, op, value, label, abs, unitPct } 或 null
+      const NUM_THRESHOLD_FIELDS = [
+        // 年化收益率：字段名 ANNUALRETURN_RATE，注意"年化"优先于"年"匹配
+        {regex:/年化(?:收益|回报|收益率|回报率)?/g, field:'ANNUALRETURN_RATE', label:'年化收益率'},
+        {regex:/近一年收益|年度收益|年收益|年回报/gi, field:'RETURNRATE', label:'近一年收益'},
+        {regex:/回撤|最大回撤|跌幅|亏损/gi, field:'MAX_DRAWDOWN', label:'最大回撤'},
+        {regex:/夏普/gi, field:'SHARP', label:'夏普比率'},
+        {regex:/波动|年化波动/gi, field:'VOL', label:'年化波动率'},
+        {regex:/费率|管理费/gi, field:'MANAGEMENT_FEE', label:'管理费率'},
+        // 兜底："收益/收益率"未指明年化/近一年时，默认用近一年收益
+        {regex:/收益(?:率)?/g, field:'RETURNRATE', label:'近一年收益'}
+      ];
+      function parseNumericThreshold(t) {
+        // 1) 指标词定位
+        let field = null, label = null;
+        for (const f of NUM_THRESHOLD_FIELDS) {
+          f.regex.lastIndex = 0;
+          if (f.regex.test(t)) { field = f.field; label = f.label; break; }
+        }
+        // 2) 数字 + 方向：支持 "大于5%" "5%以上" "超过8%" "小于5%" "5%以下" "不低于3%" 等
+        const m = t.match(/(?:大于|超过|高于|不低于|不少于|至少|≥|>=|>)\s*(\d+(?:\.\d+)?)\s*(%|％)?/) ||
+                  t.match(/(?:小于|低于|不超过|不高于|少于|不大于|≤|<=|<)\s*(\d+(?:\.\d+)?)\s*(%|％)?/) ||
+                  t.match(/(\d+(?:\.\d+)?)\s*(%|％)\s*(?:以上|之上|向上|以上|多|起)/) ||
+                  t.match(/(\d+(?:\.\d+)?)\s*(%|％)\s*(?:以下|之下|以内|之内|少|往下)/);
+        if (!m) return null;
+        let op = 'gte', val = parseFloat(m[1]);
+        const ahead = t.slice(m.index, m.index + m[0].length);
+        if (/以上|大于|超过|高于|不低于|不少于|至少|≥|>=|>/.test(ahead)) op = 'gte';
+        else if (/以下|小于|低于|不超过|不高于|少于|不大于|≤|<=|<|以内|之内/.test(ahead)) op = 'lte';
+        // 单位换算：回撤/收益/波动/费率 是百分比（5%→0.05），夏普是无量纲（2 保持 2）
+        const unitPct = field !== 'SHARP';
+        if (unitPct) val = val / 100;
+        // 回撤存负数："回撤小于5%" → |dd| ≤ 0.05
+        const abs = field === 'MAX_DRAWDOWN';
+        return { field, op, value: val, label, abs, unitPct };
+      }
+      const th = parseNumericThreshold(text);
+      if (th) {
+        // 统一取值：收益率/回撤/波动从 performance 取；费率从 managementFee 取（单位%→小数）
+        const getVal = (f) => th.field === 'MANAGEMENT_FEE'
+          ? ((f.managementFee != null ? f.managementFee : 1) / 100)
+          : (f.performance[th.field] ?? 0);
+        // 方向：gte=大于/以上（"≥"），lte=小于/以下（"≤"）
+        // 回撤取绝对值："回撤小于5%"→|dd|≤0.05；"回撤大于8%"→|dd|≥0.08
+        const opF = th.abs
+          ? (th.op === 'gte' ? (v) => Math.abs(v) >= th.value : (v) => Math.abs(v) <= th.value)
+          : (th.op === 'gte' ? (v) => v >= th.value : (v) => v <= th.value);
+        // 标签：夏普是无量纲（不显示%），其余显示百分比（保留1位小数，避免0.5→1%的浮点取整错误）
+        const disp = th.unitPct ? (Math.round(th.value * 1000) / 10) + '%' : String(Math.round(th.value * 10) / 10);
+        // 方向文案：≥/≤
+        const cmpLabel = th.op === 'gte' ? '≥' : '≤';
+        add(`${th.label}${cmpLabel}${disp}`, 'metric', (funds, maxRisk) =>
+          funds.filter(f => riskOk(f, maxRisk) && opF(getVal(f))));
+        if (th.field === 'ANNUALRETURN_RATE') { if (!sortBy) sortBy = 'ANNUALRETURN_RATE'; }
+        else if (th.field === 'MAX_DRAWDOWN') { if (!sortBy) sortBy = 'MAX_DRAWDOWN'; }
+        else if (th.field === 'SHARP') { if (!sortBy) sortBy = 'SHARP'; }
+        else if (th.field === 'VOL') { if (!sortBy) sortBy = 'VOL'; }
+        else if (th.field === 'RETURNRATE') { if (!sortBy) sortBy = 'RETURNRATE'; }
+      }
+
+      // ---- 投资期限语义（无成立年限字段，软约束：长期→倾向稳定收益，不硬过滤）----
+      if (/(拿|持有|投资|放|存|定投).{0,4}(10年|十年|5年|五年|3年|三年|长期|多年)|(10年|十年|5年|五年|3年|三年|长期|多年).{0,4}(持有|投资|拿|放|存)/.test(text) || /长期持有|长期投资|拿10年|拿5年|放10年|存10年/.test(text)) {
+        add('长期持有·稳健', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.VOL||1) <= 0.20 && Math.abs(f.performance.MAX_DRAWDOWN||1) < 0.15));
+        if (!sortBy) sortBy = 'ANNUALRETURN_RATE';
+      }
+
       // ---- 指数名称（最精确，优先判断）----
       for (const idx of Object.keys(INDEX_NAME_KW)) {
-        if (matchIntent(text, idx)) {
+        // "低波"作为指数词时排除"低波动"形容词场景（如"低波动年化7%以上"不是指低波指数）
+        const hit = idx === 'idx_lowvol'
+          ? matchIntentEx(text, idx, '低波动')
+          : matchIntent(text, idx);
+        if (hit) {
           const kw = INDEX_NAME_KW[idx];
           add('指数：' + idx.replace('idx_','').toUpperCase(), 'keyword', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && kw.some(k => (f.fundName||'').includes(k))));
           if (!sortBy) sortBy = 'RETURNRATE';
@@ -1708,7 +1787,8 @@ createApp({
       }
 
       // ---- 波动/风险 ----
-      if (matchIntent(text,'lowvol')) { add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'VOL'; }
+      // 数字阈值已显式给出波动阈值时，跳过固定 lowvol 规则（避免 AND 叠加过严）
+      if (matchIntent(text,'lowvol') && !(th && th.field === 'VOL')) { add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'VOL'; }
       if (matchIntent(text,'highvol')) { add('波动率≥3.5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||0) >= 0.035 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
       if (matchIntent(text,'conservative')) { add('稳健低风险', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(2, maxRisk) && riskOk(f, maxRisk))); sortBy = 'VOL'; }
       if (matchIntent(text,'aggressive')) { add('进取型', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum >= Math.min(4, maxRisk) && riskOk(f, maxRisk))); sortBy = 'RETURNRATE'; }
@@ -1718,13 +1798,13 @@ createApp({
       if (matchIntent(text,'stablereturn')) { add('正收益', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.RETURNRATE||0) > 0 && riskOk(f, maxRisk))); sortBy = 'RETURNRATE'; }
 
       // ---- 回撤 ----
-      if (matchIntent(text,'lowdd')) { add('回撤<5%', 'metric', (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'MAX_DRAWDOWN'; }
+      if (matchIntent(text,'lowdd') && !(th && th.field === 'MAX_DRAWDOWN')) { add('回撤<5%', 'metric', (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'MAX_DRAWDOWN'; }
 
       // ---- 夏普 ----
-      if (matchIntent(text,'highsharpe')) { add('夏普≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP||0) >= 1.0 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
+      if (matchIntent(text,'highsharpe') && !(th && th.field === 'SHARP')) { add('夏普≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP||0) >= 1.0 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
 
       // ---- 费率 ----
-      if (matchIntent(text,'lowfee')) { add('管理费率<0.6%', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee||1) < 0.6 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'lowfee') && !(th && th.field === 'MANAGEMENT_FEE')) { add('管理费率<0.6%', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee||1) < 0.6 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 规模 ----
       if (matchIntent(text,'bigscale')) { add('规模>100亿', 'scale', (funds, maxRisk) => funds.filter(f => (f.fundScale||0) >= 100 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
