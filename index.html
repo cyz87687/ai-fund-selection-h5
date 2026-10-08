@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI智能选基</title>
 <!-- CDN：Tailwind 用官方 Play CDN（浏览器运行时生成CSS，编译版不生成样式会全崩）；Vue/ECharts 用本地文件（同步加载，确保主脚本执行时已就绪），本地缺失自动回退 CDN -->
-<script src="https://cdn.tailwindcss.com?v=20261013"></script>
+<script src="https://cdn.tailwindcss.com?v=20261014"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261013" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261013" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261014" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261014" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -559,7 +559,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，数据为模拟脱敏数据，以上数据来源于研究所投研标签数据。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261013 · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261014 · 离线智能选基</div>
   </div>
 </div>
 
@@ -890,8 +890,8 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261013" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261013" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261014" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261014" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1579,6 +1579,17 @@ createApp({
       // ---- 择时/状态语义 ----
       {words:['超跌','抄底','跌得多','跌多了','深跌','超跌反弹','底部','错杀','腰斩'], intent:'timing_oversold'},
       {words:['反弹','涨势','涨得好','最近涨','强势','领涨'], intent:'timing_momentum'},
+      // ---- 新高/新低状态语义 ----
+      // 夏普新高：夏普比率处于高位/创阶段新高
+      {words:['夏普新高','夏普创新高','夏普比率新高','夏普历史新高','夏普率新高','夏普率创新高','夏普新高点','夏普创历史新高'], intent:'metric_sharpe_newhigh'},
+      // 收益/净值新高：净值/收益创历史新高、走势创新高
+      {words:['历史新高','净值新高','净值创新高','价格新高','走势新高','阶段新高','创出新高','创新高','新高','突破前高','刷新高点','历史最高','高点附近','逼近新高','冲击新高'], intent:'metric_ret_newhigh'},
+      // 年化收益新高
+      {words:['年化新高','年化收益新高','年化回报新高','年化创新高'], intent:'metric_annual_newhigh'},
+      // 新低/底部反义：净值新低、收益新低、创历史低点
+      {words:['历史新低','净值新低','净值创新低','价格新低','创新低','新低','阶段新低','刷新低点','历史最低','低点附近','逼近新低','破位新低'], intent:'metric_newlow'},
+      // 综合"创纪录"类（不指明具体指标）
+      {words:['创纪录','创阶段记录','表现最好','历史最佳','历史最强','最佳表现','巅峰','顶峰'], intent:'metric_record'},
       // ---- 理财场景 ----
       {words:['教育金','子女教育','孩子教育','孩子上学','教育储备'], intent:'scenario_edu'},
       {words:['备用金','应急','闲钱','短期闲置','随时用','活钱'], intent:'scenario_emergency'},
@@ -1938,6 +1949,34 @@ createApp({
       if (matchIntent(text,'timing_momentum')) {
         add('强势·动量', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) > 0.10));
         if (!sortBy) sortBy = 'RETURNRATE';
+      }
+
+      // ---- 新高/新低状态（当前指标处于极值区）----
+      // 夏普新高：夏普比率处于同池高分组（≥1.2 近似"创阶段新高"），按夏普排序
+      if (matchIntent(text,'metric_sharpe_newhigh')) {
+        add('夏普新高·夏普≥1.2', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.SHARP||-10) >= 1.2));
+        sortBy = 'SHARP';
+      }
+      // 收益/净值新高：近一年收益处于高分组（≥15% 近似"创新高"），按收益排序
+      // 排除已指明"夏普/年化"的查询（避免与专门的新高规则 AND 叠加）
+      if (matchIntentEx(text,'metric_ret_newhigh', null) && !/夏普|年化/.test(text)) {
+        add('收益新高·近一年≥15%', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) >= 0.15));
+        sortBy = 'RETURNRATE';
+      }
+      // 年化收益新高：年化收益率处于高分组（≥10%）
+      if (matchIntent(text,'metric_annual_newhigh')) {
+        add('年化收益新高·≥10%', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.ANNUALRETURN_RATE||0) >= 0.10));
+        sortBy = 'ANNUALRETURN_RATE';
+      }
+      // 新低/底部：近一年收益深跌（≤-15% 近似"创新低"），风险偏好内按回撤排序
+      if (matchIntent(text,'metric_newlow')) {
+        add('新低·近一年≤-15%', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) <= -0.15));
+        sortBy = 'RETURNRATE';
+      }
+      // 综合创纪录：收益与夏普双高（同池 top 双指标）
+      if (matchIntent(text,'metric_record')) {
+        add('综合最强·收益+夏普双高', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) >= 0.12 && (f.performance.SHARP||-10) >= 0.8));
+        sortBy = 'SHARP';
       }
 
       // ---- 理财场景 ----
