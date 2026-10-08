@@ -2559,7 +2559,7 @@ createApp({
         console.warn('[detail] 详情数据读取失败，使用基础数据兜底:', e);
       }
       selectedFundDetail.value = detail;
-      holdingsSrc.value = (detail.topHoldings && detail.topHoldings.length) ? '研究所投研' : '';
+      holdingsSrc.value = '';
       nextTick(() => {
         renderPerfRadar();
         renderRiskBar();
