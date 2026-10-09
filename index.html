@@ -6,10 +6,10 @@
 <title>AI智能选基</title>
 <!-- 全部依赖已本地化，纯离线可运行：不依赖任何外部 CDN 也能正常显示与交互 -->
 <!-- Tailwind 用官方 Play CDN 运行时引擎（本地副本，浏览器运行时生成CSS，编译版不生成样式会全崩），本地缺失自动回退 CDN -->
-<script src="assets/tailwind.min.js?v=20261008f" onerror="window.__TW_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.tailwindcss.com';document.head.appendChild(f)"></script>
+<script src="assets/tailwind.min.js?v=20261009a" onerror="window.__TW_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.tailwindcss.com';document.head.appendChild(f)"></script>
 <!-- Vue / ECharts 本地化（同步静态加载，避免动态注入导致主脚本先于 Vue 执行而挂载失败） -->
-<script src="assets/vue.global.prod.min.js?v=20261008f" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
-<script src="assets/echarts.min.js?v=20261008f" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
+<script src="assets/vue.global.prod.min.js?v=20261009a" onerror="window.__VUE_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js';document.head.appendChild(f)"></script>
+<script src="assets/echarts.min.js?v=20261009a" onerror="window.__ECHARTS_LOAD_FAILED__=true;var f=document.createElement('script');f.src='https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js';document.head.appendChild(f)"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -317,15 +317,19 @@ body {
 
   <!-- Hero -->
   <div class="px-5 pb-3 fade-in-up">
-    <h1 class="text-[22px] font-bold leading-tight mb-1">输入你的投资需求</h1>
-    <p class="text-[13px] text-[var(--text-secondary)]">AI 为你从全市场基金中筛选匹配标的</p>
+    <h1 class="text-[22px] font-bold leading-tight mb-1">用大白话，找到适合你的基金</h1>
+    <p class="text-[13px] text-[var(--text-secondary)]">说出你的想法（比如"想买重仓AI的""波动小一点"），AI 帮你从全市场基金里挑出匹配的标的</p>
   </div>
 
   <!-- Risk Profile -->
   <div class="px-5 mb-4 fade-in-up" style="animation-delay:.08s">
     <div class="flex items-center justify-between mb-2.5">
-      <span class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider">我的客户画像</span>
-      <span class="text-[10px] text-[var(--gold)] cursor-pointer" @click="openKYC">点击修改，让我们更了解你</span>
+      <span class="text-[11px] font-medium text-[var(--text-secondary)] tracking-wider">你的投资情况</span>
+      <span class="text-[10px] text-[var(--gold)] cursor-pointer" @click="openKYC">做风险测评，结果更贴合你 ›</span>
+    </div>
+    <!-- S10：把三个画像项的作用说清楚，让用户知道"填了有什么用" -->
+    <div class="text-[9.5px] text-[var(--text-muted)] mb-2 leading-relaxed">
+      下面这三项会直接决定给你筛出哪些基金——风险偏好决定"最多能看多激进的产品"，投资期限决定"优先推荐稳的还是弹性的"。
     </div>
     <div class="grid grid-cols-3 gap-2">
       <div class="profile-pill p-3" @click="openPicker('age')">
@@ -350,7 +354,7 @@ body {
   <div class="px-5 mb-4 fade-in-up" style="animation-delay:.16s">
     <div class="relative">
       <textarea v-model="searchText" class="search-input resize-none" rows="2" maxlength="200"
-        placeholder="用大白话描述您的投资需求，如：想找波动小的债券基金"
+        placeholder="用大白话描述，例如：想找重仓AI的基金 / 波动小一点的债券基金 / 近一年涨得好的"
         @keydown.enter.prevent="doSearch"></textarea>
       <div class="absolute right-3 bottom-3 text-[10px] text-[var(--text-muted)] mono">{{ searchText.length }}/200</div>
     </div>
@@ -475,10 +479,13 @@ body {
   <!-- Sort Bar -->
   <div class="px-5 pt-2.5">
     <div class="tab-bar">
-      <div v-for="s in sortOptions" :key="s.key" class="tab-item" :class="{active: sortBy===s.key}" @click="sortBy=s.key; pageNum=1">
+      <div v-for="s in sortOptions" :key="s.key" class="tab-item" :class="{active: sortBy===s.key}"
+           :title="s.hint" @click="sortBy=s.key; pageNum=1">
         {{ s.label }}
       </div>
     </div>
+    <!-- S8：把当前排序方向用人话说明，消除"点回撤是要大还是小"的疑问 -->
+    <div class="text-[9px] text-[var(--text-muted)] mt-1.5 px-0.5">{{ currentSortHint }}</div>
   </div>
 
   <!-- Match Reason -->
@@ -507,7 +514,6 @@ body {
         <div class="flex flex-col items-end gap-1">
           <span class="tag-pill" :class="riskTagClass(fund.riskLevel)">{{ fund.riskLevel }}</span>
           <span v-if="isRiskMatched(fund)" class="text-[9px] text-[#5dd49a]">风险匹配</span>
-          <span v-else class="text-[9px] text-[#e8a23d]">超出风险偏好</span>
         </div>
       </div>
 
@@ -555,12 +561,21 @@ body {
     </div>
 
     <div v-if="filteredFunds.length===0" class="text-center py-16">
-      <div v-if="fundsExcludedByRisk" class="text-[var(--text-muted)] text-sm mb-2">根据您的风险承受能力，暂无匹配的基金</div>
-      <div v-if="fundsExcludedByRisk" class="text-[var(--gold)] text-xs">建议调整您的风险偏好</div>
-      <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
-      <div v-if="!fundsExcludedByRisk" class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
+      <template v-if="aiResult.isRiskCapBlocked">
+        <div class="text-[var(--text-muted)] text-sm mb-2">该条件下暂无可展示的基金</div>
+        <div class="text-[var(--gold)] text-xs mb-3">符合条件的产品风险等级超出您的承受能力，按适当性管理要求不予展示</div>
+        <button class="btn-ghost px-4 py-2 text-[11px]" @click="goHome">返回并调整条件</button>
+      </template>
+      <template v-else-if="fundsExcludedByRisk">
+        <div class="text-[var(--text-muted)] text-sm mb-2">根据您的风险承受能力，暂无匹配的基金</div>
+        <div class="text-[var(--gold)] text-xs">建议调整您的风险偏好</div>
+      </template>
+      <template v-else>
+        <div class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
+        <div class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
+      </template>
       <div class="text-[var(--text-muted)] text-[11px] mt-3 px-6 leading-relaxed">
-        提示：本次仅展示真实满足条件的基金；若口径过严（如"近期净值创新高"在近3个月内无符合标的），系统不会用近似条件替代展示，以保证结果可信。
+        提示：本次仅展示真实满足条件、且在您风险承受能力范围内的基金；系统不会用近似条件替代展示，也不会展示超出您风险等级的产品，以保证结果可信与合规。
       </div>
     </div>
 
@@ -581,7 +596,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，展示数据为模拟脱敏数据，仅供功能演示与参考。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261008f · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261009a · 离线智能选基</div>
   </div>
 </div>
 
@@ -615,7 +630,7 @@ body {
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金类型</span><span class="text-[var(--text-primary)]">{{ selectedFund.fundTypeTag }}</span></div>
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金规模</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.fundScale }}亿</span></div>
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">管理费率</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.managementFee }}%</span></div>
-        <div class="flex justify-between"><span class="text-[var(--text-muted)]">报告日期</span><span class="mono text-[var(--text-primary)]">{{ selectedFund.reportDate }}</span></div>
+        <div class="flex justify-between"><span class="text-[var(--text-muted)]">数据截止</span><span class="mono text-[var(--text-primary)]">{{ dataAsOfDate || '--' }}</span></div>
         <div class="flex justify-between"><span class="text-[var(--text-muted)]">基金经理</span><span class="text-[var(--text-primary)]">{{ selectedFund.fundManager }}</span></div>
       </div>
     </div>
@@ -640,8 +655,18 @@ body {
         <span class="text-[13px] font-bold">投教解读</span>
       </div>
       <div class="glass-card-gold p-4 card-enter stagger-2">
-        <div class="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">{{ eduCard.analysis }}</div>
-        <div class="p-2.5 rounded-lg" style="background:rgba(10,21,40,.3)">
+        <!-- 【S13】分段展示：小标题 + 正文，关键数字高亮 -->
+        <div class="space-y-3">
+          <div v-for="(blk, bi) in eduCard.blocks" :key="bi">
+            <div class="text-[10px] font-medium mb-1" :style="{color: blk.warn ? '#e8a23d' : 'var(--gold)'}">{{ blk.label }}</div>
+            <div class="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+              <span v-for="(seg, si) in blk.segs" :key="si"
+                    :class="seg.v ? 'font-bold mono' : ''"
+                    :style="seg.v ? {color:'var(--gold-light)'} : {}">{{ seg.t }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="p-2.5 rounded-lg mt-3" style="background:rgba(10,21,40,.3)">
           <div class="text-[11px] font-medium text-[var(--gold-light)] mb-1">{{ eduCard.title }}</div>
           <div class="text-[10px] text-[var(--text-muted)] leading-relaxed">{{ eduCard.content }}</div>
         </div>
@@ -653,16 +678,42 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">绩效指标</span>
-        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_index_value_v2_test</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">统计区间：近一年</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-2">
+        <!-- 一句话结论（S3）：先给人话，再给数字 -->
+        <div v-if="fundSummaryLine" class="mb-3 p-2.5 rounded-lg text-[11.5px] leading-relaxed text-[var(--text-secondary)]" style="background:rgba(212,168,81,.08)">
+          <span class="text-[var(--gold)] font-medium">一句话看懂：</span>{{ fundSummaryLine }}
+        </div>
         <!-- Radar Chart -->
         <div id="perf-radar" class="chart-container" style="height:200px"></div>
-        <!-- Metrics Grid -->
+        <!-- Core Metrics Grid（S5：首屏只留 3 个易懂指标）-->
         <div class="grid grid-cols-3 gap-2 mt-3">
-          <div v-for="m in perfMetricsDisplay" :key="m.key" class="metric-box">
+          <div v-for="m in perfCoreMetrics" :key="m.key" class="metric-box">
             <div class="text-[9px] text-[var(--text-muted)] mb-0.5">{{ m.name }}</div>
             <div class="text-[12px] font-bold mono" :style="{color: m.color}">{{ m.value }}</div>
+          </div>
+        </div>
+        <!-- Advanced Metrics（S5：专业指标折叠，按需展开）-->
+        <div class="mt-3">
+          <div class="flex items-center justify-between cursor-pointer select-none" @click="advMetricsOpen = !advMetricsOpen">
+            <span class="text-[10.5px] text-[var(--text-muted)]">专业指标（卡玛比率 / 信息比率 / 贝塔系数 / 索提诺）</span>
+            <span class="text-[10px] text-[var(--gold-light)] flex items-center gap-0.5">
+              {{ advMetricsOpen ? '收起' : '展开' }}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                   class="transition-transform duration-200" :style="{ transform: advMetricsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }">
+                <path d="M6 9L12 15L18 9"/>
+              </svg>
+            </span>
+          </div>
+          <div v-if="advMetricsOpen" class="grid grid-cols-3 gap-2 mt-2.5">
+            <div v-for="m in perfAdvMetrics" :key="m.key" class="metric-box">
+              <div class="text-[9px] text-[var(--text-muted)] mb-0.5">{{ m.name }}</div>
+              <div class="text-[12px] font-bold mono" :style="{color: m.color}">{{ m.value }}</div>
+            </div>
+          </div>
+          <div v-if="advMetricsOpen" class="text-[9px] text-[var(--text-muted)] leading-relaxed mt-2">
+            这些是专业机构常用的进阶指标，数值越低/为负并不直接等于"这只基金很差"，建议结合上方的收益与回撤综合判断。
           </div>
         </div>
         <!-- Explanation -->
@@ -673,6 +724,9 @@ body {
             </span>
           </div>
         </div>
+        <!-- 数据完整性说明（S2/S3）：仅当本基金确有异常指标被隐藏时提示 -->
+        <div v-if="hasHiddenMetric" class="mt-2 text-[9px] text-[var(--text-muted)] leading-relaxed">
+          注：该基金的部分派生指标（如年化收益、在险价值）当前数据源口径待核实、存在异常值，已暂不展示，待数据修正后恢复。</div>
       </div>
     </div>
 
@@ -681,7 +735,7 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">风险归因因子</span>
-        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_multi_attr_riskmodel</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">模拟数据</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-3">
         <!-- Bar Chart -->
@@ -701,7 +755,7 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">行业配置</span>
-        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_fund_industry_config</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">模拟数据</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-4">
         <!-- Top 3 Industries -->
@@ -719,7 +773,7 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">前十大重仓股</span>
-        <span class="text-[10px] text-[var(--text-muted)] ml-1">报告期：2024Q4</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1" v-if="holdingsReportPeriod">报告期：{{ holdingsReportPeriod }}</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-4">
         <div class="overflow-hidden rounded-lg" style="background:rgba(10,21,40,.6)">
@@ -752,7 +806,7 @@ body {
               </tr>
             </tbody>
           </table>
-          <div v-if="!selectedFund.topHoldings || !selectedFund.topHoldings.length" class="text-center py-3 text-[10px] text-[var(--text-muted)]">
+          <div v-if="!topHoldingsDisplay.length" class="text-center py-3 text-[10px] text-[var(--text-muted)]">
             <template v-if="selectedFund.topHoldingStock">当前仅展示第一大重仓股，完整前十大持仓数据暂未收录</template>
             <template v-else>暂未收录持仓数据</template>
           </div>
@@ -769,7 +823,7 @@ body {
       <div class="flex items-center gap-2 mb-2.5">
         <div class="w-1 h-4 rounded-full" style="background:var(--gold)"></div>
         <span class="text-[13px] font-bold">估值指标</span>
-        <span class="text-[10px] text-[var(--text-muted)] ml-1">fof_fund_multi_config_info</span>
+        <span class="text-[10px] text-[var(--text-muted)] ml-1">模拟数据</span>
       </div>
       <div class="glass-card p-4 card-enter stagger-5">
         <div class="grid grid-cols-2 gap-2">
@@ -791,8 +845,12 @@ body {
 
     <!-- Data Source -->
     <div class="mt-5 text-center">
-      <div class="text-[10px] text-[var(--text-muted)]">以上为模拟脱敏数据 · 更新于 2026-10-06（重仓股为 2026Q2 季报）</div>
-      <div class="text-[10px] text-[var(--text-muted)] mt-0.5">报告期：{{ selectedFund.reportDate }} | 统计区间：近一年</div>
+      <div class="text-[10px] text-[var(--text-muted)]">以上为模拟脱敏数据 · 净值与绩效统计区间为近一年</div>
+      <div class="text-[10px] text-[var(--text-muted)] mt-0.5">
+        <span v-if="dataAsOfDate">净值数据截止：{{ dataAsOfDate }}</span>
+        <span v-if="dataAsOfDate && holdingsReportPeriod"> | </span>
+        <span v-if="holdingsReportPeriod">重仓股报告期：{{ holdingsReportPeriod }}（季报口径）</span>
+      </div>
     </div>
   </div>
 
@@ -911,9 +969,9 @@ body {
 .sheet-enter-to,.sheet-leave-from{transform:translate(-50%,0)}
 </style>
 
-<script src="fund-pool-base.js?v=20261008f" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
-<script src="fund-pool-detail.js?v=20261008f" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
-<script src="nav-cache.js?v=20261008f" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-base.js?v=20261009a" onerror="window.__FUND_BASE_LOAD_FAILED__=true"></script>
+<script src="fund-pool-detail.js?v=20261009a" onerror="window.__FUND_DETAIL_LOAD_FAILED__=true"></script>
+<script src="nav-cache.js?v=20261009a" onerror="window.__NAV_CACHE_LOAD_FAILED__=true"></script>
 <script>
 // 离线化：detail.js 已在页面打开时静态加载完毕（window.FUND_POOL_DETAIL），无需动态注入
 function loadFundDetailData() {
@@ -1002,6 +1060,10 @@ function normalizeFund(fd) {
   RF_KEYS.forEach(k => { if (fd.riskFactors[k] === null || fd.riskFactors[k] === undefined) fd.riskFactors[k] = 0; });
   if (!fd.industryConfig || typeof fd.industryConfig !== 'object') fd.industryConfig = {};
   if (!fd.matchTags || !Array.isArray(fd.matchTags)) fd.matchTags = [];
+  // 【S14 合规】清洗收益暗示性标签：收益承诺/暗示类表述（如"高收益"）不符合宣传合规要求，
+  // 无论数据源是否再次带入，展示前一律剔除，保证前端永不渲染此类标签。
+  const BANNED_TAGS = ['高收益','高回报','稳赚','保本','必赚','包赚','高息','翻倍'];
+  fd.matchTags = fd.matchTags.filter(t => !BANNED_TAGS.includes(String(t).trim()));
   if (!fd.topHoldings) fd.topHoldings = [];
   // 因子代理推导：源数据 VALUE/GROWTH/SIZE 普遍缺失(填0)，用可用字段代理，使风格筛选/排序有区分度
   const pe = (fd.valuation && fd.valuation.PE) ? Number(fd.valuation.PE) : 0;
@@ -1402,6 +1464,8 @@ createApp({
     const historyList = ref([]);
     // 「AI分析逻辑」默认折叠，避免长文话术占满首屏；点击可展开/收起
     const narrativeOpen = ref(false);
+    // 【S5】详情页"专业指标"默认折叠，首屏只留 3 个易懂指标
+    const advMetricsOpen = ref(false);
     const narrativeLong = computed(() => {
       const t = aiResult.intentAnalysis || '';
       return t.length > 90 || t.includes('\n\n');
@@ -1480,11 +1544,15 @@ createApp({
       mid:    { label:'中期（1-3年）', volMax: 0.15, ddMax: 0.12, sortBy: 'SHARP' },
       long:   { label:'长期（>3年）',  volMax: 0.30, ddMax: 0.30, sortBy: 'RETURNRATE' }
     };
-    // 画像生效后的风险上限（用户自选风险等级 + 年龄段修正，收敛到 1..5）
+    // 画像生效后的风险上限。
+    // 【S1 合规硬约束】风险上限只能"收紧"、不得"放宽"：无论年龄段如何修正，
+    // 最终上限都不得超过用户在风险测评/客户画像中自主申报的风险承受等级（riskProfile.maxRiskLevel），
+    // 否则会出现"用户自评 R3、页面却展示 R4 产品并可一键购买"的适当性违规。
     function profileMaxRisk() {
       const base = riskProfile.maxRiskLevel || 3;
       const adj = AGE_RISK_ADJUST[riskProfile.ageValue] || 0;
-      return Math.max(1, Math.min(5, base + adj));
+      // base + adj 可能高于 base（如 18-35 岁 +1），此处以 base 作为不可逾越的上界
+      return Math.max(1, Math.min(5, Math.min(base, base + adj)));
     }
     function durationRule() {
       return DURATION_RULE[riskProfile.durationValue] || DURATION_RULE.mid;
@@ -1514,12 +1582,14 @@ createApp({
       modeLabel: ''
     });
 
+    // 【S8】排序标签口语化：普通投资者看不懂"夏普/波动率"，改为一眼可懂的说法，
+    // 并补上排序方向说明；"默认排序"标注其真实依据（按客户画像的投资期限偏好）。
     const sortOptions = [
-      {key:'match', label:'默认排序'},
-      {key:'return', label:'收益率'},
-      {key:'sharpe', label:'夏普'},
-      {key:'drawdown', label:'回撤'},
-      {key:'vol', label:'波动率'}
+      {key:'match', label:'推荐排序', hint:'按您的投资期限偏好自动排序'},
+      {key:'return', label:'收益最高', hint:'按下单近一年收益率从高到低'},
+      {key:'sharpe', label:'性价比最高', hint:'按夏普比率（每承担1份风险换来的收益）从高到低'},
+      {key:'drawdown', label:'最抗跌', hint:'按最大回撤从小到大（数字越小越抗跌）'},
+      {key:'vol', label:'最平稳', hint:'按波动率从低到高（数字越小越平稳）'}
     ];
 
     // Risk bar
@@ -2362,6 +2432,9 @@ createApp({
       aiResult.modeLabel = modeLabel;
       // 降级后实际生效的风险上限（供 UI 标签与话术保持一致，避免"标签写 R2、话术说 R5"）
       aiResult.effectiveRiskCap = result.effectiveRiskCap || profileMaxRisk();
+      // 【S1】"条件命中但均超出用户风险承受能力"标记：结果页据此走合规空态（不展示超风险产品）
+      aiResult.isRiskCapBlocked = !!result.isRiskCapBlocked;
+      aiResult.riskBlockedCount = result.riskBlockedCount || 0;
       sortBy.value = 'match';
       pageNum.value = 1;
       if (recordHistory) {
@@ -2407,98 +2480,99 @@ createApp({
         }
       }
       if (count === 0 && !result.isFallback && !result.isNewHighEmpty && !result.isThemeEmpty) {
-        // a0) 渐进降级①：保留核心条件（主题/类型/实质指标），剔除软约束（费率/规模）
-        //     先按偏好风险，再放宽风险；命中则视为"放宽辅助条件"结果
+        // 【S1 合规硬约束】空集保护的底线：只在"用户风险承受能力范围内"调整筛选口径，
+        // 绝不放宽风险等级去凑结果——超出用户风险上限的产品，按投资者适当性管理要求不得向该客户展示。
+        const profMr = profileMaxRisk();
+        let handled = false;
+
+        // a) 渐进降级①：保留核心条件（主题/类型/实质指标），剔除软约束（费率/规模）
         //     注意：约束函数（尤其主题规则）内部含"整表长度"判定（如名称命中<3只时改用行业口径），
-        //     必须"整表求值"而非"逐只求值"，否则结果随风险档位非单调（放宽风险反而变少）。
+        //     必须"整表求值"而非"逐只求值"，否则结果随风险档位非单调。
         const coreFns = result.coreConstraints || [];
-        if (coreFns.length > 0) {
+        if (!handled && coreFns.length > 0) {
           const coreFn = (mr) => {
             let res = MOCK_FUNDS.filter(f => riskOkGlobal(f, mr));
             for (const c of coreFns) { try { res = c(res, mr); } catch (e) { /* 单条件异常不影响整体 */ } }
             return res;
           };
-          const profMr = profileMaxRisk();
-          const coreN3 = coreFn(profMr).length;
-          const coreN5 = coreFn(5).length;
-          // 增量放宽：从用户风险档向上逐级提升，取"刚好非空"的最小档，而不是一步跳到 R5。
-          // 若直接跳到 R5，会出现"风险档越高、结果反而越少"的非单调现象
-          // （如 R1 因放宽展示 18 只、R2 严格口径仅 1 只）——这与用户直觉相悖，必须避免。
-          let useMr = profMr;
-          if (coreN3 === 0 && coreN5 > 0) {
-            useMr = 5;
-            for (let r = profMr + 1; r <= 5; r++) { if (coreFn(r).length > 0) { useMr = r; break; } }
-          }
-          if (coreN3 > 0 || coreN5 > 0) {
+          if (coreFn(profMr).length > 0) {
             result = {
               ...result,
               conditions: result.conditions.filter(c => !/费率|规模/.test(c.label)),
-              intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件（含费率/规模等）后无匹配基金，以下已保留核心筛选条件（主题/类型/指标）' + (useMr === 5 ? '并放宽风险等级' : '') + '展示。请留意各基金风险等级标注。',
-              matchReason: '叠加辅助条件（费率/规模）后无匹配，已保留核心条件' + (useMr === 5 ? '并放宽风险等级' : '') + '展示匹配标的。',
-              filterFn: (funds) => { let res = funds.filter(f => riskOkGlobal(f, useMr)); for (const c of coreFns) { try { res = c(res, useMr); } catch(e){} } return res; },
+              intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件（含费率/规模等）后无匹配基金，以下已保留核心筛选条件（主题/类型/指标）展示。',
+              matchReason: '叠加辅助条件（费率/规模）后无匹配，已保留核心条件展示匹配标的。',
+              filterFn: (funds, maxRisk) => {
+                const cap = Math.min(maxRisk == null ? profMr : maxRisk, profMr);
+                let res = funds.filter(f => riskOkGlobal(f, cap));
+                for (const c of coreFns) { try { res = c(res, cap); } catch(e){} }
+                return res;
+              },
               isRelaxedCore: true,
-              effectiveRiskCap: useMr
+              effectiveRiskCap: profMr
             };
+            handled = true;
           }
         }
-      }
-      if ((result.filterFn ? result.filterFn(MOCK_FUNDS, profileMaxRisk()).length : 0) === 0 && !result.isFallback && !result.isNewHighEmpty && !result.isThemeEmpty) {
-        // a) 再尝试"放宽风险等级"：保留意图条件，仅放开风险上限，展示超出当前风险偏好的匹配结果
-        //    （结果页会对超出风险偏好的基金标注"超出风险偏好"，兼顾意图与合规提示）
-        const relaxedFn = result.filterFn;
-        const relaxedCount = relaxedFn ? relaxedFn(MOCK_FUNDS, 5).length : 0;
-        if (relaxedCount > 0) {
-          // 同样取"刚好非空的最小风险档"，避免一步跳到 R5 造成跨档非单调
-          const profMr2 = profileMaxRisk();
-          let relaxMr = 5;
-          for (let r = profMr2 + 1; r <= 5; r++) { if (relaxedFn(MOCK_FUNDS, r).length > 0) { relaxMr = r; break; } }
-          result = {
-            ...result,
-            intentAnalysis: (result.intentAnalysis || '') + '\n\n注：满足该条件、且不超出您当前风险偏好等级的基金为 0 只。以下已放宽风险等级展示匹配结果，请留意各基金的风险等级标注。',
-            matchReason: '该条件下暂无符合您当前风险偏好的基金，已放宽风险等级展示匹配标的，请关注"超出风险偏好"提示。',
-            filterFn: (funds) => relaxedFn(funds, relaxMr),
-            isRelaxed: true,
-            effectiveRiskCap: relaxMr
+
+        // b) 再试"仅保留主题"：主题类约束放宽（如"半导体+集中度""科技+新高"等叠加过严场景）
+        //    同样只在用户风险上限之内放宽，不放宽风险等级。
+        const themeFns = result.themeConstraints || [];
+        if (!handled && themeFns.length > 0) {
+          const themeFn = (mr) => {
+            let res = MOCK_FUNDS.filter(f => riskOkGlobal(f, mr));
+            for (const c of themeFns) { try { res = c(res, mr); } catch(e){} }
+            return res;
           };
-        } else {
-          // b) 再试"仅保留主题"：主题类约束放宽（如"半导体+集中度""科技+新高"等叠加过严场景）
-          //    同样采用"整表求值"，保证结果随风险档位单调
-          const themeFns = result.themeConstraints || [];
-          const themeOk = (funds, mr) => { let res = funds.filter(f => riskOkGlobal(f, mr)); for (const c of themeFns) { try { res = c(res, mr); } catch(e){} } return res; };
-          if (themeFns.length > 0 && themeOk(MOCK_FUNDS, 5).length > 0) {
-            // 取"刚好非空的最小风险档"，避免一步跳到 R5 造成跨档非单调
-            const profMr3 = profileMaxRisk();
-            let themeMr = 5;
-            for (let r = profMr3 + 1; r <= 5; r++) { if (themeOk(MOCK_FUNDS, r).length > 0) { themeMr = r; break; } }
+          if (themeFn(profMr).length > 0) {
             result = {
               ...result,
               conditions: result.conditions.filter(c => c.type === 'industry'),
               intentAnalysis: (result.intentAnalysis || '') + '\n\n注：叠加全部条件后无匹配基金，以下已放宽至"主题"维度展示同赛道基金，供参考。',
               matchReason: '叠加全部条件后无匹配，已放宽至主题维度展示同赛道标的。',
-              filterFn: (funds) => themeOk(funds, themeMr),
-              isRelaxed: true,
-              effectiveRiskCap: themeMr
+              filterFn: (funds, maxRisk) => {
+                const cap = Math.min(maxRisk == null ? profMr : maxRisk, profMr);
+                let res = funds.filter(f => riskOkGlobal(f, cap));
+                for (const c of themeFns) { try { res = c(res, cap); } catch(e){} }
+                return res;
+              },
+              isRelaxedCore: true,
+              effectiveRiskCap: profMr
             };
-          } else {
-          // c) 再试安全兜底（低回撤 + 高夏普，且符合风险偏好）
-          const fb = safeFallback();
-          if (fb.filterFn(MOCK_FUNDS, riskProfile.maxRiskLevel).length > 0) {
-            result = fb;
-          } else {
-            // d) 兜底仍空：退化为全量风险匹配
-            result = {
-              intentAnalysis: '已为您展示所有符合您风险承受能力的基金，并按夏普比率（风险收益比）从高到低排列，供您参考。',
-              conditions: [{label:'风险等级匹配', type:'risk'}, {label:'夏普比率排序', type:'metric'}],
-              matchReason: '以下为符合您风险承受能力的全部基金，按风险收益比从优到劣排列。',
-              filterFn: (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk).sort((a,b) => (b.performance.SHARP||-10) - (a.performance.SHARP||-10)),
-              sortBy: 'SHARP',
-              isFallback: true
-            };
+            handled = true;
           }
+        }
+
+        // c) 仍未命中：区分"仅被风险偏好挡住"与"条件本身无解"
+        if (!handled) {
+          const beyond = result.filterFn ? result.filterFn(MOCK_FUNDS, 5).length : 0;
+          if (beyond > 0) {
+            // 【S1】确有满足条件、但风险等级超出用户承受能力的标的：不予展示，如实告知并给出调整建议。
+            result = {
+              ...result,
+              isRiskCapBlocked: true,
+              riskBlockedCount: beyond,
+              filterFn: () => [],
+              matchReason: '在您的风险承受能力（风险上限 R' + profMr + '）范围内暂无满足该条件的基金；另有 ' + beyond + ' 只基金满足您设定的条件，但风险等级超出您的承受范围，按投资者适当性管理要求不予展示。',
+              intentAnalysis: (result.intentAnalysis || '') + '\n\n需要特别说明：基金池中确有 ' + beyond + ' 只基金满足您设定的条件，但它们的风险等级高于您当前的风险上限（R' + profMr + '）。为遵守投资者适当性管理要求，我不为您展示这些超出您风险承受能力的产品。您可以调整客户画像中的风险偏好，或换一个波动更低的筛选条件。'
+            };
+          } else {
+            // d) 条件本身在基金池内无解（与风险无关）：沿用稳健兜底，避免空白页
+            const fb = safeFallback();
+            if (fb.filterFn(MOCK_FUNDS, profileMaxRisk()).length > 0) {
+              result = fb;
+            } else {
+              result = {
+                intentAnalysis: '已为您展示所有符合您风险承受能力的基金，并按夏普比率（风险收益比）从高到低排列，供您参考。',
+                conditions: [{label:'风险等级匹配', type:'risk'}, {label:'夏普比率排序', type:'metric'}],
+                matchReason: '以下为符合您风险承受能力的全部基金，按风险收益比从优到劣排列。',
+                filterFn: (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk).sort((a,b) => (b.performance.SHARP||-10) - (a.performance.SHARP||-10)),
+                sortBy: 'SHARP',
+                isFallback: true
+              };
+            }
           }
         }
       }
-
       // 3) 简洁、用户友好的模式标签（不暴露内部 AI 状态/错误）
       const modeLabel = result.isFallback ? '智能推荐' : 'AI智能分析';
       // 4) 生成"分析式"话术：基于真实解析条件 + 画像 + 结果统计，替换模板化文案
@@ -2534,15 +2608,11 @@ createApp({
 
       const ageWhy = capRelaxed
         ? `按您画像对应的风险上限（R${profCap}）做严格筛选时命中的标的为 0 只，为避免结果为空，我把风险上限临时放宽至 R${mr} 为您展示，请务必留意各标的的风险等级标注`
-        : ageAdj > 0
-        ? (riskCapBinding
-            ? `考虑到您处于 ${ageTxt} 这一年龄段，投资周期相对更长、对波动的容忍度更高，我在您自选风险等级基础上放宽了风险上限（至 R${mr}），从而纳入了风险等级更高的成长型标的`
-            : `考虑到您处于 ${ageTxt} 这一年龄段，我在您自选风险等级基础上把风险上限放宽到 R${mr}；实际命中的标的最高仅到 R${hitMaxRisk}，说明这批标的本身风险并不激进`)
         : ageAdj < 0
         ? (riskCapBinding
             ? `考虑到您处于 ${ageTxt} 这一年龄段，资金更偏重稳健与回撤控制，我相应收紧了风险上限（至 R${mr}），把超出承受范围的品种剔除在外`
             : `考虑到您处于 ${ageTxt} 这一年龄段，我把风险上限收紧到 R${mr}；实际命中的标的最高为 R${hitMaxRisk}，均在稳健区间内`)
-        : `您处于 ${ageTxt} 年龄段，我维持了您自选的风险等级（上限 R${mr}，实际命中最高 R${hitMaxRisk}），在收益与波动之间取平衡`;
+        : `您处于 ${ageTxt} 年龄段，我以您自选的风险等级为上限（R${mr}，实际命中最高 R${hitMaxRisk}）——不会因年龄段调整而调高上限，以免向您推荐超出自身承受能力的产品`;
       // 年龄段回撤适配说明（与期限门槛并列，构成"画像叠加"的第二层约束）
       const ageDdTxt = info.ageDd
         ? `；同时按该年龄段设定回撤适配上限 ${(info.ageDd*100).toFixed(0)}%（长期资金可承担更高波动，临近用钱的资金则需控制回撤）`
@@ -2563,8 +2633,9 @@ createApp({
       }
 
       // ---- ② 画像叠加 ----
-      const sortTxt = rule.sortBy === 'VOL' ? '波动率由低到高' : rule.sortBy === 'SHARP' ? '夏普比率由高到低' : '近一年收益率由高到低';
-      const part2 = `接着叠加您的客户画像：风险偏好为 ${riskProfile.riskPref}（${riskProfile.riskPrefValue}）；${ageWhy}${ageDdTxt}。投资期限为 ${rule.label}，我据此设定了适配门槛——波动率不超过 ${(rule.volMax*100).toFixed(0)}%、最大回撤不超过 ${(rule.ddMax*100).toFixed(0)}%，默认按${sortTxt}排序。`;
+      // 【S9】专业表述口语化：把"波动率不超过 X%、最大回撤不超过 Y%"翻译成普通投资者能懂的说法
+      const sortTxt = rule.sortBy === 'VOL' ? '波动从低到高' : rule.sortBy === 'SHARP' ? '收益性价比从高到低' : '近一年收益从高到低';
+      const part2 = `接着叠加您的客户画像：风险偏好为 ${riskProfile.riskPref}（${riskProfile.riskPrefValue}）；${ageWhy}${ageDdTxt}。投资期限为 ${rule.label}，我据此把筛选范围定在"净值波动不超过 ${(rule.volMax*100).toFixed(0)}%、历史上从高点最多回撤 ${(rule.ddMax*100).toFixed(0)}%"以内，默认按${sortTxt}排列。`;
 
       // ---- ③ 筛选与取舍 ----
       let part3;
@@ -2580,14 +2651,19 @@ createApp({
         const ddArr = list.map(f => Math.abs((f.performance && f.performance.MAX_DRAWDOWN) || 0)).filter(v => v !== 0);
         const avgDd = ddArr.length ? ddArr.reduce((a,b)=>a+b,0)/ddArr.length : 0;
         const mParts = [];
-        mParts.push(`近一年收益率中位数 ${(medRet*100).toFixed(1)}%`);
-        if (avgSharp !== null && avgSharp !== 0) mParts.push(`平均夏普比率 ${avgSharp.toFixed(2)}`);
+        mParts.push(`近一年收益中位数 ${(medRet*100).toFixed(1)}%`);
+        // 【S9】夏普为负时不展示"平均夏普"（用负值指标论证推荐等于反向劝退），
+        //      改为中性化表述，把注意力引向真正该看的回撤。
+        if (avgSharp !== null && avgSharp > 0) mParts.push(`平均夏普比率 ${avgSharp.toFixed(2)}`);
+        else if (avgSharp !== null && avgSharp <= 0) mParts.push('近期风险收益比一般（承担相同波动换来的收益有限），建议重点核对下方的回撤数据');
         if (avgDd) mParts.push(`平均最大回撤 ${(avgDd*100).toFixed(1)}%`);
         part3 = `逐条过滤后共有 ${n} 只基金通过全部条件：我按风险等级与期限门槛逐一核对，命中标的以${mainTypes}为主；这批基金的整体特征是——${mParts.join('、')}。${result.themeTier === 'holding' ? `需要说明的是：基金池中暂无名称或重仓与「${result.themeLabel || '该主题'}」直接对应的基金，因此我放宽为"持有该主题成分股即可"的口径（如持有${(result.themeStocks||[]).slice(0,3).join('、')}等）为您匹配，赛道纯度相对有限，请结合各基金的实际持仓判断。` : ''}${info.relaxed ? '需要说明的是，叠加期限门槛后无标的完全满足，为避免结果为空，我已适度放宽波动率/回撤门槛，您可重点核对各标的的风险数据。' : ''}${result.isRelaxed || result.isRelaxedCore ? '此外，部分辅助条件（费率/规模或风险等级）在严格口径下无交集，已按优先级保留核心条件展示。' : ''}`;
       } else if (result.isNewHighEmpty) {
         part3 = `我逐只核对了基金池中每只标的的近 3 个月净值轨迹，并与您的风险偏好做了交集——符合"净值创新高"口径的标的为 0 只${result.newHighInRiskCount > 0 ? `（另有 ${result.newHighInRiskCount} 只确实创出新高，但风险等级高于您当前的风险上限，暂未纳入）` : ''}。`;
       } else if (result.isThemeEmpty) {
         part3 = `我逐只核对了基金池中的标的，按"名称关键词 → 行业重仓 → 持有成分股"三级口径逐层放宽后，与「${result.themeLabel || '该主题'}」真正相关的基金仍为 0 只。我没有用其他赛道的基金来充数——与其展示一批答非所问的标的，不如如实告知这里暂无覆盖。`;
+      } else if (result.isRiskCapBlocked) {
+        part3 = `我逐条核对了基金池中的标的：满足您设定条件的基金确实存在（共 ${result.riskBlockedCount || 0} 只），但它们的风险等级都在 R${mr} 之上，超出了您当前的风险承受能力。按投资者适当性管理的要求，我不能把这类产品展示给您。`;
       } else {
         part3 = `逐条过滤后，在当前条件下没有基金通过筛选。我没有用"收益率较高""放宽口径"等近似条件来充数，以保证结果的真实性。`;
       }
@@ -2596,6 +2672,8 @@ createApp({
       let part4;
       if (result.isNewHighEmpty) {
         part4 = `最后提醒：近 3 个月暂无净值创出新高的基金，建议调整筛选条件或稍后再试。`;
+      } else if (result.isRiskCapBlocked) {
+        part4 = `最后提醒：如果您希望看到这类产品，可在页面顶部的客户画像中调高风险偏好等级（需与您自身真实的风险承受能力相符），或把条件放宽到波动更低的方向，我再帮您筛一遍。`;
       } else if (result.isThemeEmpty) {
         part4 = `最后提醒：当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，建议换个相近赛道（如"${result.themeLabel ? '同类主题或宽基' : '宽基指数'}"）试试，或放宽其他附加条件。`;
       } else if (result.isNewHighIntent && n > 0) {
@@ -2617,6 +2695,7 @@ createApp({
         matchReason: n > 0
           ? `共 ${n} 只基金通过"${condLabels.length ? condLabels.join(' + ') : '稳健口径'}"且满足 ${riskProfile.age} / ${rule.label} 的适配要求，按${rule.sortBy==='VOL'?'波动率由低到高':rule.sortBy==='SHARP'?'夏普比率由高到低':'近一年收益率由高到低'}排列，供您横向比较。`
           : (result.isNewHighEmpty ? '严格口径下暂无净值创新高的基金，故不作展示。'
+            : result.isRiskCapBlocked ? `满足该条件的基金风险等级均超出您的风险承受能力（上限 R${profileMaxRisk()}），按投资者适当性管理要求不予展示。`
             : result.isThemeEmpty ? `当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，故不作展示。`
             : '在当前条件下暂无匹配标的，未以近似条件替代展示。')
       };
@@ -2648,6 +2727,18 @@ createApp({
       searchText.value = tag;
       doSearch();
     }
+
+    // 【S8】当前排序方向的"人话"说明
+    const currentSortHint = computed(() => {
+      const s = sortOptions.find(o => o.key === sortBy.value);
+      if (!s) return '';
+      if (s.key === 'match') {
+        const dur = durationRule().sortBy;
+        const m = { VOL:'按波动率从低到高', SHARP:'按夏普比率从高到低', RETURNRATE:'按近一年收益率从高到低' };
+        return (s.hint || '') + '（当前：' + (m[dur] || '综合排序') + '）';
+      }
+      return s.hint || '';
+    });
 
     // Filtered funds（叠加客户画像：年龄段修正风险上限 + 投资期限适配门槛）
     // 说明：基础结果由意图 filterFn 产出后，再按期限的波动率/回撤门槛做一遍适配筛选；
@@ -2748,36 +2839,104 @@ createApp({
       return m[level] || '';
     }
     function isRiskMatched(fund) {
-      return fund.riskLevelNum <= riskProfile.maxRiskLevel;
+      // 与筛选口径保持一致：以"画像生效后的风险上限"（含年龄段修正）为准，
+      // 避免出现"结果按 R4 筛选、却标记 R4 为超出风险偏好"的自相矛盾。
+      return fund.riskLevelNum <= profileMaxRisk();
     }
 
     // ============ DETAIL PAGE COMPUTED ============
+    // 【S2/S3】绩效指标防御层：数据源中部分派生指标存在量纲/口径缺陷
+    // （如 VAR 疑似为绝对金额而非收益率、ANNUALRETURN_RATE 疑似短区间直接年化导致极端放大），
+    // 展示前统一做合理性校验：超出金融常识范围的指标一律不展示，避免"单日亏损 145%"式反常识数值。
+    function saneMetric(v, lo, hi) {
+      const n = Number(v);
+      if (v === null || v === undefined || isNaN(n)) return null;
+      if (n < lo || n > hi) return null;   // 超出合理区间 → 视为数据异常，不展示
+      return n;
+    }
+    // 年化收益与近一年收益方向相反（一正一负）时，判定为口径异常，年化不予展示
+    function annualConflicts(ret, annual) {
+      if (annual === null) return true;
+      if (ret === null) return false;
+      if (Math.abs(ret) < 0.005) return false;   // 近一年近似持平时不做方向判定
+      return (ret > 0) !== (annual > 0);
+    }
     const perfMetricsDisplay = computed(() => {
       if (!selectedFund.value) return [];
       const p = selectedFund.value.performance;
-      return [
-        {key:'ret', name:'近一年收益', value:(p.RETURNRATE*100).toFixed(2)+'%', color: p.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'},
-        {key:'annual', name:'年化收益', value:(p.ANNUALRETURN_RATE*100).toFixed(2)+'%', color: p.ANNUALRETURN_RATE >= 0 ? 'var(--red)' : 'var(--green)'},
-        {key:'sharp', name:'夏普比率', value:p.SHARP.toFixed(2), color: p.SHARP >= 1 ? 'var(--red)' : 'var(--text-primary)'},
-        {key:'dd', name:'最大回撤', value:(p.MAX_DRAWDOWN*100).toFixed(2)+'%', color: 'var(--green)'},
-        {key:'vol', name:'波动率', value:(p.VOL*100).toFixed(1)+'%', color: 'var(--text-primary)'},
-        {key:'karma', name:'卡玛比率', value:p.KARMA.toFixed(2), color: p.KARMA >= 1.5 ? 'var(--red)' : 'var(--text-primary)'},
-        {key:'info', name:'信息比率', value:p.INFO_RATIO.toFixed(2), color: 'var(--text-primary)'},
-        {key:'beta', name:'贝塔系数', value:p.BETA.toFixed(2), color: 'var(--text-primary)'},
-        {key:'sortino', name:'索提诺', value:p.SORTINO.toFixed(2), color: 'var(--text-primary)'},
+      const ret = saneMetric(p.RETURNRATE, -1, 3);
+      const annualRaw = saneMetric(p.ANNUALRETURN_RATE, -1, 3);
+      // 年化：既有量纲校验，也有"与近一年方向矛盾"校验（S3）
+      const annual = annualConflicts(ret, annualRaw) ? null : annualRaw;
+      const sharp = saneMetric(p.SHARP, -10, 10);
+      const dd = saneMetric(p.MAX_DRAWDOWN, -1, 0);
+      const vol = saneMetric(p.VOL, 0, 2);
+      const list = [
+        {key:'ret', name:'近一年收益', value: ret === null ? '--' : (ret*100).toFixed(2)+'%', color: ret === null ? 'var(--text-muted)' : (ret >= 0 ? 'var(--red)' : 'var(--green)')},
+        {key:'annual', name:'年化收益', value: annual === null ? '--' : (annual*100).toFixed(2)+'%', color: annual === null ? 'var(--text-muted)' : (annual >= 0 ? 'var(--red)' : 'var(--green)')},
+        {key:'sharp', name:'夏普比率', value: sharp === null ? '--' : sharp.toFixed(2), color: sharp === null ? 'var(--text-muted)' : (sharp >= 1 ? 'var(--red)' : 'var(--text-primary)')},
+        {key:'dd', name:'最大回撤', value: dd === null ? '--' : (dd*100).toFixed(2)+'%', color: 'var(--green)'},
+        {key:'vol', name:'波动率', value: vol === null ? '--' : (vol*100).toFixed(1)+'%', color: 'var(--text-primary)'},
       ];
+      // 【S5】进阶指标：普通投资者不易理解，收进折叠区（仍做同样的合理性校验）
+      const karma = saneMetric(p.KARMA, -10, 10);
+      const info = saneMetric(p.INFO_RATIO, -5, 5);
+      const beta = saneMetric(p.BETA, -3, 3);
+      const sortino = saneMetric(p.SORTINO, -10, 10);
+      list.push(
+        {key:'karma', name:'卡玛比率', value: karma === null ? '--' : karma.toFixed(2), color: 'var(--text-primary)', adv:true},
+        {key:'info', name:'信息比率', value: info === null ? '--' : info.toFixed(2), color: 'var(--text-primary)', adv:true},
+        {key:'beta', name:'贝塔系数', value: beta === null ? '--' : beta.toFixed(2), color: 'var(--text-primary)', adv:true},
+        {key:'sortino', name:'索提诺', value: sortino === null ? '--' : sortino.toFixed(2), color: 'var(--text-primary)', adv:true},
+      );
+      return list;
+    });
+    // 【S5】首屏只展示 3 个"人话指标"：近一年收益 / 最大回撤 / 波动率
+    const perfCoreMetrics = computed(() => perfMetricsDisplay.value.filter(m => ['ret','dd','vol'].includes(m.key)));
+    const perfAdvMetrics = computed(() => perfMetricsDisplay.value.filter(m => m.adv));
+
+    // 【S2/S3】该基金是否存在因数据异常而被隐藏的派生指标（用于决定是否显示数据说明）
+    const hasHiddenMetric = computed(() => {
+      if (!selectedFund.value) return false;
+      const p = selectedFund.value.performance || {};
+      const ret = saneMetric(p.RETURNRATE, -1, 3);
+      const annualRaw = saneMetric(p.ANNUALRETURN_RATE, -1, 3);
+      const annualHidden = annualConflicts(ret, annualRaw);
+      const vaRHidden = saneMetric(p.VAR, -1, 1) === null && (p.VAR !== 0 && p.VAR !== null && p.VAR !== undefined);
+      return annualHidden || vaRHidden;
+    });
+
+    // 【S3】详情页"一句话结论"：用一句人话替用户串联收益与风险，避免被 9 个互相打架的数字淹没
+    const fundSummaryLine = computed(() => {
+      if (!selectedFund.value) return '';
+      const p = selectedFund.value.performance || {};
+      const ret = saneMetric(p.RETURNRATE, -1, 3);
+      const dd = saneMetric(p.MAX_DRAWDOWN, -1, 0);
+      if (ret === null && dd === null) return '';
+      const parts = [];
+      if (ret !== null) parts.push(ret >= 0 ? `近一年上涨 ${(ret*100).toFixed(1)}%` : `近一年下跌 ${(Math.abs(ret)*100).toFixed(1)}%`);
+      if (dd !== null) parts.push(`期间从高点最大回撤 ${(Math.abs(dd)*100).toFixed(1)}%`);
+      let tail = '';
+      if (dd !== null) {
+        const absDd = Math.abs(dd);
+        tail = absDd >= 0.25 ? '，波动较大，请评估自身承受能力' : absDd >= 0.10 ? '，属于中等波动水平' : '，整体波动较小、相对平稳';
+      }
+      return parts.join('，') + tail + '。';
     });
 
     const perfExplanations = computed(() => {
       if (!selectedFund.value) return [];
       const p = selectedFund.value.performance;
-      return [
-        {name:'夏普比率', text:'收益相对于风险的性价比，一般>1算不错，当前为'+p.SHARP.toFixed(2)},
-        {name:'最大回撤', text:'从最高点到最低点的最大跌幅，当前为'+(p.MAX_DRAWDOWN*100).toFixed(2)+'%'},
-        {name:'波动率', text:'收益的波动幅度，越低越平稳，当前为'+(p.VOL*100).toFixed(1)+'%'},
-        {name:'贝塔系数', text:'相对于市场的敏感度，<1表示比市场波动小，当前为'+p.BETA.toFixed(2)},
-        {name:'在险价值', text:'在95%概率下的单日最大亏损，当前为'+(p.VAR*100).toFixed(2)+'%'}
-      ];
+      const out = [];
+      const sharp = saneMetric(p.SHARP, -10, 10);
+      const dd = saneMetric(p.MAX_DRAWDOWN, -1, 0);
+      const vol = saneMetric(p.VOL, 0, 2);
+      if (sharp !== null) out.push({name:'夏普比率', text:'收益相对于风险的性价比，一般>1算不错，当前为'+sharp.toFixed(2)});
+      if (dd !== null) out.push({name:'最大回撤', text:'从最高点到最低点的最大跌幅，当前为'+(dd*100).toFixed(2)+'%'});
+      if (vol !== null) out.push({name:'波动率', text:'收益的波动幅度，越低越平稳，当前为'+(vol*100).toFixed(1)+'%'});
+      // 【S2】在险价值（VaR）数据源存在量纲缺陷（67 只基金 |VaR|>100%），
+      // 在数据口径核实前不再展示该指标，避免"单日最大亏损 145%"式反常识数值。
+      return out;
     });
 
     const riskFactorDisplay = computed(() => {
@@ -2877,8 +3036,33 @@ createApp({
       return (total * 100).toFixed(2) + '%';
     });
 
+    // 【S6】重仓股报告期：仅当数据源提供可信的报告期字段时才展示（避免编造/沿用错误口径）。
+    // 数据层缺失时返回空串，由模板控制不渲染——宁可不说，也不展示过时或错误的日期。
+    const holdingsReportPeriod = computed(() => {
+      const raw = (selectedFundDetail.value && selectedFundDetail.value.reportDate)
+                || (selectedFundDetail.value && selectedFundDetail.value.holdingsReportDate) || '';
+      const s = String(raw).replace(/\D/g, '');
+      if (s.length < 6) return '';
+      const y = s.slice(0,4), m = Number(s.slice(4,6));
+      if (!y || !m || m < 1 || m > 12) return '';
+      return `${y}Q${Math.min(4, Math.ceil(m / 3))}`;
+    });
+    // 【S6】统一"数据截止日"口径：优先用基金报告日期；缺失时回落到净值缓存中的最新净值日期，
+    // 保证页面永远有一个可核验、不空缺的时效性说明。
+    const dataAsOfDate = computed(() => {
+      if (!selectedFund.value) return '';
+      const raw = selectedFund.value.reportDate || '';
+      const s = String(raw).replace(/\D/g, '');
+      if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+      // 回落：净值缓存（字段 ld = 最新净值日期，格式 YYYY-MM-DD）
+      const code = String(selectedFund.value.fundCode || '').split('.')[0];
+      const cache = (typeof window !== 'undefined' && window.NAV_CACHE) ? window.NAV_CACHE : null;
+      const ld = cache && cache[code] && cache[code].ld;
+      return ld ? String(ld) : '';
+    });
+
     const eduCard = computed(() => {
-      if (!selectedFund.value) return {title:'', content:'', analysis:''};
+      if (!selectedFund.value) return {title:'', content:'', analysis:'', blocks:[]};
       const f = selectedFund.value;
       const isBond = f.fundTypeTag === '债券型';
       const isIndex = f.fundTypeTag === '指数型';
@@ -2897,21 +3081,31 @@ createApp({
       else if (isIndex) { title = '这是一只指数型基金'; content = '简单说，它不靠基金经理"猜"买什么，而是照着某个指数（比如沪深300）把对应的股票都买一遍。指数涨它就涨，指数跌它就跌，费率通常也便宜，适合长期定投、跟着大盘走。'; }
       else { title = '这是一只主动管理基金'; content = '简单说，钱交给基金经理来"挑股票"——他研究哪些公司好、有潜力就买哪些。它的表现很大程度上取决于基金经理的水平，涨起来可能比指数猛，跌起来也可能更狠。'; }
 
-      // 用大白话点评这只基金的表现
-      let perf = '';
-      if (ret >= 0.3) perf += `近一年赚了${(ret*100).toFixed(0)}%，收益相当亮眼，但越高的收益往往伴随越大的波动。`;
-      else if (ret >= 0.1) perf += `近一年赚了${(ret*100).toFixed(0)}%，收益还不错。`;
-      else if (ret >= 0) perf += `近一年基本持平（${(ret*100).toFixed(1)}%），没亏但也没怎么赚。`;
-      else perf += `近一年亏了${(Math.abs(ret)*100).toFixed(0)}%，市场行情不好的时候亏损是难免的。`;
-      if (lowDrawdown && lowVol) perf += `它的回撤和波动都很小，属于"比较稳"的类型，拿着心里踏实。`;
-      else if (lowDrawdown) perf += `它的最大回撤只有${(mdd*100).toFixed(0)}%，跌得不多，抗跌能力不错。`;
-      else perf += `它的最大回撤达到${(mdd*100).toFixed(0)}%，意思是历史上从高点最多跌过这么多，要有心理准备。`;
-      if (highSharpe) perf += `夏普比率${sharpe.toFixed(2)}说明"每冒一分险能换来多少收益"性价比不错。`;
+      // 【S13】分段呈现：把原先"一段到底"的长文拆成 3 个带小标题的段落，
+      // 并把关键数字用高亮片段标出，降低阅读门槛（旧字段 analysis 保留兼容）。
+      const blocks = [];
+      blocks.push({ label:'这是一只什么基金', segs:[{t: content}] });
 
-      // 简单风险提示
-      const riskTip = `这只基金风险等级为${f.riskLevel}${(f.riskLevelNum>=4)?'，属于中高风险，波动可能较大，请量力而行':''}。`;
+      const perfSegs = [];
+      if (ret >= 0.3) { perfSegs.push({t:'近一年赚了 '}); perfSegs.push({t:(ret*100).toFixed(0)+'%', v:1}); perfSegs.push({t:'，收益相当亮眼，但越高的收益往往伴随越大的波动。'}); }
+      else if (ret >= 0.1) { perfSegs.push({t:'近一年赚了 '}); perfSegs.push({t:(ret*100).toFixed(0)+'%', v:1}); perfSegs.push({t:'，收益还不错。'}); }
+      else if (ret >= 0) { perfSegs.push({t:'近一年基本持平（'}); perfSegs.push({t:(ret*100).toFixed(1)+'%', v:1}); perfSegs.push({t:'），没亏但也没怎么赚。'}); }
+      else { perfSegs.push({t:'近一年亏了 '}); perfSegs.push({t:(Math.abs(ret)*100).toFixed(0)+'%', v:1}); perfSegs.push({t:'，市场行情不好的时候亏损是难免的。'}); }
+      if (lowDrawdown && lowVol) { perfSegs.push({t:'它的回撤和波动都很小，属于"比较稳"的类型，拿着心里踏实。'}); }
+      else if (lowDrawdown) { perfSegs.push({t:'它的最大回撤只有 '}); perfSegs.push({t:(mdd*100).toFixed(0)+'%', v:1}); perfSegs.push({t:'，跌得不多，抗跌能力不错。'}); }
+      else { perfSegs.push({t:'它的最大回撤达到 '}); perfSegs.push({t:(mdd*100).toFixed(0)+'%', v:1}); perfSegs.push({t:'，意思是历史上从高点最多跌过这么多，要有心理准备。'}); }
+      if (highSharpe) { perfSegs.push({t:'夏普比率 '}); perfSegs.push({t:sharpe.toFixed(2), v:1}); perfSegs.push({t:'，说明"每冒一分险能换来多少收益"性价比不错。'}); }
+      blocks.push({ label:'它最近表现如何', segs: perfSegs });
 
-      return {title, content, analysis: `【怎么理解这只基金】${content} 【它最近表现】${perf} ${riskTip}`};
+      const riskSegs = [{t:'这只基金风险等级为 '}];
+      riskSegs.push({t:f.riskLevel, v:1});
+      riskSegs.push({t: (f.riskLevelNum>=4) ? '，属于中高风险，波动可能较大，请量力而行。' : '，请结合自身承受能力判断。'});
+      blocks.push({ label:'风险提示', segs: riskSegs, warn: true });
+
+      const perf = perfSegs.map(s=>s.t).join('');
+      const riskTip = riskSegs.map(s=>s.t).join('');
+
+      return {title, content, analysis: `【怎么理解这只基金】${content} 【它最近表现】${perf} ${riskTip}`, blocks};
     });
 
     // ============ CHARTS ============
@@ -3108,14 +3302,14 @@ createApp({
       currentPage, searchText, lastQuery, selectedFund, selectedFundDetail, pickerOpen, pickerType,
       profileUpdated, riskProfile, quickTags, aiResult,
       narrativeOpen, narrativeLong, narrativeSummary,
-      sortOptions, sortBy, historyList, filteredFunds, sortedFilteredFunds,
+      sortOptions, sortBy, currentSortHint, historyList, filteredFunds, sortedFilteredFunds,
       pagedFunds, pageSize, pageNum, totalPages, changePage,
       riskBarPercent, riskColor, pickerTitle, pickerOptions,
       openPicker, isPickerActive, selectPicker, doSearch, useQuickTag,
       goHome, goResults, goHistory, goDetail, replayHistory, goExternal,
       riskTagClass, isRiskMatched,
-      perfMetricsDisplay, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
-      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, eduCard, holdingsSrc, isHighRiskFund, holdingMarket,
+      perfMetricsDisplay, perfCoreMetrics, perfAdvMetrics, hasHiddenMetric, advMetricsOpen, fundSummaryLine, perfExplanations, riskFactorDisplay, hasRiskFactors, top3IndustriesText,
+      valuationDisplay, hasAnyValuation, topHoldingsDisplay, topHoldingsTotal, holdingsReportPeriod, dataAsOfDate, eduCard, holdingsSrc, isHighRiskFund, holdingMarket,
       kycOpen, kycStep, kycScore, kycQuestions, kycResult, fundsExcludedByRisk,
       durationRelaxed, durationRule, profileMaxRisk, ageDrawdownMax,
       openKYC, selectKYCAnswer, closeKYC
