@@ -27,7 +27,8 @@ from http.server import BaseHTTPRequestHandler
 PORT = int(os.environ.get("PORT", "8080"))
 ARK_URL = "https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions"
 SALT = "AI_FUND_SELECT_2026"
-# 与 index.html 中的 ARK_KEY_ENCODED 保持一致（前端 XOR+Base64 混淆）
+# 安全提示：原此处内嵌的 ARK Key 已撤销并从仓库移除，请改用环境变量注入。
+#    export ARK_API_KEY=ark-xxxxx
 ENCODED = "REDACTED_REVOKED_KEY"
 
 ROOT = os.path.dirname(os.path.abspath(__file__))

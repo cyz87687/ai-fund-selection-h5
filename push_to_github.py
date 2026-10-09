@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""推送到 GitHub 仓库（通过 REST API + keychain token）"""
+"""推送到 GitHub 仓库（通过 REST API + 环境变量 token）
+
+安全提示：Token 不再硬编码，改为从环境变量 GITHUB_TOKEN 读取。
+    export GITHUB_TOKEN=ghp_xxx   # 或在 shell 中临时设置
+注意：切勿把 Token 写回本文件并提交——该仓库为公开仓库。
+"""
 import base64, json, urllib.request, os, sys
 
-TOKEN = "REDACTED_REVOKED_TOKEN"
+TOKEN = os.environ.get("GITHUB_TOKEN", "")
+if not TOKEN:
+    print("[错误] 未设置环境变量 GITHUB_TOKEN，无法推送。")
+    sys.exit(1)
 OWNER, REPO, BRANCH = "cyz87687", "ai-fund-selection-h5", "main"
 BASE = "https://api.github.com/repos/%s/%s/contents" % (OWNER, REPO)
 DIR = "/Users/yzreal/WorkBuddy/2026-09-22-09-21-20/交付物/ai-fund-selection-h5-fixed"
