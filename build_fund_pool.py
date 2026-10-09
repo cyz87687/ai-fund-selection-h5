@@ -177,7 +177,8 @@ for code, b in basic.items():
     tags = [b['riskLevel'], b['fundTypeTag']]
     if top_ind:
         tags.append(INDUSTRY_NAMES.get(top_ind, top_ind))
-    if b['RETURNRATE'] is not None and b['RETURNRATE'] > 0.1: tags.append('高收益')
+    # 【合规】不再生成"高收益"等收益暗示性标签：收益承诺/暗示类表述不符合基金宣传合规要求。
+    # 收益水平改由卡片上的"近一年收益"数据字段客观呈现，不额外贴情绪化标签。
     if perf_obj['SHARP'] is not None and perf_obj['SHARP'] > 1.0: tags.append('夏普优秀')
     if perf_obj['VOL'] is not None and perf_obj['VOL'] < 0.05: tags.append('低波动')
     if b['MAX_DRAWDOWN'] is not None and abs(b['MAX_DRAWDOWN']) < 0.05: tags.append('低回撤')
