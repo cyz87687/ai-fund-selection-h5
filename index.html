@@ -428,21 +428,13 @@ body {
   <!-- AI Analysis Card -->
   <div class="px-5 pt-3">
     <div class="glass-card-gold p-4 card-enter stagger-1">
-      <div class="flex items-center gap-2" :class="narrativeLong ? 'cursor-pointer select-none' : ''"
-           @click="narrativeLong && (narrativeOpen = !narrativeOpen)">
+      <div class="flex items-center gap-2">
         <div class="w-5 h-5 rounded-full flex items-center justify-center" style="background:rgba(212,168,81,.15)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5">
             <path d="M3 17L9 11L13 15L21 7"/><path d="M15 7H21V13"/>
           </svg>
         </div>
         <span class="text-[12px] font-medium gradient-gold-text">AI分析逻辑</span>
-        <span v-if="narrativeLong" class="text-[10px] text-[var(--text-muted)] flex items-center gap-0.5">
-          {{ narrativeOpen ? '收起' : '展开' }}
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-               class="transition-transform duration-200" :style="{ transform: narrativeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }">
-            <path d="M6 9L12 15L18 9"/>
-          </svg>
-        </span>
         <span v-if="aiResult.modeLabel" class="ml-auto text-[10px] px-2 py-0.5 rounded-full"
               style="background:rgba(90,212,154,.15); color:#0a9e6d; border:1px solid rgba(90,212,154,.4)">
           {{ aiResult.modeLabel }}
@@ -453,6 +445,19 @@ body {
            class="text-[12px] text-[var(--text-secondary)] leading-relaxed mt-2 line-clamp-2">{{ narrativeSummary }}</div>
       <!-- 展开态（或话术本身较短）：完整四段式逻辑 -->
       <div v-else class="text-[12.5px] text-[var(--text-secondary)] leading-relaxed mt-2 mb-1 whitespace-pre-line">{{ aiResult.intentAnalysis }}</div>
+      <!-- 展开/收起按钮：置于文字下方居中，避免抢占标题行 -->
+      <div v-if="narrativeLong" class="flex justify-center mt-2 mb-1">
+        <button class="flex items-center gap-1 px-3 py-1 rounded-full text-[11px] transition-colors"
+                style="color:var(--text-muted); background:rgba(212,168,81,.08); border:1px solid rgba(212,168,81,.22)"
+                @click="narrativeOpen = !narrativeOpen">
+          <span>{{ narrativeOpen ? '收起' : '展开全部分析' }}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+               class="transition-transform duration-200"
+               :style="{ transform: narrativeOpen ? 'rotate(180deg)' : 'rotate(0deg)' }">
+            <path d="M6 9L12 15L18 9"/>
+          </svg>
+        </button>
+      </div>
       <div class="flex flex-wrap gap-1.5 mt-3 mb-3">
         <span v-for="cond in aiResult.conditions" :key="cond.label" class="tag-pill">{{ cond.label }}</span>
         <!-- 画像叠加后的生效口径，让用户看得见画像确实参与了筛选 -->
