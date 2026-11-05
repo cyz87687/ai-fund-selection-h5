@@ -525,7 +525,7 @@ body {
       <!-- Metrics Row -->
       <div class="grid grid-cols-4 gap-2 mb-2.5">
         <div class="metric-box">
-          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">今年收益</div>
+          <div class="text-[9px] text-[var(--text-muted)] mb-0.5">近一年收益率</div>
           <div class="text-[13px] font-bold mono" :style="{color: fund.performance.RETURNRATE >= 0 ? 'var(--red)' : 'var(--green)'}">
             {{ (fund.performance.RETURNRATE * 100).toFixed(2) }}%
           </div>
@@ -585,6 +585,12 @@ body {
         <div class="text-[var(--text-muted)] text-sm mb-2">根据您的风险承受能力，暂无匹配的基金</div>
         <div class="text-[var(--gold)] text-xs">建议调整您的风险偏好</div>
       </template>
+      <template v-else-if="aiResult.isNoMatch && aiResult.noMatchConds && aiResult.noMatchConds.length">
+        <div class="text-[var(--text-muted)] text-sm mb-2">这几条条件同时满足的基金暂时没有</div>
+        <div class="text-[var(--gold)] text-xs mb-1 px-4 leading-relaxed">已解析条件：{{ aiResult.noMatchConds.join(' + ') }}</div>
+        <div class="text-[var(--text-muted)] text-[11px] mb-3 px-6 leading-relaxed">条件已逐只核对，是池内标的无交集；建议保留最在意的一条，其余适当放宽</div>
+        <button class="btn-ghost px-4 py-2 text-[11px]" @click="goHome">返回并调整条件</button>
+      </template>
       <template v-else>
         <div class="text-[var(--text-muted)] text-sm mb-2">暂未找到符合条件的基金</div>
         <div class="text-[var(--text-muted)] text-xs">试试调整筛选条件或换个说法</div>
@@ -611,7 +617,7 @@ body {
       </svg>
       <span>风险提示：本工具不构成投资建议，展示数据为模拟脱敏数据，仅供功能演示与参考。</span>
     </div>
-    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261009b · 离线智能选基</div>
+    <div class="mt-2 text-center text-[10px] text-[var(--text-muted)] mono select-none">构建版本 v20261105c · 离线智能选基</div>
   </div>
 </div>
 
@@ -739,7 +745,7 @@ body {
         </div>
         <!-- 数据完整性说明（S2/S3）：仅当本基金确有异常指标被隐藏时提示 -->
         <div v-if="hasHiddenMetric" class="mt-2 text-[9px] text-[var(--text-muted)] leading-relaxed">
-          注：该基金的部分派生指标（如年化收益、在险价值）当前数据源口径待核实、存在异常值，已暂不展示，待数据修正后恢复。</div>
+          注：收益口径为底表「近一年收益率」，最大回撤为「今年最大回撤」；夏普、波动率与「近1月折算年化」取自 2026-08-13~09-11 的 29 天区间样本，与近一年口径不同，横向比较时请注意。缺失或超出合理范围的指标已用「--」标示。</div>
       </div>
     </div>
 
@@ -1081,6 +1087,11 @@ const VAL_KEYS = ['PE','PB','ROE','ROA','GRONP','GROR','DIVIDEND','MKT','CHANGE_
 const RF_KEYS = ['BETA','EARNING','LEVERAGE','LIQUIDITY','MOMENTUM','VALUE','VOLATILITY','GROWTH','SIZE'];
 function normalizeFund(fd) {
   if (!fd.performance || typeof fd.performance !== 'object') fd.performance = {};
+  // 【T16】记录原始缺失字段：null/undefined 不再等同于 0%。
+  // 源数据 ANNUALRETURN_RATE 有 330/655 为 null，若直接填 0，用户问「年化≤X%」时
+  // 这批无数据基金会被当成「年化 0%」全部命中，属数据造假。填 0 仅为渲染安全，
+  // 筛选/排序/展示一律以 perfMissing 判定「无数据」。
+  fd.perfMissing = PERF_KEYS.filter(k => fd.performance[k] === null || fd.performance[k] === undefined);
   PERF_KEYS.forEach(k => { if (fd.performance[k] === null || fd.performance[k] === undefined) fd.performance[k] = 0; });
   if (!fd.valuation || typeof fd.valuation !== 'object') fd.valuation = {};
   VAL_KEYS.forEach(k => { if (fd.valuation[k] === null || fd.valuation[k] === undefined) fd.valuation[k] = 0; });
@@ -1230,6 +1241,10 @@ function extractManagerFromText(text) {
   if (!/(管理|掌管|经理|的基金|操盘)/.test(t)) return null;
   // ① 已知经理库优先（数据补齐后即可精准命中）
   for (const m of KNOWN_MANAGERS) { if (t.includes(m)) return m; }
+  // 【重要】「XX的基金」这个句式过于宽泛：'持有贵州茅台的基金' 会把"贵州茅台"误提取为人名，
+  // 而该查询的真实语义是个股持仓。故只有在出现明确的人名动词（管理/掌管/经理/操盘）时，
+  // 才允许走下面的正则兜底；仅含"的基金"时只认已知经理库（①已处理），不再瞎猜。
+  if (!/(管理|掌管|经理|操盘)/.test(t)) return null;
   // ② 已知经理库为空时，用"XX管理的基金/XX的基金"句式提取人名（2~4 字中文）
   const cands = [];
   let mm;
@@ -1243,6 +1258,7 @@ function extractManagerFromText(text) {
                .replace(/(管理|掌管|操盘|经理)$/, '');
     if (name.length < 2 || name.length > 4) continue;
     if (MGR_NAME_BAD.test(name)) continue;   // 含功能词 → 不是人名，丢弃
+    if (ALL_STOCK_NAMES.indexOf(name) >= 0) continue; // 是股票名 → 属于个股持仓查询，不是经理
     return name;
   }
   return null;
@@ -1289,10 +1305,10 @@ const PRESET_RESPONSES = {
     sortBy: 'CI005011'
   },
   '回撤小、收益还不错的基金': {
-    intentAnalysis: '您希望找回撤小且收益不错的基金，我将为您筛选最大回撤低于5%且今年收益超过3%的基金，兼顾风险控制和收益获取。',
+    intentAnalysis: '您希望找回撤小且收益不错的基金，我将为您筛选最大回撤低于5%且近一年收益率超过3%的基金，兼顾风险控制和收益获取。',
     conditions: [
       {label:'最大回撤<5%',type:'metric'},
-      {label:'今年收益>3%',type:'metric'},
+      {label:'近一年收益率>3%',type:'metric'},
       {label:'风险匹配',type:'risk'}
     ],
     matchReason: '您想找"回撤小、收益还不错的基金"，以下基金在控制回撤的同时获取了较合理的收益。',
@@ -1738,8 +1754,8 @@ createApp({
     // 【S8】排序标签口语化：普通投资者看不懂"夏普/波动率"，改为一眼可懂的说法，
     // 并补上排序方向说明；"默认排序"标注其真实依据（按客户画像的投资期限偏好）。
     const sortOptions = [
-      {key:'match', label:'推荐排序', hint:'按您的投资期限偏好自动排序'},
-      {key:'return', label:'收益最高', hint:'按下单今年收益率从高到低'},
+      {key:'match', label:'推荐排序', hint:'按您的诉求自动排序'},
+      {key:'return', label:'收益最高', hint:'按近一年收益率从高到低'},
       {key:'sharpe', label:'性价比最高', hint:'按夏普比率（每承担1份风险换来的收益）从高到低'},
       {key:'drawdown', label:'最抗跌', hint:'按最大回撤从小到大（数字越小越抗跌）'},
       {key:'vol', label:'最平稳', hint:'按波动率从低到高（数字越小越平稳）'}
@@ -2102,7 +2118,7 @@ createApp({
     // 因此话术必须如实说明"未识别出明确条件"，绝不能谎称这些条件是从用户诉求中"拆解"出来的。
     function safeFallback() {
       return {
-        intentAnalysis: '您这次的需求我未能解析出明确的主题或量化条件。为提供参考，我先按"回撤较低、风险可控、夏普比率较高"的稳健口径，为您挑选了一批基金。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""今年收益超20%"等。',
+        intentAnalysis: '您这次的需求我未能解析出明确的主题或量化条件。为提供参考，我先按"回撤较低、风险可控、夏普比率较高"的稳健口径，为您挑选了一批基金。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""近一年收益超20%"等。',
         conditions: [
           {label:'最大回撤<10%', type:'metric'},
           {label:'风险等级≤R3', type:'risk'},
@@ -2176,101 +2192,171 @@ createApp({
       // ===== 通用数字阈值解析：识别"年化大于5%""5%以上""低于3%""回撤不超过8%"等 =====
       // 返回 { field, op, value, label, abs, unitPct } 或 null
       const NUM_THRESHOLD_FIELDS = [
-        // 年化收益率：字段名 ANNUALRETURN_RATE，注意"年化"优先于"年"匹配
-        {regex:/年化(?:收益|回报|收益率|回报率)?/g, field:'ANNUALRETURN_RATE', label:'年化收益率'},
-        // 【T3】数据口径为"今年年初至今"（非滚动近一年），显示标签统一用"今年收益"；
-        //        输入侧同时兼容"近一年/今年以来/年内"等口语说法。
-        {regex:/今年收益|今年以来|年初至今|年内收益|近一年收益|年度收益|年收益|年回报/gi, field:'RETURNRATE', label:'今年收益'},
+        // 【T16 口径修正】底表 全部数据.xlsx 表头为「近一年收益率」(RETURNRATE)，
+        // 这才是用户口语「年化5%」应匹配的字段。旧实现绑到 ANNUALRETURN_RATE，
+        // 但该字段实为 20260813~20260911 共 29 天区间收益 ×365/29 的线性年化
+        // (HB_CYCLE=010001)，曾把近一年仅 3.02%/1.80% 的两只 R2 债基
+        // 误判成「年化 16.08%/7.25%」而错误推荐。故 ANNUALRETURN_RATE 停用、不参与筛选。
+        // (?!波动) 保证「年化波动率」仍归口 VOL，不被「年化」抢走。
+        {regex:/年化(?!波动)(?:收益率|回报率|收益|回报)?/g, field:'RETURNRATE', label:'近一年收益率'},
+        // 输入侧兼容「今年/今年以来/近一年/年度」等口语，统一落到底表近一年收益率口径
+        {regex:/今年收益|今年以来|年初至今|年内收益|近一年收益|年度收益|年收益|年回报/gi, field:'RETURNRATE', label:'近一年收益率'},
         {regex:/回撤|最大回撤|跌幅|亏损/gi, field:'MAX_DRAWDOWN', label:'最大回撤'},
         {regex:/夏普/gi, field:'SHARP', label:'夏普比率'},
         {regex:/波动|年化波动/gi, field:'VOL', label:'年化波动率'},
         {regex:/费率|管理费/gi, field:'MANAGEMENT_FEE', label:'管理费率'},
-        // 兜底："收益/收益率"未指明年化/今年时，默认用今年收益
-        {regex:/收益(?:率)?/g, field:'RETURNRATE', label:'今年收益'}
+        // 兜底：「收益/收益率」未指明区间时，默认用近一年收益率
+        {regex:/收益(?:率)?/g, field:'RETURNRATE', label:'近一年收益率'}
       ];
-      function parseNumericThreshold(t) {
-        // 1) 指标词定位（含非 performance 指标：行业集中度、规模）
-        let field = null, label = null, isScale = false;
-        if (/集中度|集中/.test(t)) { field = 'CONCENTRATION'; label = '行业集中度'; }
-        else if (/规模/.test(t)) { field = 'SCALE'; label = '规模'; isScale = true; }
-        else {
-          for (const f of NUM_THRESHOLD_FIELDS) {
-            f.regex.lastIndex = 0;
-            if (f.regex.test(t)) { field = f.field; label = f.label; break; }
+      // 方向词正则（前置式）：长词在前，单字"超/达"居后，避免"超过"被"超"抢占。
+      // 【T11 修复】补入"达到/可达/能达/做到/达"——口语"收益能达年化5%"缺此则整条条件丢失；
+      // 并允许方向词与数字之间夹入指标词（"能达【年化】5%"），否则同样匹配不到数字。
+      const PAT_GTE = /(?:不低于|不少于|不小于|大于等于|大于|超过|超|高于|至少|达到|可达|能达|做到|达|≥|>=|>)[^\d，,。；;、]{0,6}?(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/;
+      const PAT_LTE = /(?:不超过|不高于|不大于|不超|小于等于|小于|低于|少于|≤|<=|<)[^\d，,。；;、]{0,6}?(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/;
+      // 后置式（"5%以上""10%以内"）
+      const PAT_SUF_GTE = /(\d+(?:\.\d+)?)\s*(?:%|％|个点)\s*(?:以上|之上|向上|多|起|出头)/;
+      const PAT_SUF_LTE = /(\d+(?:\.\d+)?)\s*(?:%|％|个点)\s*(?:以下|之下|以内|之内|少|往下)/;
+      const PAT_PT = /(\d+(?:\.\d+)?)\s*个点\s*(?:以上|多|起)?/;
+
+      // ① 指标词全量定位（按出现顺序；同指标只取首个，区间重叠者让位给更靠前者）
+      function locateMetrics(t) {
+        const out = [];
+        let mm;
+        const push = (field, label, start, len, isScale) => out.push({ field, label, start, end: start + len, isScale: !!isScale });
+        const reConc = /集中度|集中/g;
+        while ((mm = reConc.exec(t)) !== null) { if (mm[0].length) push('CONCENTRATION', '行业集中度', mm.index, mm[0].length); }
+        const reScale = /规模/g;
+        while ((mm = reScale.exec(t)) !== null) { if (mm[0].length) push('SCALE', '规模', mm.index, mm[0].length, true); }
+        for (const f of NUM_THRESHOLD_FIELDS) {
+          const re = new RegExp(f.regex.source, 'gi');
+          while ((mm = re.exec(t)) !== null) {
+            if (mm[0].length === 0) { re.lastIndex++; continue; }
+            // "年化收益""今年以来收益"等复合表述里的"收益"不另立指标，归口到年化／今年收益口径
+            if (f.field === 'RETURNRATE' && /年化$|今年(?:以来)?$|年初至今$|年内$|近一年$|年度$/.test(t.slice(Math.max(0, mm.index - 5), mm.index))) continue;
+            push(f.field, f.label, mm.index, mm[0].length);
           }
         }
-        // 无法定位任何指标词时，不做数值解析（避免生成 "null≥40%" 之类的恒假条件）
-        if (!field) return null;
-        // 2) 数字 + 方向：支持 "大于5%" "5%以上" "超过8%" "小于5%" "5%以下" "不低于3%" "5个点" "5个点以上" 等
-        //    口语"X个点" = X%（如"年化5个点" = 年化5%），需在正则中识别"个点/个点以上/个点出头"
-        // 【T1/T2 修复】原实现把"大于|超过|高于…"整组放在最前，导致"不超过8%"中的"超过8%"
-        // 被先行匹配，方向被判定成 gte（≥）——与用户语义完全相反（越想避开反而越推）。
-        // 现改为：两个方向各自独立匹配，再按"出现位置更靠前"择一，使"不超过/不高于/不大于"
-        // 这类否定式优先于其内部的肯定子串。同时补上口语高频的"超"（须排在"超过"之后，
-        // 否则"超过"会被"超"抢先匹配、丢掉"过"字而误伤）。
-        const PAT_GTE = /(?:不低于|不少于|不小于|大于等于|大于|超过|超|高于|至少|≥|>=|>)\s*(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/;
-        const PAT_LTE = /(?:不超过|不高于|不大于|不超|小于等于|小于|低于|少于|≤|<=|<)\s*(\d+(?:\.\d+)?)\s*(?:%|％|个点)?/;
-        const PAT_SUF_GTE = /(\d+(?:\.\d+)?)\s*(?:%|％|个点)\s*(?:以上|之上|向上|多|起|出头)/;
-        const PAT_SUF_LTE = /(\d+(?:\.\d+)?)\s*(?:%|％|个点)\s*(?:以下|之下|以内|之内|少|往下)/;
-        const PAT_PT = /(\d+(?:\.\d+)?)\s*个点\s*(?:以上|多|起)?/;
-        const _cands = [];
-        const _collect = (re, opName) => { const mm = t.match(re); if (mm) _cands.push({ mm, opName }); };
-        _collect(PAT_LTE, 'lte'); _collect(PAT_GTE, 'gte');
-        _collect(PAT_SUF_GTE, 'gte'); _collect(PAT_SUF_LTE, 'lte');
-        _cands.sort((a, b) => a.mm.index - b.mm.index);
-        if (!_cands.length) _collect(PAT_PT, 'gte');
-        if (!_cands.length) return null;
-        const m = _cands[0].mm;
-        let op = _cands[0].opName, val = parseFloat(m[1]);
-        // 单位换算：百分比类（收益/回撤/波动/费率/集中度）÷100；夏普无量纲、规模(亿)为绝对值，不换算
-        const unitPct = field !== 'SHARP' && field !== 'SCALE';
-        if (unitPct) val = val / 100;
-        // 回撤存负数："回撤小于5%" → |dd| ≤ 0.05
-        const abs = field === 'MAX_DRAWDOWN';
-        return { field, op, value: val, label, abs, unitPct, isScale };
+        out.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+        const keep = [];
+        for (const h of out) {
+          if (keep.some(k => k.field === h.field)) continue;
+          if (keep.some(k => h.start < k.end && h.end > k.start)) continue;
+          keep.push(h);
+        }
+        return keep;
       }
-      const th = parseNumericThreshold(text);
-      if (th) {
+
+      // ② 方向-数字对定位（anchor 取"数字"出现位置，供后续绑定指标）
+      function locatePairs(t) {
+        const cands = [];
+        const collect = (re, op) => {
+          const rx = new RegExp(re.source, 'g');
+          let m;
+          while ((m = rx.exec(t)) !== null) {
+            if (m[0].length === 0) { rx.lastIndex++; continue; }
+            // 否定式保护：「不低于」中的「低于」、「不超过」中的「超过」等不得作为肯定方向入列
+            // （否则"年化不低于3%"会被判成 ≤3%，方向完全相反）
+            if (op === 'gte' && t[m.index - 1] === '不') continue;
+            if (op === 'lte' && t[m.index - 1] === '不') continue;
+            const at = m.index + m[0].indexOf(m[1]);
+            cands.push({ op, value: parseFloat(m[1]), at, start: m.index });
+          }
+        };
+        collect(PAT_LTE, 'lte'); collect(PAT_GTE, 'gte');
+        collect(PAT_SUF_LTE, 'lte'); collect(PAT_SUF_GTE, 'gte');
+        if (!cands.length) {
+          const rx = new RegExp(PAT_PT.source, 'g');
+          let m;
+          while ((m = rx.exec(t)) !== null) cands.push({ op: 'gte', value: parseFloat(m[1]), at: m.index, start: m.index });
+        }
+        // 数字位置相同时，取起点更靠前（即更长的否定式/前置式匹配）者，保证方向判定稳定
+        cands.sort((a, b) => a.at - b.at || a.start - b.start);
+        return cands;
+      }
+
+      // ③ 多条件解析：每对方向-数字绑定"数字之前最近的指标词"，一句多条件各自独立成条
+      // 【T11 核心修复】原实现为单槽解析（全句只取一个指标词 + 一个数字），一句含多个阈值时
+      // 字段与数值会交叉错配。实测："最大回撤小于10%，收益能达年化5%" 被解析成
+      // "年化收益率≤10%" + "回撤<5%（硬编码兜底）"——两个条件的字段、数值、方向全错。
+      function parseNumericThresholds(t) {
+        const metrics = locateMetrics(t);
+        if (!metrics.length) return [];
+        const pairs = locatePairs(t);
+        if (!pairs.length) return [];
+        const usedField = new Set();
+        const out = [];
+        for (const p of pairs) {
+          let hit = null;
+          for (let i = metrics.length - 1; i >= 0; i--) { if (metrics[i].start <= p.at) { hit = metrics[i]; break; } }
+          if (!hit) hit = metrics.find(mt => mt.start >= p.at) || null;   // 数字在指标前（"10%以内的最大回撤"）
+          if (!hit || usedField.has(hit.field)) continue;
+          usedField.add(hit.field);
+          const unitPct = hit.field !== 'SHARP' && hit.field !== 'SCALE';
+          out.push({
+            field: hit.field, op: p.op,
+            value: unitPct ? p.value / 100 : p.value,
+            label: hit.label,
+            abs: hit.field === 'MAX_DRAWDOWN',
+            unitPct, isScale: !!hit.isScale
+          });
+        }
+        return out;
+      }
+
+      // 逐条落地为独立约束（同一指标不重复，条件之间 AND）
+      const ths = parseNumericThresholds(text);
+      // ths 为本次问句解析出的全部阈值条件；thFieldSet 供同义词兜底做互斥判断
+      const thFieldSet = new Set(ths.map(x => x.field));
+      // 【T10】阈值筛选前的合理性校验：口径异常的指标（如 ANNUALRETURN_RATE=-165%，数学上等于净值归零）
+      // 不得参与筛选——否则"年化低于10%"会把 22 只异常值排在最前。
+      const TH_RANGE = {
+        // ANNUALRETURN_RATE 为 29 天折算口径且已停用，保留较窄区间防止其他路径误用
+        ANNUALRETURN_RATE: [-0.5, 0.5], RETURNRATE: [-1, 3], MAX_DRAWDOWN: [-1, 0],
+        SHARP: [-10, 10], VOL: [0, 2]
+      };
+      for (const tk of ths) {
         // 统一取值：收益率/回撤/波动从 performance 取；费率从 managementFee 取（单位%→小数）；
         // 行业集中度取 industryConfig 最大值；规模取 fundScale（单位：亿）
         const getVal = (f) => {
-          if (th.field === 'MANAGEMENT_FEE') return (f.managementFee != null ? f.managementFee : 1) / 100;
-          if (th.field === 'SCALE') return f.fundScale || 0;
-          if (th.field === 'CONCENTRATION') { const ic = f.industryConfig || {}; const vs = Object.values(ic); return vs.length ? Math.max(...vs) : 0; }
-          return f.performance[th.field] ?? 0;
+          if (tk.field === 'MANAGEMENT_FEE') return (f.managementFee != null ? f.managementFee : 1) / 100;
+          if (tk.field === 'SCALE') return f.fundScale || 0;
+          if (tk.field === 'CONCENTRATION') { const ic = f.industryConfig || {}; const vs = Object.values(ic); return vs.length ? Math.max(...vs) : 0; }
+          return f.performance[tk.field] ?? 0;
         };
-        // 方向：gte=大于/以上（"≥"），lte=小于/以下（"≤"）
-        // 回撤取绝对值："回撤小于5%"→|dd|≤0.05；"回撤大于8%"→|dd|≥0.08
-        const opF = th.abs
-          ? (th.op === 'gte' ? (v) => Math.abs(v) >= th.value : (v) => Math.abs(v) <= th.value)
-          : (th.op === 'gte' ? (v) => v >= th.value : (v) => v <= th.value);
-        // 【T10 修复】阈值筛选前先做合理性校验：口径异常的指标（如 ANNUALRETURN_RATE=-165%，
-        // 数学上等于净值归零）不得参与筛选——否则"年化低于10%"会把 22 只异常值排在最前，
-        // 用户看到的全是 -100% 以下的离谱数字（"看不见的病还在发作"）。
-        const TH_RANGE = {
-          ANNUALRETURN_RATE: [-1, 3], RETURNRATE: [-1, 3], MAX_DRAWDOWN: [-1, 0],
-          SHARP: [-10, 10], VOL: [0, 2]
-        };
-        const thRange = TH_RANGE[th.field];
-        const metricOkFor = (f) => !thRange || saneMetricRaw(f.performance[th.field], thRange[0], thRange[1]) !== null;
+        // 方向：gte=大于/以上（"≥"），lte=小于/以下（"≤"）；回撤取绝对值比较
+        const opF = tk.abs
+          ? (tk.op === 'gte' ? (v) => Math.abs(v) >= tk.value : (v) => Math.abs(v) <= tk.value)
+          : (tk.op === 'gte' ? (v) => v >= tk.value : (v) => v <= tk.value);
+        const thRange = TH_RANGE[tk.field];
+        // 【T16】原始数据缺失（perfMissing）不等于 0，不得参与数值筛选
+        const metricOkFor = (f) => !(f.perfMissing && f.perfMissing.indexOf(tk.field) >= 0)
+          && (!thRange || saneMetricRaw(f.performance[tk.field], thRange[0], thRange[1]) !== null);
         // 标签：夏普/规模不显示%，其余显示百分比（保留1位小数，避免0.5→1%的浮点取整错误）
-        const disp = th.isScale ? (String(Math.round(th.value * 10) / 10) + '亿')
-          : (th.unitPct ? (Math.round(th.value * 1000) / 10) + '%' : String(Math.round(th.value * 10) / 10));
-        // 方向文案：≥/≤
-        const cmpLabel = th.op === 'gte' ? '≥' : '≤';
-        add(`${th.label}${cmpLabel}${disp}`, th.isScale ? 'scale' : 'metric', (funds, maxRisk) =>
+        const disp = tk.isScale ? (String(Math.round(tk.value * 10) / 10) + '亿')
+          : (tk.unitPct ? (Math.round(tk.value * 1000) / 10) + '%' : String(Math.round(tk.value * 10) / 10));
+        const cmpLabel = tk.op === 'gte' ? '≥' : '≤';
+        add(`${tk.label}${cmpLabel}${disp}`, tk.isScale ? 'scale' : 'metric', (funds, maxRisk) =>
           funds.filter(f => riskOk(f, maxRisk) && metricOkFor(f) && opF(getVal(f))));
-        if (th.field === 'ANNUALRETURN_RATE') { if (!sortBy) sortBy = 'ANNUALRETURN_RATE'; }
-        else if (th.field === 'MAX_DRAWDOWN') { if (!sortBy) sortBy = 'MAX_DRAWDOWN'; }
-        else if (th.field === 'SHARP') { if (!sortBy) sortBy = 'SHARP'; }
-        else if (th.field === 'VOL') { if (!sortBy) sortBy = 'VOL'; }
-        else if (th.field === 'RETURNRATE') { if (!sortBy) sortBy = 'RETURNRATE'; }
+      }
+      if (ths.length && !sortBy) {
+        // 【T14】多条件时不再固定取首条件：用户「想要达到」的目标（gte，如年化≥5%）
+        // 优先于「不能越过」的约束（lte，如回撤≤10%）决定排序方向；
+        // 否则「回撤≤10% 且 年化≥5%」会按回撤升序，把收益最低的排在最前，与核心诉求相反。
+        const keyTh = ths.find(x => x.op === 'gte' && ['ANNUALRETURN_RATE','RETURNRATE','SHARP'].includes(x.field))
+                   || ths.find(x => x.op === 'gte')
+                   || ths[0];
+        const kf = keyTh.field;
+        if (kf === 'ANNUALRETURN_RATE') sortBy = 'ANNUALRETURN_RATE';
+        else if (kf === 'MAX_DRAWDOWN') sortBy = 'MAX_DRAWDOWN';
+        else if (kf === 'SHARP') sortBy = 'SHARP';
+        else if (kf === 'VOL') sortBy = 'VOL';
+        else if (kf === 'RETURNRATE') sortBy = 'RETURNRATE';
       }
 
       // ---- 投资期限语义（无成立年限字段，软约束：长期→倾向稳定收益，不硬过滤）----
       if (/(拿|持有|投资|放|存|定投).{0,4}(10年|十年|5年|五年|3年|三年|长期|多年)|(10年|十年|5年|五年|3年|三年|长期|多年).{0,4}(持有|投资|拿|放|存)/.test(text) || /长期持有|长期投资|拿10年|拿5年|放10年|存10年/.test(text)) {
         add('长期持有·稳健', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.VOL||1) <= 0.20 && Math.abs(f.performance.MAX_DRAWDOWN||1) < 0.15));
-        if (!sortBy) sortBy = 'ANNUALRETURN_RATE';
+        if (!sortBy) sortBy = 'RETURNRATE';
       }
 
       // ---- 指数名称（最精确，优先判断）----
@@ -2347,7 +2433,9 @@ createApp({
 
       // ---- 基金经理（"张坤管理的基金""张坤的基金"）----
       // 依赖每只基金的 fundManager 字段；无数据时不生成约束（避免恒空集）。
-      const queriedManager = extractManagerFromText(text);
+      // 关键：个股查询与经理查询是互斥语义——若已识别出个股（"持有贵州茅台的基金"），
+      // 不再走经理识别，否则"贵州茅台"会被当成经理名，把整条查询清空。
+      const queriedManager = queriedStock ? null : extractManagerFromText(text);
       if (queriedManager) {
         const mgrPool = MOCK_FUNDS.filter(f => f.fundManager && String(f.fundManager).includes(queriedManager));
         if (mgrPool.length) {
@@ -2416,7 +2504,7 @@ createApp({
       // ---- 波动/风险 ----
       // 数字阈值已显式给出波动阈值时，跳过固定 lowvol 规则（避免 AND 叠加过严）
       // 排除场景：当文本已命中"分红/红利/股息"时，"稳定分红"里的"稳定"不应触发低波动约束
-      if (matchIntent(text,'lowvol') && !(th && th.field === 'VOL') && !matchIntent(text,'dividend')) { add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'VOL'; }
+      if (matchIntent(text,'lowvol') && !thFieldSet.has('VOL') && !matchIntent(text,'dividend')) { add('波动率<5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'VOL'; }
       if (matchIntent(text,'highvol')) { add('波动率≥3.5%', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.VOL||0) >= 0.035 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
       if (matchIntent(text,'conservative')) { add('稳健低风险', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= Math.min(2, maxRisk) && riskOk(f, maxRisk))); sortBy = 'VOL'; }
       if (matchIntent(text,'aggressive')) { add('进取型', 'risk', (funds, maxRisk) => funds.filter(f => f.riskLevelNum >= Math.min(4, maxRisk) && riskOk(f, maxRisk))); sortBy = 'RETURNRATE'; }
@@ -2426,13 +2514,13 @@ createApp({
       if (matchIntent(text,'stablereturn')) { add('正收益', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.RETURNRATE||0) > 0 && riskOk(f, maxRisk))); sortBy = 'RETURNRATE'; }
 
       // ---- 回撤 ----
-      if (matchIntent(text,'lowdd') && !(th && th.field === 'MAX_DRAWDOWN')) { add('回撤<5%', 'metric', (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'MAX_DRAWDOWN'; }
+      if (matchIntent(text,'lowdd') && !thFieldSet.has('MAX_DRAWDOWN')) { add('回撤<5%', 'metric', (funds, maxRisk) => funds.filter(f => Math.abs(f.performance.MAX_DRAWDOWN||1) < 0.05 && riskOk(f, maxRisk))); sortBy = 'MAX_DRAWDOWN'; }
 
       // ---- 夏普 ----
-      if (matchIntent(text,'highsharpe') && !(th && th.field === 'SHARP')) { add('夏普≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP||0) >= 1.0 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
+      if (matchIntent(text,'highsharpe') && !thFieldSet.has('SHARP')) { add('夏普≥1', 'metric', (funds, maxRisk) => funds.filter(f => (f.performance.SHARP||0) >= 1.0 && riskOk(f, maxRisk))); sortBy = 'SHARP'; }
 
       // ---- 费率 ----
-      if (matchIntent(text,'lowfee') && !(th && th.field === 'MANAGEMENT_FEE')) { add('管理费率<0.6%', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee||1) < 0.6 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
+      if (matchIntent(text,'lowfee') && !thFieldSet.has('MANAGEMENT_FEE')) { add('管理费率<0.6%', 'fee', (funds, maxRisk) => funds.filter(f => (f.managementFee||1) < 0.6 && riskOk(f, maxRisk))); if (!sortBy) sortBy = 'RETURNRATE'; }
 
       // ---- 规模 ----
       // 成对阈值保护：文本已显式给出规模数值阈值（如"规模大于50亿"）或"行业集中度"类数值时，
@@ -2527,10 +2615,10 @@ createApp({
         }));
         sortBy = 'RETURNRATE';
       }
-      // 年化收益新高：年化收益率处于高分组（≥10%）
+      // 【T16】「年化新高」改按近一年收益率高分组（≥10%）判断，不再用 29 天折算年化
       if (matchIntent(text,'metric_annual_newhigh')) {
-        add('年化收益新高·≥10%', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.ANNUALRETURN_RATE||0) >= 0.10));
-        sortBy = 'ANNUALRETURN_RATE';
+        add('近一年收益领先·≥10%', 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && (f.performance.RETURNRATE||0) >= 0.10));
+        sortBy = 'RETURNRATE';
       }
       // 新低/底部：今年收益深跌（≤-15% 近似"创新低"），风险偏好内按回撤排序
       if (matchIntent(text,'metric_newlow')) {
@@ -2551,31 +2639,32 @@ createApp({
 
       // ---- 综合判断：是否命中实质条件（非纯排序）----
       const hasRealCondition = constraints.length > 0;
-      // 【T2 修复】指标词 + 显式数字阈值（如"今年收益超20%""回撤不超过8%"）时，
+      // 【T2 修复】指标词 + 显式数字阈值（如"近一年收益超20%""回撤不超过8%"）时，
       // 绝不允许再滑入下面的同义词模糊兜底——否则句子里的"收益"二字会命中词条
       // "风险收益比好"，整句话被拐去"夏普≥1"，导致答非所问（实测曾返回 106 只债基）。
-      const hasExplicitMetricThreshold = /收益|回撤|波动|年化|费率|规模|集中度|夏普/.test(text)
-        && /\d+(?:\.\d+)?\s*(?:%|％|个点)/.test(text);
+      const hasExplicitMetricThreshold = ths.length > 0
+        || (/收益|回撤|波动|年化|费率|规模|集中度|夏普/.test(text)
+            && /\d+(?:\.\d+)?\s*(?:%|％|个点)/.test(text));
       if (!hasRealCondition && hasExplicitMetricThreshold) {
-        // 阈值已解析（th 非空）但没生成约束，说明该指标路径异常——直接走安全兜底并如实说明，
-        // 不再让它被同义词表错误接管。
-        if (th) {
-          // 理论上 th 存在时上面必已 add 约束，这里仅作异常保护：补一条等价约束
+        // 阈值已解析却没生成约束，说明该指标路径异常：按全部解析结果补约束（与上方循环同口径），
+        // 既不让句子被同义词表错误接管，也不再只补首条件造成多条件丢失。
+        for (const bk of ths) {
           const gv = (f) => {
-            if (th.field === 'MANAGEMENT_FEE') return (f.managementFee != null ? f.managementFee : 1) / 100;
-            if (th.field === 'SCALE') return f.fundScale || 0;
-            if (th.field === 'CONCENTRATION') { const ic = f.industryConfig || {}; const vs = Object.values(ic); return vs.length ? Math.max(...vs) : 0; }
-            return f.performance[th.field] ?? 0;
+            if (bk.field === 'MANAGEMENT_FEE') return (f.managementFee != null ? f.managementFee : 1) / 100;
+            if (bk.field === 'SCALE') return f.fundScale || 0;
+            if (bk.field === 'CONCENTRATION') { const ic = f.industryConfig || {}; const vs = Object.values(ic); return vs.length ? Math.max(...vs) : 0; }
+            return f.performance[bk.field] ?? 0;
           };
-          const oF = th.abs
-            ? (th.op === 'gte' ? (v) => Math.abs(v) >= th.value : (v) => Math.abs(v) <= th.value)
-            : (th.op === 'gte' ? (v) => v >= th.value : (v) => v <= th.value);
-          add(`${th.label}${th.op === 'gte' ? '≥' : '≤'}${th.unitPct ? (Math.round(th.value*1000)/10)+'%' : (String(Math.round(th.value*10)/10)+(th.isScale?'亿':''))}`, 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && oF(gv(f))));
-          if (th.field === 'RETURNRATE') sortBy = 'RETURNRATE';
+          const oF = bk.abs
+            ? (bk.op === 'gte' ? (v) => Math.abs(v) >= bk.value : (v) => Math.abs(v) <= bk.value)
+            : (bk.op === 'gte' ? (v) => v >= bk.value : (v) => v <= bk.value);
+          add(`${bk.label}${bk.op === 'gte' ? '≥' : '≤'}${bk.unitPct ? (Math.round(bk.value*1000)/10)+'%' : (String(Math.round(bk.value*10)/10)+(bk.isScale?'亿':''))}`, 'metric', (funds, maxRisk) => funds.filter(f => riskOk(f, maxRisk) && oF(gv(f))));
         }
-      } else if (missingManagerQuery) {
+      } else if (missingManagerQuery && !hasRealCondition) {
         // 【诉求4】基金经理查询但基金池无该经理数据：如实返回空态，
         // 绝不用"低回撤+高夏普"稳健兜底糊弄成 30 只债基（用户明确投诉过该现象）。
+        // 注意：必须叠加 !hasRealCondition —— 若已命中真实条件（如个股持仓"持有贵州茅台的基金"），
+        // 绝不能因为顺带误判出"经理缺失"就把整个查询清空成一屏空态。
         return {
           intentAnalysis: `您想找「${missingManagerQuery}」管理的基金。很抱歉，当前基金池暂未收录"基金经理"这一维度，我无法按经理来筛选，也不会用其他基金来充数——以免给您造成误导。建议您改用基金名称、所属基金公司或投资主题（如"重仓新能源""半导体主题"）来查找。`,
           conditions: [{label:'基金经理：' + missingManagerQuery, type:'fundType'}],
@@ -2586,7 +2675,7 @@ createApp({
           managerName: missingManagerQuery,
           isFallback: false
         };
-      } else if (stockQueryResult) {
+      } else if (stockQueryResult && !hasRealCondition) {
         // 【诉求3】个股查询但池内仅债券型基金持有（或完全无覆盖）：如实返回空态，
         // 绝不回退展示一堆债基——"搜宝钢股份出来全是债基"正是用户投诉的场景。
         return {
@@ -2731,6 +2820,9 @@ createApp({
       aiResult.isStockEmpty = !!result.isStockEmpty;
       aiResult.stockName = result.stockName || '';
       aiResult.stockOnlyBond = !!result.stockOnlyBond;
+      // 【T12】"条件已解析但无交集"标记：与"未识别出条件"严格区分，避免话术自相矛盾
+      aiResult.isNoMatch = !!result.isNoMatch;
+      aiResult.noMatchConds = result.noMatchConds || [];
       sortBy.value = 'match';
       pageNum.value = 1;
       if (recordHistory) {
@@ -2853,19 +2945,34 @@ createApp({
               intentAnalysis: (result.intentAnalysis || '') + '\n\n需要特别说明：基金池中确有 ' + beyond + ' 只基金满足您设定的条件，但它们的风险等级高于您当前的风险上限（R' + profMr + '）。为遵守投资者适当性管理要求，我不为您展示这些超出您风险承受能力的产品。您可以调整客户画像中的风险偏好，或换一个波动更低的筛选条件。'
             };
           } else {
-            // d) 条件本身在基金池内无解（与风险无关）：沿用稳健兜底，避免空白页
-            const fb = safeFallback();
-            if (fb.filterFn(MOCK_FUNDS, profileMaxRisk()).length > 0) {
-              result = fb;
-            } else {
+            // d) 条件本身在基金池内无解（与风险无关）
+            // 【T12 修复】原实现直接替换为 safeFallback()，导致话术谎称"未能解析出明确的量化条件"，
+            // 而用户明明给出了可解析的阈值（如"回撤≤8%且今年收益≥20%"）——解析成功、只是无交集，
+            // 却被讲成"没听懂"，是最伤信任的一类错误。现改为：保留已解析条件如实展示，
+            // 明确区分"条件无交集"与"未识别"，并给出可操作的放宽建议。
+            const parsedConds = (result.conditions || []).filter(c => c && c.label);
+            if (parsedConds.length) {
               result = {
-                intentAnalysis: '已为您展示所有符合您风险承受能力的基金，并按夏普比率（风险收益比）从高到低排列，供您参考。',
-                conditions: [{label:'风险等级匹配', type:'risk'}, {label:'夏普比率排序', type:'metric'}],
-                matchReason: '以下为符合您风险承受能力的全部基金，按风险收益比从优到劣排列。',
-                filterFn: (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk).sort((a,b) => (b.performance.SHARP||-10) - (a.performance.SHARP||-10)),
-                sortBy: 'SHARP',
-                isFallback: true
+                ...result,
+                filterFn: () => [],
+                isNoMatch: true,
+                noMatchConds: parsedConds.map(c => c.label),
+                sortBy: result.sortBy || 'RETURNRATE'
               };
+            } else {
+              const fb = safeFallback();
+              if (fb.filterFn(MOCK_FUNDS, profileMaxRisk()).length > 0) {
+                result = fb;
+              } else {
+                result = {
+                  intentAnalysis: '已为您展示所有符合您风险承受能力的基金，并按夏普比率（风险收益比）从高到低排列，供您参考。',
+                  conditions: [{label:'风险等级匹配', type:'risk'}, {label:'夏普比率排序', type:'metric'}],
+                  matchReason: '以下为符合您风险承受能力的全部基金，按风险收益比从优到劣排列。',
+                  filterFn: (funds, maxRisk) => funds.filter(f => f.riskLevelNum <= maxRisk).sort((a,b) => (b.performance.SHARP||-10) - (a.performance.SHARP||-10)),
+                  sortBy: 'SHARP',
+                  isFallback: true
+                };
+              }
             }
           }
         }
@@ -2920,13 +3027,16 @@ createApp({
       // 话术必须如实说明，绝不能谎称"从您的诉求中拆解出 N 项条件"（逻辑不自洽）。
       let part1;
       if (result.isFallback) {
-        part1 = `先看您的核心诉求：「${text}」——我未能从中解析出明确的主题或量化条件。为给您提供参考，我改用一套稳健口径先行筛选：${condLabels.length ? condLabels.join('、') : '回撤较低、风险可控、夏普比率较高'}（这是我设定的默认口径，并非从您的描述中得出）。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""今年收益超20%"。`;
+        part1 = `先看您的核心诉求：「${text}」——我未能从中解析出明确的主题或量化条件。为给您提供参考，我改用一套稳健口径先行筛选：${condLabels.length ? condLabels.join('、') : '回撤较低、风险可控、夏普比率较高'}（这是我设定的默认口径，并非从您的描述中得出）。建议您补充更具体的描述，例如"重仓新能源""波动小的债券基金""近一年收益超20%"。`;
       } else if (result.isManagerEmpty) {
         part1 = `先看您的核心诉求：「${text}」——关键词是"基金经理：${result.managerName}"，即希望找到由该经理管理的基金。`;
       } else if (result.isStockEmpty) {
         part1 = `先看您的核心诉求：「${text}」——关键词是"持有 ${result.stockName} 的基金"，即希望找到重仓该股票的基金。`;
       } else if (result.isNewHighIntent) {
         part1 = `先看您的核心诉求：「${text}」——关键词是"净值创新高"，即要求基金最新净值处于近 3 个月区间的相对高点。`;
+      } else if (result.isNoMatch && condLabels.length) {
+        // 【T12】条件解析成功但无交集：如实说明"听懂了、但池内无标的"，不得讲成"没听懂"
+        part1 = `先看您的核心诉求：「${text}」——我从中拆解出 ${condLabels.length} 项可执行的筛选条件：${condLabels.join('、')}。`;
       } else if (condLabels.length) {
         part1 = `先看您的核心诉求：「${text}」——我从中拆解出 ${condLabels.length} 项可执行的筛选条件：${condLabels.join('、')}。`;
       } else {
@@ -2935,7 +3045,7 @@ createApp({
 
       // ---- ② 画像叠加 ----
       // 【S9】专业表述口语化：把"波动率不超过 X%、最大回撤不超过 Y%"翻译成普通投资者能懂的说法
-      const sortTxt = rule.sortBy === 'VOL' ? '波动从低到高' : rule.sortBy === 'SHARP' ? '收益性价比从高到低' : '今年收益从高到低';
+      const sortTxt = rule.sortBy === 'VOL' ? '波动从低到高' : rule.sortBy === 'SHARP' ? '收益性价比从高到低' : '近一年收益从高到低';
       const part2 = `接着叠加您的客户画像：风险偏好为 ${riskProfile.riskPref}（${riskProfile.riskPrefValue}）；${ageWhy}${ageDdTxt}。投资期限为 ${rule.label}，我据此把筛选范围定在"净值波动不超过 ${(rule.volMax*100).toFixed(0)}%、历史上从高点最多回撤 ${(rule.ddMax*100).toFixed(0)}%"以内，默认按${sortTxt}排列。`;
 
       // ---- ③ 筛选与取舍 ----
@@ -2952,7 +3062,7 @@ createApp({
         const ddArr = list.map(f => Math.abs((f.performance && f.performance.MAX_DRAWDOWN) || 0)).filter(v => v !== 0);
         const avgDd = ddArr.length ? ddArr.reduce((a,b)=>a+b,0)/ddArr.length : 0;
         const mParts = [];
-        mParts.push(`今年收益中位数 ${(medRet*100).toFixed(1)}%`);
+        mParts.push(`近一年收益中位数 ${(medRet*100).toFixed(1)}%`);
         // 【S9】夏普为负时不展示"平均夏普"（用负值指标论证推荐等于反向劝退），
         //      改为中性化表述，把注意力引向真正该看的回撤。
         if (avgSharp !== null && avgSharp > 0) mParts.push(`平均夏普比率 ${avgSharp.toFixed(2)}`);
@@ -2969,6 +3079,11 @@ createApp({
         part3 = `我逐只核对了基金池中的标的，按"名称关键词 → 行业重仓 → 持有成分股"三级口径逐层放宽后，与「${result.themeLabel || '该主题'}」真正相关的基金仍为 0 只。我没有用其他赛道的基金来充数——与其展示一批答非所问的标的，不如如实告知这里暂无覆盖。`;
       } else if (result.isRiskCapBlocked) {
         part3 = `我逐条核对了基金池中的标的：满足您设定条件的基金确实存在（共 ${result.riskBlockedCount || 0} 只），但它们的风险等级都在 R${mr} 之上，超出了您当前的风险承受能力。按投资者适当性管理的要求，我不能把这类产品展示给您。`;
+      } else if (result.isNoMatch && (result.noMatchConds || condLabels).length) {
+        // 【T12】如实说明：条件解析成功、逐只核对过，只是交集为空。
+        // 绝不能讲成"未识别出条件"（与 part1 自相矛盾），也不能用近似条件充数。
+        const cs = (result.noMatchConds && result.noMatchConds.length ? result.noMatchConds : condLabels);
+        part3 = `逐条过滤后，当前条件下没有基金同时通过全部筛选项：${cs.join(' 与 ')}。这不是没听懂您的诉求——条件我已经解析出来并逐只核对过，是基金池里暂时没有能同时满足这几条的标的。多条件叠加时交集为空属于常态，建议保留最在意的那一条，其余适当放宽。`;
       } else {
         part3 = `逐条过滤后，在当前条件下没有基金通过筛选。我没有用"收益率较高""放宽口径"等近似条件来充数，以保证结果的真实性。`;
       }
@@ -2985,6 +3100,8 @@ createApp({
         part4 = `最后提醒：如果您希望看到这类产品，可在页面顶部的客户画像中调高风险偏好等级（需与您自身真实的风险承受能力相符），或把条件放宽到波动更低的方向，我再帮您筛一遍。`;
       } else if (result.isThemeEmpty) {
         part4 = `最后提醒：当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，建议换个相近赛道（如"${result.themeLabel ? '同类主题或宽基' : '宽基指数'}"）试试，或放宽其他附加条件。`;
+      } else if (result.isNoMatch) {
+        part4 = `最后提醒：建议一次只锁定最核心的一条（例如先只看回撤），确认结果后再追加收益要求；多条件一次性叠加，交集为空是常态。`;
       } else if (result.isNewHighIntent && n > 0) {
         part4 = `最后提醒：净值创新高意味着近期走势偏强，但同时也积累了短期回调压力，建议结合您的${rule.label}期限分批布局，避免一次性追高。以下为筛选结果。`;
       } else if (n > 0) {
@@ -3002,12 +3119,13 @@ createApp({
         ...result,
         intentAnalysis: [part1, part2, part3, part4].join('\n\n'),
         matchReason: n > 0
-          ? `共 ${n} 只基金通过"${condLabels.length ? condLabels.join(' + ') : '稳健口径'}"且满足 ${riskProfile.age} / ${rule.label} 的适配要求，按${rule.sortBy==='VOL'?'波动率由低到高':rule.sortBy==='SHARP'?'夏普比率由高到低':'今年收益率由高到低'}排列，供您横向比较。`
+          ? `共 ${n} 只基金通过"${condLabels.length ? condLabels.join(' + ') : '稳健口径'}"且满足 ${riskProfile.age} / ${rule.label} 的适配要求，按${rule.sortBy==='VOL'?'波动率由低到高':rule.sortBy==='SHARP'?'夏普比率由高到低':'近一年收益率由高到低'}排列，供您横向比较。`
           : (result.isNewHighEmpty ? '严格口径下暂无净值创新高的基金，故不作展示。'
             : result.isManagerEmpty ? `当前基金池暂未收录基金经理维度，无法按「${result.managerName}」筛选，故不作展示。`
             : result.isStockEmpty ? (result.stockOnlyBond ? `「${result.stockName}」仅被个别债券型基金持有，池内暂无重仓该股的权益类基金，故不作展示。` : `基金池中暂未收录持有「${result.stockName}」的基金，故不作展示。`)
             : result.isRiskCapBlocked ? `满足该条件的基金风险等级均超出您的风险承受能力（上限 R${profileMaxRisk()}），按投资者适当性管理要求不予展示。`
             : result.isThemeEmpty ? `当前基金池暂未收录「${result.themeLabel || '该主题'}」方向的标的，故不作展示。`
+            : result.isNoMatch ? `条件已解析（${(result.noMatchConds || condLabels).join(' + ')}），但基金池内无同时满足全部条件的标的，故不作展示，未以近似条件替代。`
             : '在当前条件下暂无匹配标的，未以近似条件替代展示。')
       };
     }
@@ -3044,8 +3162,15 @@ createApp({
       const s = sortOptions.find(o => o.key === sortBy.value);
       if (!s) return '';
       if (s.key === 'match') {
+        const aiM = {
+          MAX_DRAWDOWN:'按最大回撤从小到大', VOL:'按波动率从低到高', SHARP:'按夏普比率从高到低',
+          ANNUALRETURN_RATE:'按近1月折算年化从高到低', RETURNRATE:'按近一年收益率从高到低'
+        };
+        if (aiResult.sortBy && aiM[aiResult.sortBy]) {
+          return '按您的诉求排序（当前：' + aiM[aiResult.sortBy] + '）';
+        }
         const dur = durationRule().sortBy;
-        const m = { VOL:'按波动率从低到高', SHARP:'按夏普比率从高到低', RETURNRATE:'按今年收益率从高到低' };
+        const m = { VOL:'按波动率从低到高', SHARP:'按夏普比率从高到低', RETURNRATE:'按近一年收益率从高到低' };
         return (s.hint || '') + '（当前：' + (m[dur] || '综合排序') + '）';
       }
       return s.hint || '';
@@ -3082,28 +3207,38 @@ createApp({
       // "默认排序"时，改用客户画像的投资期限偏好排序——让期限选择一眼可见（短期重波动、中期重夏普、长期重收益）
       // 用户手动点了具体排序维度（收益率/夏普/回撤/波动率）时，尊重用户选择
       const durPref = durationRule().sortBy;
+      // 【T13】原实现把第三个参数 aiSort 完全丢弃：解析层按用户诉求算出的排序键
+      // （如「回撤小于10%」→按回撤升序、「夏普大于1」→按夏普降序）传进来后并未参与排序，
+      // 「推荐排序」永远只跟客户画像的期限偏好走，导致筛选条件对了、呈现顺序却答非所问。
+      // 现改为：用户未手动选排序时优先采纳本次问句的排序意图，无意图再回落到期限偏好。
+      const AI_SORT_MODE = {
+        MAX_DRAWDOWN: 'drawdown', VOL: 'vol', SHARP: 'sharpe',
+        ANNUALRETURN_RATE: 'annual', RETURNRATE: 'return'
+      };
       const effMode = (mode === 'match' || !mode)
-        ? ({ VOL:'vol', SHARP:'sharpe', RETURNRATE:'return' }[durPref] || 'return')
+        ? (AI_SORT_MODE[aiSort] || { VOL:'vol', SHARP:'sharpe', RETURNRATE:'return' }[durPref] || 'return')
         : mode;
-      // 【T10】异常值在排序中沉底，而非直接置顶霸榜：
-      // 收益 -100%~300%、夏普 -10~10、波动 0~200% 之外的值视为口径异常，排在有效值之后。
-      const aRet = (p) => saneMetricRaw(p.RETURNRATE, -1, 3) === null ? -Infinity : p.RETURNRATE;
-      const aShp = (p) => saneMetricRaw(p.SHARP, -10, 10) === null ? -Infinity : p.SHARP;
-      const aVol = (p) => saneMetricRaw(p.VOL, 0, 2) === null ? Infinity : p.VOL;
-      const aDd  = (p) => saneMetricRaw(p.MAX_DRAWDOWN, -1, 0) === null ? Infinity : Math.abs(p.MAX_DRAWDOWN);
+      // 【T16】perfMissing 中的字段视为「无数据」，排序时沉底而非按填 0 参与比较；
+      // 异常值同样沉底，不直接置顶霸榜。
+      const miss = (f, k) => !!(f.perfMissing && f.perfMissing.indexOf(k) >= 0);
+      const aRet = (f) => { const p=f.performance; return miss(f,'RETURNRATE') || saneMetricRaw(p.RETURNRATE,-1,3)===null ? -Infinity : p.RETURNRATE; };
+      const aAnn = (f) => { const p=f.performance; return miss(f,'ANNUALRETURN_RATE') || saneMetricRaw(p.ANNUALRETURN_RATE,-0.5,0.5)===null ? -Infinity : p.ANNUALRETURN_RATE; };
+      const aShp = (f) => { const p=f.performance; return miss(f,'SHARP') || saneMetricRaw(p.SHARP,-10,10)===null ? -Infinity : p.SHARP; };
+      const aVol = (f) => { const p=f.performance; return miss(f,'VOL') || saneMetricRaw(p.VOL,0,2)===null ? Infinity : p.VOL; };
+      const aDd  = (f) => { const p=f.performance; return miss(f,'MAX_DRAWDOWN') || saneMetricRaw(p.MAX_DRAWDOWN,-1,0)===null ? Infinity : Math.abs(p.MAX_DRAWDOWN); };
       const cmp = (a, b) => {
         // 第一优先级：风险数据完整（夏普比率≠0 且 波动率≠0）置顶，缺失/为0的靠后
         const ra = hasRiskData(a) ? 1 : 0;
         const rb = hasRiskData(b) ? 1 : 0;
         if (ra !== rb) return rb - ra;
         // 第二优先级：按生效排序维度
-        const pa = a.performance, pb = b.performance;
         switch (effMode) {
-          case 'sharpe':   return aShp(pb) - aShp(pa);
-          case 'drawdown': return aDd(pa) - aDd(pb);
-          case 'vol':      return aVol(pa) - aVol(pb);
+          case 'sharpe':   return aShp(b) - aShp(a);
+          case 'drawdown': return aDd(a) - aDd(b);
+          case 'vol':      return aVol(a) - aVol(b);
+          case 'annual':    return aAnn(b) - aAnn(a);
           case 'return':
-          default:          return aRet(pb) - aRet(pa);
+          default:          return aRet(b) - aRet(a);
         }
       };
       return arr.sort(cmp);
@@ -3185,7 +3320,7 @@ createApp({
       if (n < lo || n > hi) return null;   // 超出合理区间 → 视为数据异常，不展示
       return n;
     }
-    // 年化收益与今年收益方向相反（一正一负）时，判定为口径异常，年化不予展示
+    // 近1月折算年化与近一年收益率方向相反（一正一负）时，判定为口径异常，不予展示
     function annualConflicts(ret, annual) {
       if (annual === null) return true;
       if (ret === null) return false;
@@ -3196,15 +3331,18 @@ createApp({
       if (!selectedFund.value) return [];
       const p = selectedFund.value.performance;
       const ret = saneMetric(p.RETURNRATE, -1, 3);
-      const annualRaw = saneMetric(p.ANNUALRETURN_RATE, -1, 3);
-      // 年化：既有量纲校验，也有"与今年方向矛盾"校验（S3）
+      // 【T16】ANNUALRETURN_RATE 实为 20260813~20260911 共 29 天区间收益 ×365/29 的
+      // 线性年化（非长期年化），标签如实标注「近1月折算年化」；原始数据缺失时显示「--」。
+      const annualMissing = !!(selectedFund.value.perfMissing && selectedFund.value.perfMissing.indexOf('ANNUALRETURN_RATE') >= 0);
+      const annualRaw = annualMissing ? null : saneMetric(p.ANNUALRETURN_RATE, -0.5, 0.5);
+      // 该指标：既有量纲校验，也有"与近一年方向矛盾"校验（S3）
       const annual = annualConflicts(ret, annualRaw) ? null : annualRaw;
       const sharp = saneMetric(p.SHARP, -10, 10);
       const dd = saneMetric(p.MAX_DRAWDOWN, -1, 0);
       const vol = saneMetric(p.VOL, 0, 2);
       const list = [
-        {key:'ret', name:'今年收益', value: ret === null ? '--' : (ret*100).toFixed(2)+'%', color: ret === null ? 'var(--text-muted)' : (ret >= 0 ? 'var(--red)' : 'var(--green)')},
-        {key:'annual', name:'年化收益', value: annual === null ? '--' : (annual*100).toFixed(2)+'%', color: annual === null ? 'var(--text-muted)' : (annual >= 0 ? 'var(--red)' : 'var(--green)')},
+        {key:'ret', name:'近一年收益率', value: ret === null ? '--' : (ret*100).toFixed(2)+'%', color: ret === null ? 'var(--text-muted)' : (ret >= 0 ? 'var(--red)' : 'var(--green)')},
+        {key:'annual', name:'近1月折算年化', value: annual === null ? '--' : (annual*100).toFixed(2)+'%', color: annual === null ? 'var(--text-muted)' : (annual >= 0 ? 'var(--red)' : 'var(--green)')},
         {key:'sharp', name:'夏普比率', value: sharp === null ? '--' : sharp.toFixed(2), color: sharp === null ? 'var(--text-muted)' : (sharp >= 1 ? 'var(--red)' : 'var(--text-primary)')},
         {key:'dd', name:'最大回撤', value: dd === null ? '--' : (dd*100).toFixed(2)+'%', color: 'var(--green)'},
         {key:'vol', name:'波动率', value: vol === null ? '--' : (vol*100).toFixed(1)+'%', color: 'var(--text-primary)'},
@@ -3222,7 +3360,7 @@ createApp({
       );
       return list;
     });
-    // 【S5】首屏只展示 3 个"人话指标"：今年收益 / 最大回撤 / 波动率
+    // 【S5】首屏只展示 3 个"人话指标"：近一年收益率 / 最大回撤 / 波动率
     const perfCoreMetrics = computed(() => perfMetricsDisplay.value.filter(m => ['ret','dd','vol'].includes(m.key)));
     const perfAdvMetrics = computed(() => perfMetricsDisplay.value.filter(m => m.adv));
 
@@ -3231,8 +3369,9 @@ createApp({
       if (!selectedFund.value) return false;
       const p = selectedFund.value.performance || {};
       const ret = saneMetric(p.RETURNRATE, -1, 3);
-      const annualRaw = saneMetric(p.ANNUALRETURN_RATE, -1, 3);
-      const annualHidden = annualConflicts(ret, annualRaw);
+      const annualMissing = !!(selectedFund.value.perfMissing && selectedFund.value.perfMissing.indexOf('ANNUALRETURN_RATE') >= 0);
+      const annualRaw = annualMissing ? null : saneMetric(p.ANNUALRETURN_RATE, -0.5, 0.5);
+      const annualHidden = annualMissing || annualConflicts(ret, annualRaw);
       const vaRHidden = saneMetric(p.VAR, -1, 1) === null && (p.VAR !== 0 && p.VAR !== null && p.VAR !== undefined);
       return annualHidden || vaRHidden;
     });
@@ -3245,7 +3384,7 @@ createApp({
       const dd = saneMetric(p.MAX_DRAWDOWN, -1, 0);
       if (ret === null && dd === null) return '';
       const parts = [];
-      if (ret !== null) parts.push(ret >= 0 ? `今年以来上涨 ${(ret*100).toFixed(1)}%` : `今年以来下跌 ${(Math.abs(ret)*100).toFixed(1)}%`);
+      if (ret !== null) parts.push(ret >= 0 ? `近一年上涨 ${(ret*100).toFixed(1)}%` : `近一年下跌 ${(Math.abs(ret)*100).toFixed(1)}%`);
       if (dd !== null) parts.push(`期间从高点最大回撤 ${(Math.abs(dd)*100).toFixed(1)}%`);
       let tail = '';
       if (dd !== null) {
